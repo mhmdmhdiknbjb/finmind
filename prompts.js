@@ -92,16 +92,12 @@ ${buildProfileContext(profile)}
 نقدینگی فعلی: ${computed.current.liquidityPercent}٪ | پیشنهادی: ${computed.optimal.liquidityPercent}٪
 
 ### وظیفه
-فقط بر اساس همین اعداد محاسبه‌شده (نه با ساختن عدد جدید)، توضیح بده که چرا ترکیب فعلی این نقاط قوت/ضعف را دارد و چرا موتور بهینه‌سازی این ترکیب پیشنهادی را داده (مثلاً برای کاهش تمرکز، افزایش تنوع، یا تامین نقدینگی لازم). اگر تمرکز روی یک دارایی بیش از حد است هشدار بده.
-
-علاوه بر این، اگر با توجه به یادداشت‌های کیفی پروفایل کاربر (افق زمانی، نیاز نقدینگی، اهداف مالی) یک عامل مهم وجود دارد که موتور بهینه‌سازی — چون فقط عدد می‌بیند — نتوانسته کامل در نظر بگیرد، می‌توانی یک تعدیل محدود روی ترکیب پیشنهادی پیشنهاد بدهی (مثلاً چند درصد نقد بیشتر نگه‌داشتن به‌خاطر یک هدف نزدیک که موتور کمتر از حد لازم وزن داده). این تعدیل باید کوچک و توجیه‌شده باشد، نه یک ترکیب کاملاً متفاوت؛ اگر نیازی به تعدیل نمی‌بینی، adjustedWeights را null بگذار.${jsonInstruction(`{
+فقط بر اساس همین اعداد محاسبه‌شده (نه با ساختن عدد جدید)، توضیح بده که چرا ترکیب فعلی این نقاط قوت/ضعف را دارد و چرا موتور بهینه‌سازی این ترکیب پیشنهادی را داده (مثلاً برای کاهش تمرکز، افزایش تنوع، یا تامین نقدینگی لازم). اگر تمرکز روی یک دارایی بیش از حد است هشدار بده.${jsonInstruction(`{
   "concentrationWarning": string or null,
   "strengths": [string],
   "weaknesses": [string],
   "suggestions": [string],
-  "summary": string,
-  "adjustedWeights": {"cash": number, "gold": number, "currency": number, "stock": number, "fund": number, "realestate": number, "crypto": number, "other": number} or null,
-  "adjustmentReason": string or null
+  "summary": string
 }`)}`;
 }
 
@@ -124,17 +120,31 @@ ${buildProfileContext(profile)}
 }`)}`;
 }
 
-export function promptLiquidity(profile) {
+/**
+ * `computed` comes from liquidityEngine.js — a FIXED tier (liquid/semi-liquid/
+ * illiquid) per asset category derived from the same liquidity scores used
+ * in optimizer.js, not a per-call LLM guess. This is what keeps the answer
+ * to "is gold liquid?" from changing between calls. The LLM only explains
+ * these numbers.
+ */
+export function promptLiquidity(profile, computed) {
+  const breakdownText = computed.breakdown
+    .map((b) => `${categoryLabel(b.category)}: ${fmtNum(Math.round(b.amount))} تومان — دسته: ${b.tier === "liquid" ? "نقد سریع" : b.tier === "semiLiquid" ? "نیمه‌نقد" : "غیرنقد"} (${b.note})`)
+    .join("\n");
+
   return `${SYSTEM_PREAMBLE}
 
 ${buildProfileContext(profile)}
 
+### طبقه‌بندی نقدشوندگی (محاسبه‌شده با قاعده‌ی ثابت، نه حدس — این دسته‌بندی‌ها همیشه یکسان و قطعی هستند، عوض‌شان نکن)
+${breakdownText}
+
+نقد سریع: ${computed.liquidPercent}٪ | نیمه‌نقد: ${computed.semiLiquidPercent}٪ | غیرنقد: ${computed.illiquidPercent}٪
+پول در دسترس: فوری ${fmtNum(computed.availableByPeriod.immediate)} تومان | تا ۱ ماه ${fmtNum(computed.availableByPeriod.oneMonth)} | تا ۳ ماه ${fmtNum(computed.availableByPeriod.threeMonths)} | تا ۱ سال ${fmtNum(computed.availableByPeriod.oneYear)}
+ذخیره‌ی نقدی توصیه‌شده (۳ ماه هزینه): ${fmtNum(computed.recommendedBuffer)} تومان | کمبود نسبت به وجه نقد فوری: ${fmtNum(computed.shortfall)} تومان
+
 ### وظیفه
-دارایی‌های کاربر را از نظر سرعت نقدشوندگی دسته‌بندی کن (نقد سریع/نیمه‌نقد/غیرنقد) و درصد هر دسته از کل دارایی را محاسبه کن. همچنین تخمین بزن در بازه‌های زمانی مختلف (فوری، تا ۱ ماه، تا ۳ ماه، تا ۱ سال) چه مقدار از دارایی‌ها قابل نقد شدن است. با توجه به هزینه ماهانه و یادداشت نیاز نقدینگی کاربر، اگر کمبود نقدینگی وجود دارد هشدار بده.${jsonInstruction(`{
-  "liquidPercent": number,
-  "semiLiquidPercent": number,
-  "illiquidPercent": number,
-  "availableByPeriod": {"immediate": number, "oneMonth": number, "threeMonths": number, "oneYear": number},
+فقط بر اساس همین اعداد و دسته‌بندی‌های محاسبه‌شده (آن‌ها را تغییر نده)، به کاربر توضیح بده وضعیت نقدینگی‌اش چطور است. اگر «کمبود نسبت به وجه نقد فوری» بزرگ‌تر از صفر است، حتماً هشدار واضح بده و راهکار عملی پیشنهاد کن.${jsonInstruction(`{
   "warnings": [string],
   "summary": string
 }`)}`;
@@ -282,25 +292,34 @@ ${message}
  * `computed` comes from forecast.js (Holt's linear trend method fit on
  * historical data, not an LLM guess). The model only explains the numbers.
  */
-export function promptForecast(profile, assetKey, computed, isSynthetic) {
+export function promptForecast(profile, assetKey, computed, meta) {
   const label = categoryLabel(assetKey);
   const pointsText = computed.points
     .map((p) => `دوره ${p.h}: میانه ${Math.round(p.p50 * 100) / 100} (بازه ۷۰٪: ${Math.round(p.p15 * 100) / 100} تا ${Math.round(p.p85 * 100) / 100})`)
     .join("\n");
+
+  let dataNote;
+  if (meta?.source === "live") {
+    dataNote = `آخرین نقطه از یک فید داده‌ی زنده‌ی واقعی گرفته شده (${meta.note || "منبع خارجی"}؛ تاریخ به‌روزرسانی: ${meta.feedDate || "نامشخص"})، اما مسیر تاریخی پیش از آن تخمینی است تا زمانی که سری تاریخی واقعی وصل شود. این محدودیت را صادقانه به کاربر بگو.`;
+  } else if (meta?.source === "manual") {
+    dataNote = "این پیش‌بینی روی داده‌ای که خود کاربر وارد کرده محاسبه شده است.";
+  } else {
+    dataNote = "توجه: این پیش‌بینی روی داده‌ی نمایشی (Synthetic) تولیدشده از فرضیات بازده/نوسان است، نه داده‌ی واقعی بازار — این محدودیت را صریح به کاربر بگو.";
+  }
 
   return `${SYSTEM_PREAMBLE}
 
 ${buildProfileContext(profile)}
 
 ### خروجی مدل پیش‌بینی روند برای «${label}» (روش Holt's Linear Trend روی ${computed.points.length ? "داده تاریخی" : "—"}، محاسبه‌شده — نه حدس)
-${isSynthetic ? "توجه: این پیش‌بینی روی داده‌ی نمایشی (Synthetic) تولیدشده از فرضیات بازده/نوسان است، نه داده‌ی واقعی بازار — این محدودیت را صریح به کاربر بگو." : "این پیش‌بینی روی داده‌ی واقعی وارد‌شده توسط کاربر محاسبه شده است."}
+${dataNote}
 مقدار آخرین نقطه شناخته‌شده: ${computed.lastValue}
 روند هر دوره: ${computed.trendPerPeriod > 0 ? "+" : ""}${Math.round(computed.trendPerPeriod * 100) / 100}
 تغییر کل پیش‌بینی‌شده تا افق نهایی: ${computed.totalChangePercent > 0 ? "+" : ""}${computed.totalChangePercent}٪
 ${pointsText}
 
 ### وظیفه
-فقط بر اساس همین اعداد محاسبه‌شده، به زبان ساده توضیح بده روند این دارایی به کدام سمت است و عدم‌قطعیت (بازه ۷۰٪ اطمینان) چقدر است. اگر کاربر مقداری از این دارایی را در سبد خود دارد، توضیح بده این روند چه معنایی برای دارایی‌های او دارد. اگر داده synthetic است، حتماً محدودیت آن را به کاربر یادآوری کن.${jsonInstruction(`{
+فقط بر اساس همین اعداد محاسبه‌شده، به زبان ساده توضیح بده روند این دارایی به کدام سمت است و عدم‌قطعیت (بازه ۷۰٪ اطمینان) چقدر است. اگر کاربر مقداری از این دارایی را در سبد خود دارد، توضیح بده این روند چه معنایی برای دارایی‌های او دارد. محدودیت منبع داده (بالا) را حتماً صادقانه یادآوری کن.${jsonInstruction(`{
   "explanation": string,
   "portfolioRelevance": string
 }`)}`;

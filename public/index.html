@@ -53,8 +53,8 @@
               </select>
             </label>
             <label>تعداد فرزند<input type="number" id="fChildren" min="0" max="20" /></label>
-            <label>درآمد ماهانه (تومان)<input type="number" id="fIncome" min="0" step="1000000" /></label>
-            <label>هزینه ماهانه (تومان)<input type="number" id="fExpenses" min="0" step="1000000" /></label>
+            <label>درآمد ماهانه (میلیون تومان)<input type="number" id="fIncome" min="0" step="1" placeholder="مثلاً 45" /></label>
+            <label>هزینه ماهانه (میلیون تومان)<input type="number" id="fExpenses" min="0" step="1" placeholder="مثلاً 28" /></label>
           </div>
           <label class="risk-slider-label">
             میزان ریسک‌پذیری: <span id="riskSliderVal">5</span> از ۱۰
@@ -106,11 +106,9 @@
             <h4 class="tag-sug">ترکیب فعلی در برابر پیشنهادی موتور بهینه‌سازی</h4>
             <div class="chart-wrap chart-wrap-sm"><canvas id="optimalChart"></canvas></div>
             <div class="stat-row" id="optimalStatsRow"></div>
-            <div class="stat-row hidden" id="adjustedStatsRow"></div>
           </div>
         </div>
         <div id="assetsTextContent" class="hidden">
-          <div class="banner banner-adjust hidden" id="adjustmentBanner"></div>
           <div class="banner banner-warn hidden" id="concentrationWarning"></div>
           <div class="list-cols">
             <div><h4 class="tag-pos">نقاط قوت</h4><ul id="assetsStrengths"></ul></div>
@@ -184,7 +182,7 @@
       <div class="card-body">
         <div class="goal-add-form">
           <input id="goalTitle" placeholder="عنوان هدف، مثلاً خرید خانه" />
-          <input id="goalAmount" type="number" placeholder="مبلغ هدف (تومان)" />
+          <input id="goalAmount" type="number" placeholder="مبلغ هدف (میلیون تومان)" />
           <input id="goalMonths" type="number" placeholder="مهلت (ماه)" />
           <button class="btn btn-primary btn-small" id="addGoalBtn">افزودن هدف</button>
         </div>
@@ -240,7 +238,7 @@
         <h4 class="sub-title">افزودن نقطه‌ی داده‌ی واقعی</h4>
         <div class="forecast-add-form">
           <input id="forecastPeriod" placeholder="دوره، مثلاً 2026-09" />
-          <input id="forecastValue" type="number" placeholder="مقدار شاخص (نسبت به مبنای ۱۰۰)" />
+          <input id="forecastValue" type="number" placeholder="مقدار (تومان برای طلا/ارز، شاخص برای بورس)" />
           <button class="btn btn-ghost btn-small" id="addForecastPointBtn">افزودن</button>
         </div>
       </div>
@@ -254,7 +252,7 @@
       <div class="card-body">
         <div class="decision-form">
           <textarea id="decisionText" rows="2" placeholder="تصمیم مالی خودت رو توضیح بده... مثلاً: می‌خوام ۲۰۰ میلیون از سپرده‌ام رو تبدیل به طلا کنم"></textarea>
-          <input id="decisionAmount" type="number" placeholder="مبلغ مرتبط (اختیاری، تومان)" />
+          <input id="decisionAmount" type="number" placeholder="مبلغ مرتبط (اختیاری، میلیون تومان)" />
           <button class="btn btn-primary btn-small" id="runDecisionBtn">بررسی این تصمیم</button>
         </div>
         <div class="loading hidden" id="decisionLoading">در حال بررسی پیامدهای تصمیم...</div>

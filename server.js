@@ -17,10 +17,11 @@ import {
   promptForecast,
   categoryLabel,
 } from "./prompts.js";
-import { optimizePortfolio, portfolioStats, sanitizeAdjustedWeights, ASSET_ORDER } from "./optimizer.js";
+import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
+import { computeLiquidity } from "./liquidityEngine.js";
 import { simulateShock } from "./monteCarlo.js";
 import { forecastSeries } from "./forecast.js";
-import { loadMarketHistory, addHistoryPoint, FORECASTABLE_ASSETS } from "./marketStore.js";
+import { loadMarketHistory, ensureFreshMarketHistory, addHistoryPoint, FORECASTABLE_ASSETS } from "./marketStore.js";
 import { logEvent, effectiveRiskTolerance, getBehaviorState } from "./behaviorStore.js";
 import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./dataAsset.js";
 
@@ -119,18 +120,10 @@ app.post(
     const computed = optimizePortfolio(profileForOpt);
     const explanation = await callLLMJSON(promptAssets(profile, computed), { effort: "medium" });
 
-    // The LLM may propose a bounded refinement of the optimizer's output
-    // (see sanitizeAdjustedWeights docstring) — it never invents the impact
-    // numbers themselves; those are recomputed with the same real stats
-    // engine used for "current" and "optimal".
-    const adjustedWeights = sanitizeAdjustedWeights(explanation.adjustedWeights, computed.optimal.weights);
-    const adjustedStatsRaw = adjustedWeights ? portfolioStats(adjustedWeights) : null;
-
     res.json({
       totalAssets: computed.current.total,
       allocation: allocationArray(computed.current.weights, computed.current.total),
       optimal: allocationArray(computed.optimal.weights, computed.current.total),
-      adjusted: adjustedWeights ? allocationArray(adjustedWeights, computed.current.total) : null,
       currentStats: {
         expectedReturn: computed.current.expectedReturn,
         volatility: computed.current.volatility,
@@ -141,14 +134,6 @@ app.post(
         volatility: computed.optimal.volatility,
         liquidityPercent: computed.optimal.liquidityPercent,
       },
-      adjustedStats: adjustedStatsRaw
-        ? {
-            expectedReturn: adjustedStatsRaw.expectedReturn,
-            volatility: adjustedStatsRaw.volatility,
-            liquidityPercent: adjustedStatsRaw.liquidityPercent,
-          }
-        : null,
-      adjustmentReason: adjustedWeights ? explanation.adjustmentReason || null : null,
       concentrationWarning: explanation.concentrationWarning,
       strengths: explanation.strengths,
       weaknesses: explanation.weaknesses,
@@ -183,8 +168,17 @@ app.post(
   "/api/widgets/liquidity",
   handleAsync(async (req, res) => {
     const profile = loadProfile();
-    const result = await callLLMJSON(promptLiquidity(profile), { effort: "medium" });
-    res.json(result);
+    const computed = computeLiquidity(profile);
+    const explanation = await callLLMJSON(promptLiquidity(profile, computed), { effort: "medium" });
+    res.json({
+      liquidPercent: computed.liquidPercent,
+      semiLiquidPercent: computed.semiLiquidPercent,
+      illiquidPercent: computed.illiquidPercent,
+      availableByPeriod: computed.availableByPeriod,
+      breakdown: computed.breakdown,
+      warnings: explanation.warnings,
+      summary: explanation.summary,
+    });
   })
 );
 
@@ -317,19 +311,20 @@ app.post(
   handleAsync(async (req, res) => {
     const profile = loadProfile();
     const asset = FORECASTABLE_ASSETS.includes(req.body.asset) ? req.body.asset : "gold";
-    const market = loadMarketHistory();
+    const market = await ensureFreshMarketHistory();
     const series = market.series[asset] || [];
+    const meta = market.meta[asset] || { source: "synthetic", liveAnchor: false };
     const computed = forecastSeries(series, 6);
     if (computed.error) {
-      res.json({ asset, label: categoryLabel(asset), error: computed.error, synthetic: market.synthetic, series });
+      res.json({ asset, label: categoryLabel(asset), error: computed.error, meta, series });
       return;
     }
-    const explanation = await callLLMJSON(promptForecast(profile, asset, computed, market.synthetic), { effort: "medium" });
-    logInteraction("forecast_run", { asset, synthetic: market.synthetic, totalChangePercent: computed.totalChangePercent });
+    const explanation = await callLLMJSON(promptForecast(profile, asset, computed, meta), { effort: "medium" });
+    logInteraction("forecast_run", { asset, source: meta.source, totalChangePercent: computed.totalChangePercent });
     res.json({
       asset,
       label: categoryLabel(asset),
-      synthetic: market.synthetic,
+      meta,
       series,
       forecast: computed,
       explanation: explanation.explanation,

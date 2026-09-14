@@ -48,6 +48,19 @@ function formatPercent(n) {
   return Math.round(n) + "٪";
 }
 
+// All money inputs in the UI are entered/shown in million-toman units so
+// the user never has to type a string of zeros; the backend still stores
+// and works with full toman amounts.
+const MILLION = 1_000_000;
+function tomanToMillionInput(toman) {
+  if (toman === null || toman === undefined || toman === "") return "";
+  return Math.round((Number(toman) / MILLION) * 100) / 100;
+}
+function millionInputToToman(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n * MILLION) : 0;
+}
+
 function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
@@ -90,8 +103,8 @@ function populateProfileForm() {
   $("fGender").value = p.gender ?? "مرد";
   $("fMarital").value = p.maritalStatus ?? "مجرد";
   $("fChildren").value = p.childrenCount ?? "";
-  $("fIncome").value = profile.monthlyIncome ?? "";
-  $("fExpenses").value = profile.monthlyExpenses ?? "";
+  $("fIncome").value = tomanToMillionInput(profile.monthlyIncome);
+  $("fExpenses").value = tomanToMillionInput(profile.monthlyExpenses);
   $("fRisk").value = profile.riskTolerance ?? 5;
   $("riskSliderVal").textContent = profile.riskTolerance ?? 5;
   $("fHorizon").value = profile.timeHorizonNote ?? "";
@@ -127,8 +140,9 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
 
   const amountInput = document.createElement("input");
   amountInput.type = "number";
-  amountInput.placeholder = "مبلغ (تومان)";
-  amountInput.value = asset.amount || "";
+  amountInput.step = "0.1";
+  amountInput.placeholder = "مبلغ (میلیون تومان)";
+  amountInput.value = tomanToMillionInput(asset.amount);
 
   const delBtn = document.createElement("button");
   delBtn.className = "btn-del";
@@ -144,7 +158,7 @@ function collectProfileFromForm() {
   const assets = [];
   $("assetRows").querySelectorAll(".asset-row").forEach((row) => {
     const [select, labelInput, amountInput] = row.querySelectorAll("select, input");
-    const amount = Number(amountInput.value) || 0;
+    const amount = millionInputToToman(amountInput.value);
     if (amount > 0) {
       assets.push({ category: select.value, label: labelInput.value.trim(), amount });
     }
@@ -158,8 +172,8 @@ function collectProfileFromForm() {
       childrenCount: $("fChildren").value ? Number($("fChildren").value) : null,
     },
     riskTolerance: Number($("fRisk").value),
-    monthlyIncome: $("fIncome").value ? Number($("fIncome").value) : null,
-    monthlyExpenses: $("fExpenses").value ? Number($("fExpenses").value) : null,
+    monthlyIncome: $("fIncome").value ? millionInputToToman($("fIncome").value) : null,
+    monthlyExpenses: $("fExpenses").value ? millionInputToToman($("fExpenses").value) : null,
     timeHorizonNote: $("fHorizon").value.trim(),
     liquidityNeedNote: $("fLiquidityNote").value.trim(),
     assets,
@@ -228,28 +242,14 @@ function renderAssetsWidget(data) {
     warnEl.classList.add("hidden");
   }
 
-  const adjustEl = $("adjustmentBanner");
-  if (data.adjusted && data.adjustmentReason) {
-    adjustEl.textContent = "🤖 هوش مصنوعی این ترکیب را تعدیل کرد: " + data.adjustmentReason;
-    adjustEl.classList.remove("hidden");
-  } else {
-    adjustEl.classList.add("hidden");
-  }
-
   fillList("assetsStrengths", data.strengths);
   fillList("assetsWeaknesses", data.weaknesses);
   fillList("assetsSuggestions", data.suggestions);
   $("assetsSummary").textContent = data.summary || "";
 
-  renderOptimalComparisonChart(data.allocation, data.optimal, data.adjusted);
+  renderOptimalComparisonChart(data.allocation, data.optimal);
   renderStatChips("currentStatsRow", data.currentStats);
   renderStatChips("optimalStatsRow", data.optimalStats);
-  if (data.adjusted && data.adjustedStats) {
-    renderStatChips("adjustedStatsRow", data.adjustedStats);
-    $("adjustedStatsRow").classList.remove("hidden");
-  } else {
-    $("adjustedStatsRow").classList.add("hidden");
-  }
 }
 
 function statChip(label, value) {
@@ -268,31 +268,23 @@ function renderStatChips(elId, stats) {
   wrap.appendChild(statChip("نقدینگی", formatPercent(stats.liquidityPercent)));
 }
 
-function renderOptimalComparisonChart(current, optimal, adjusted) {
+function renderOptimalComparisonChart(current, optimal) {
   destroyChart("optimal");
   const byCategory = {};
-  (current || []).forEach((a) => (byCategory[a.category] = { label: a.label, current: a.percent, optimal: 0, adjusted: 0 }));
+  (current || []).forEach((a) => (byCategory[a.category] = { label: a.label, current: a.percent, optimal: 0 }));
   (optimal || []).forEach((a) => {
-    if (!byCategory[a.category]) byCategory[a.category] = { label: a.label, current: 0, optimal: 0, adjusted: 0 };
+    if (!byCategory[a.category]) byCategory[a.category] = { label: a.label, current: 0, optimal: 0 };
     byCategory[a.category].optimal = a.percent;
-  });
-  (adjusted || []).forEach((a) => {
-    if (!byCategory[a.category]) byCategory[a.category] = { label: a.label, current: 0, optimal: 0, adjusted: 0 };
-    byCategory[a.category].adjusted = a.percent;
   });
   const entries = Object.entries(byCategory);
   const labels = entries.map(([, v]) => v.label);
   const currentVals = entries.map(([, v]) => v.current);
   const optimalVals = entries.map(([, v]) => v.optimal);
-  const adjustedVals = entries.map(([, v]) => v.adjusted);
 
   const datasets = [
     { label: "فعلی", data: currentVals, backgroundColor: "#7c6bf2", borderRadius: 5 },
     { label: "پیشنهادی موتور", data: optimalVals, backgroundColor: "#4fd1c5", borderRadius: 5 },
   ];
-  if (adjusted && adjusted.length) {
-    datasets.push({ label: "تعدیل‌شده توسط هوش مصنوعی", data: adjustedVals, backgroundColor: "#fbbf24", borderRadius: 5 });
-  }
 
   const ctx = $("optimalChart").getContext("2d");
   charts.optimal = new Chart(ctx, {
@@ -490,7 +482,7 @@ function renderGoalsList() {
 
 async function addGoal() {
   const title = $("goalTitle").value.trim();
-  const targetAmount = Number($("goalAmount").value);
+  const targetAmount = millionInputToToman($("goalAmount").value);
   const targetMonths = Number($("goalMonths").value);
   if (!title || !targetAmount || !targetMonths) return;
   const res = await fetch("/api/goals", {
@@ -589,6 +581,21 @@ function renderScenarioResult(data) {
 
 /* ---------------- Forecast Widget ---------------- */
 
+function renderForecastSourceBanner(meta) {
+  const el = $("forecastSyntheticBanner");
+  if (!meta || meta.source === "synthetic") {
+    el.textContent = "⚠ این نمودار روی داده‌ی نمایشی (Synthetic) تولیدشده از فرضیات بازده/نوسان محاسبه شده، نه داده‌ی واقعی بازار. برای دقت واقعی، نقاط داده‌ی واقعی را پایین اضافه کنید.";
+    el.className = "banner banner-warn";
+  } else if (meta.source === "live") {
+    el.textContent = `✓ آخرین نقطه از یک فید داده‌ی زنده‌ی واقعی گرفته شده (به‌روزرسانی: ${meta.feedDate || "—"})؛ مسیر تاریخی پیش از آن هنوز تخمینی است.`;
+    el.className = "banner banner-live";
+  } else if (meta.source === "manual") {
+    el.textContent = "✓ این سری روی داده‌ای که خودت وارد کردی محاسبه شده است.";
+    el.className = "banner banner-live";
+  }
+  el.classList.remove("hidden");
+}
+
 async function loadForecastWidget() {
   const asset = $("forecastAsset").value;
   $("forecastLoading").classList.remove("hidden");
@@ -601,7 +608,7 @@ async function loadForecastWidget() {
     });
     const data = await res.json();
     $("forecastLoading").classList.add("hidden");
-    $("forecastSyntheticBanner").classList.toggle("hidden", !data.synthetic);
+    renderForecastSourceBanner(data.meta);
     if (data.error) {
       $("forecastExplanation").textContent = data.error;
       $("forecastRelevance").textContent = "";
@@ -682,7 +689,7 @@ async function addForecastPoint() {
 async function runDecision() {
   const description = $("decisionText").value.trim();
   if (!description) return;
-  const amount = $("decisionAmount").value ? Number($("decisionAmount").value) : null;
+  const amount = $("decisionAmount").value ? millionInputToToman($("decisionAmount").value) : null;
 
   $("decisionLoading").classList.remove("hidden");
   $("decisionContent").classList.add("hidden");
