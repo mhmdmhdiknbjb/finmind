@@ -876,19 +876,28 @@ function renderDecisionResult(data) {
 
   $("decisionOutcomeBox").classList.remove("hidden");
   $("decisionOutcomeThanks").classList.add("hidden");
-  $("decisionFollowedBtn").onclick = () => recordDecisionOutcome(true, data.recommendation);
-  $("decisionAbandonedBtn").onclick = () => recordDecisionOutcome(false, data.recommendation);
+  $("decisionFollowedBtn").onclick = () => recordDecisionOutcome(true, data.recommendation, data.assetChanges);
+  $("decisionAbandonedBtn").onclick = () => recordDecisionOutcome(false, data.recommendation, data.assetChanges);
 }
 
-async function recordDecisionOutcome(followed, recommendation) {
+async function recordDecisionOutcome(followed, recommendation, assetChanges) {
   $("decisionFollowedBtn").disabled = true;
   $("decisionAbandonedBtn").disabled = true;
   try {
-    await fetch("/api/behavior/decision-outcome", {
+    const res = await fetch("/api/behavior/decision-outcome", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ followed, recommendation }),
+      body: JSON.stringify({ followed, recommendation, assetChanges }),
     });
+    const data = await res.json();
+    if (data.profile) {
+      profile = data.profile;
+      populateProfileForm();
+      $("decisionOutcomeThanks").textContent = "ثبت شد — دارایی‌هات به‌روزرسانی شد و در ویجت‌های بالا اعمال شد ✓";
+      refreshCoreWidgets();
+    } else {
+      $("decisionOutcomeThanks").textContent = "ثبت شد — به مدل ریسک رفتاری شما اضافه شد ✓";
+    }
     $("decisionOutcomeThanks").classList.remove("hidden");
   } catch (e) {
     console.error(e);

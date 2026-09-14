@@ -62,3 +62,57 @@ export async function resolveProfileAssets(profile) {
   });
   return { ...profile, assets, _liveRates: rates };
 }
+
+/**
+ * Applies a confirmed decision's effect to the actual stored portfolio.
+ * `changes` is the assetChanges list from promptDecision: [{category,
+ * amountDelta}], a toman delta per category (never invented by the LLM in
+ * isolation — it's a structured extraction of a decision the user just
+ * confirmed they actually went through with). For gold/currency/crypto the
+ * toman delta is converted to a quantity delta at the current live rate
+ * (matching the same symbol already on that asset row, or a sensible
+ * default — USD / BTC — for a brand-new row); other categories adjust
+ * `amount` directly. Amounts/quantities never go below zero, and a
+ * category with no existing row is only created for a net increase.
+ */
+export async function applyAssetChanges(profile, changes) {
+  const assets = (profile.assets || []).map((a) => ({ ...a }));
+  if (!changes || !changes.length) return assets;
+
+  let rates = null;
+  try {
+    rates = await getLiveRates();
+  } catch {
+    // no live feed available: skip live-priced categories, still apply plain ones below
+  }
+
+  for (const change of changes) {
+    const category = change?.category;
+    const amountDelta = Number(change?.amountDelta);
+    if (!category || !Number.isFinite(amountDelta) || amountDelta === 0) continue;
+
+    if (category === "gold" || category === "currency" || category === "crypto") {
+      const idx = assets.findIndex((a) => a.category === category);
+      const refAsset = idx !== -1 ? assets[idx] : { category, symbol: category === "crypto" ? "BTC" : "USD" };
+      const price = rates ? unitPriceToman(refAsset, rates) : null;
+      if (!price) continue;
+      const quantityDelta = amountDelta / price;
+      if (idx === -1) {
+        if (quantityDelta <= 0) continue;
+        assets.push({ category, symbol: refAsset.symbol, quantity: quantityDelta });
+      } else {
+        assets[idx].quantity = Math.max(0, (Number(assets[idx].quantity) || 0) + quantityDelta);
+      }
+    } else {
+      const idx = assets.findIndex((a) => a.category === category);
+      if (idx === -1) {
+        if (amountDelta <= 0) continue;
+        assets.push({ category, label: "", amount: amountDelta });
+      } else {
+        assets[idx].amount = Math.max(0, (Number(assets[idx].amount) || 0) + amountDelta);
+      }
+    }
+  }
+
+  return assets.filter((a) => (Number(a.quantity) || Number(a.amount) || 0) > 0.0001);
+}

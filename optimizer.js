@@ -19,6 +19,18 @@ import { solveQP } from "quadprog";
 
 export const ASSET_ORDER = ["cash", "gold", "currency", "stock", "fund", "realestate", "crypto", "other"];
 
+/**
+ * Real estate doesn't trade in arbitrary fractions the way gold or a mutual
+ * fund does — there is no such thing as a 20,000,000-toman apartment. This
+ * is a rough, clearly-parametric floor for "cheapest realistic property a
+ * household could actually buy" in the current market (calibrated loosely
+ * against the live gold/currency prices this app already pulls — not a
+ * real estate index yet; a genuine regional price feed would replace this).
+ * The optimizer uses it below to refuse to suggest a real-estate position
+ * too small to correspond to an actual purchase.
+ */
+export const MIN_PROPERTY_VALUE_TOMAN = 4_000_000_000;
+
 export const ASSET_STATS = {
   cash: { expectedReturn: 0.23, volatility: 0.03, liquidity: 1.0, upperBound: 1.0 },
   gold: { expectedReturn: 0.35, volatility: 0.22, liquidity: 0.75, upperBound: 0.5 },
@@ -180,6 +192,17 @@ export function optimizePortfolio(profile) {
   const upperBound = Object.fromEntries(ASSET_ORDER.map((k) => [k, ASSET_STATS[k].upperBound]));
   lowerBound.realestate = reCurrent * 0.8;
   upperBound.realestate = Math.min(1, reCurrent * 1.2 + 0.1);
+
+  // Never suggest growing real estate into a toman amount too small to be
+  // an actual property. If the portfolio can't clear MIN_PROPERTY_VALUE_TOMAN
+  // even at the band computed above, pin the upper bound back down to
+  // whatever the user already holds — the optimizer can keep or shrink an
+  // existing position, but won't propose buying a fraction of a house that
+  // doesn't exist. A portfolio with no real estate at all and too little
+  // capital gets upperBound = 0 (real estate excluded entirely).
+  if (total > 0 && total * upperBound.realestate < MIN_PROPERTY_VALUE_TOMAN) {
+    upperBound.realestate = reCurrent;
+  }
 
   // Dmat = lambda * Sigma, ridge-regularized for numerical positive-definiteness.
   const Dmat = oneIndexedMatrix(n, n);

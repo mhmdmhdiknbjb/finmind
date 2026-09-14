@@ -19,7 +19,7 @@ import {
 import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 import { simulateShock } from "./monteCarlo.js";
-import { resolveProfileAssets, getLiveRates } from "./assetPricing.js";
+import { resolveProfileAssets, getLiveRates, applyAssetChanges } from "./assetPricing.js";
 import { logEvent, effectiveRiskTolerance, getBehaviorState } from "./behaviorStore.js";
 import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./dataAsset.js";
 
@@ -274,13 +274,24 @@ app.post(
 app.post(
   "/api/behavior/decision-outcome",
   handleAsync(async (req, res) => {
-    const { followed, recommendation } = req.body;
+    const { followed, recommendation, assetChanges } = req.body;
     let nudgeKey = null;
     if (followed && recommendation === "پیشنهاد نمی‌شود") nudgeKey = "decisionFollowedRisky";
     else if (!followed && recommendation === "پیشنهاد می‌شود") nudgeKey = "decisionAbandonedSafe";
     const state = nudgeKey ? logEvent("decision_outcome", nudgeKey, { followed, recommendation }) : getBehaviorState();
     logInteraction("decision_outcome", { followed, recommendation });
-    res.json(state);
+
+    // The user confirmed they actually went through with this decision:
+    // apply its structured effect to the real portfolio, not just log it.
+    let updatedProfile = null;
+    if (followed && Array.isArray(assetChanges) && assetChanges.length) {
+      const profile = loadProfile();
+      profile.assets = await applyAssetChanges(profile, assetChanges);
+      saveProfile(profile);
+      updatedProfile = profile;
+    }
+
+    res.json({ ...state, profile: updatedProfile });
   })
 );
 

@@ -26,7 +26,7 @@ loadEnvFile();
 
 export const API_BASE_URL = process.env.FINMIND_API_BASE_URL || "https://ai.parspack.com/v1";
 export const API_KEY = process.env.FINMIND_API_KEY || "";
-export const MODEL = "openai/gpt-5-mini";
+export const MODEL = "openai/gpt-4.1-mini";
 export const PORT = process.env.PORT || 4173;
 
 export const BRSAPI_KEY = process.env.BRSAPI_KEY || "";
