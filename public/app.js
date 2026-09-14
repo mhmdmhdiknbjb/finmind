@@ -191,6 +191,7 @@ async function loadAssetsWidget() {
     const data = await res.json();
     $("assetsLoading").classList.add("hidden");
     $("assetsContent").classList.remove("hidden");
+    $("assetsTextContent").classList.remove("hidden");
     renderAssetsWidget(data);
     updateTopbarStat("statTotal", formatToman(data.totalAssets));
   } catch (e) {
@@ -231,6 +232,64 @@ function renderAssetsWidget(data) {
   fillList("assetsWeaknesses", data.weaknesses);
   fillList("assetsSuggestions", data.suggestions);
   $("assetsSummary").textContent = data.summary || "";
+
+  renderOptimalComparisonChart(data.allocation, data.optimal);
+  renderStatChips("currentStatsRow", data.currentStats);
+  renderStatChips("optimalStatsRow", data.optimalStats);
+}
+
+function statChip(label, value) {
+  const div = document.createElement("div");
+  div.className = "stat-chip";
+  div.innerHTML = `<span class="stat-label">${label}</span><span class="stat-value">${value}</span>`;
+  return div;
+}
+
+function renderStatChips(elId, stats) {
+  const wrap = $(elId);
+  wrap.innerHTML = "";
+  if (!stats) return;
+  wrap.appendChild(statChip("بازده مورد انتظار سالانه", formatPercent(stats.expectedReturn * 100)));
+  wrap.appendChild(statChip("نوسان سالانه (ریسک)", formatPercent(stats.volatility * 100)));
+  wrap.appendChild(statChip("نقدینگی", formatPercent(stats.liquidityPercent)));
+}
+
+function renderOptimalComparisonChart(current, optimal) {
+  destroyChart("optimal");
+  const byCategory = {};
+  (current || []).forEach((a) => (byCategory[a.category] = { label: a.label, current: a.percent, optimal: 0 }));
+  (optimal || []).forEach((a) => {
+    if (!byCategory[a.category]) byCategory[a.category] = { label: a.label, current: 0, optimal: 0 };
+    byCategory[a.category].optimal = a.percent;
+  });
+  const entries = Object.entries(byCategory);
+  const labels = entries.map(([, v]) => v.label);
+  const currentVals = entries.map(([, v]) => v.current);
+  const optimalVals = entries.map(([, v]) => v.optimal);
+
+  const ctx = $("optimalChart").getContext("2d");
+  charts.optimal = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "فعلی", data: currentVals, backgroundColor: "#7c6bf2", borderRadius: 5 },
+        { label: "پیشنهادی", data: optimalVals, backgroundColor: "#4fd1c5", borderRadius: 5 },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      indexAxis: "y",
+      plugins: {
+        legend: { position: "bottom", labels: { color: cssVar("--text-dim"), font: { family: "Vazirmatn" } } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.raw}٪` } },
+      },
+      scales: {
+        x: { ticks: { color: cssVar("--text-dim"), callback: (v) => v + "٪" }, grid: { color: cssVar("--border") } },
+        y: { ticks: { color: cssVar("--text-dim"), font: { family: "Vazirmatn" } }, grid: { display: false } },
+      },
+    },
+  });
 }
 
 /* ---------------- Risk Widget ---------------- */

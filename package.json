@@ -12,6 +12,7 @@
   "type": "module",
   "dependencies": {
     "chart.js": "^4.5.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "quadprog": "^2.0.0"
   }
 }

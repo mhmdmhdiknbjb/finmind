@@ -12,7 +12,18 @@ import {
   promptScenario,
   promptDecision,
   promptChat,
+  categoryLabel,
 } from "./prompts.js";
+import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
+
+function allocationArray(weights, total) {
+  return ASSET_ORDER.filter((k) => (weights[k] || 0) > 0.0001).map((k) => ({
+    category: k,
+    label: categoryLabel(k),
+    amount: Math.round((weights[k] || 0) * total),
+    percent: Math.round((weights[k] || 0) * 1000) / 10,
+  }));
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -76,8 +87,28 @@ app.post(
   "/api/widgets/assets",
   handleAsync(async (req, res) => {
     const profile = loadProfile();
-    const result = await callLLMJSON(promptAssets(profile), { effort: "medium" });
-    res.json(result);
+    const computed = optimizePortfolio(profile);
+    const explanation = await callLLMJSON(promptAssets(profile, computed), { effort: "medium" });
+    res.json({
+      totalAssets: computed.current.total,
+      allocation: allocationArray(computed.current.weights, computed.current.total),
+      optimal: allocationArray(computed.optimal.weights, computed.current.total),
+      currentStats: {
+        expectedReturn: computed.current.expectedReturn,
+        volatility: computed.current.volatility,
+        liquidityPercent: computed.current.liquidityPercent,
+      },
+      optimalStats: {
+        expectedReturn: computed.optimal.expectedReturn,
+        volatility: computed.optimal.volatility,
+        liquidityPercent: computed.optimal.liquidityPercent,
+      },
+      concentrationWarning: explanation.concentrationWarning,
+      strengths: explanation.strengths,
+      weaknesses: explanation.weaknesses,
+      suggestions: explanation.suggestions,
+      summary: explanation.summary,
+    });
   })
 );
 
@@ -85,8 +116,18 @@ app.post(
   "/api/widgets/risk",
   handleAsync(async (req, res) => {
     const profile = loadProfile();
-    const result = await callLLMJSON(promptRisk(profile), { effort: "medium" });
-    res.json(result);
+    const computed = optimizePortfolio(profile);
+    const explanation = await callLLMJSON(promptRisk(profile, computed), { effort: "medium" });
+    res.json({
+      currentRiskScore: computed.current.riskScore,
+      suggestedRiskScore: computed.optimal.riskScore,
+      difference: computed.optimal.riskScore - computed.current.riskScore,
+      riskLevel: computed.current.riskLevel,
+      reasons: explanation.reasons,
+      behavioralFactors: explanation.behavioralFactors,
+      suggestions: explanation.suggestions,
+      summary: explanation.summary,
+    });
   })
 );
 

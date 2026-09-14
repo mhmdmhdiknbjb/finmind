@@ -69,15 +69,30 @@ function jsonInstruction(schemaDescription) {
   return `\n\n### دستور خروجی\nفقط و فقط یک JSON معتبر و تک‌خطی یا چندخطی مطابق دقیقاً همین ساختار زیر برگردان. هیچ متن، توضیح، یا Markdown خارج از JSON ننویس و از code fence استفاده نکن:\n${schemaDescription}`;
 }
 
-export function promptAssets(profile) {
+function formatPct(w) {
+  return ASSET_ORDER_FOR_PROMPT.map((k) => `${categoryLabel(k)}: ${Math.round((w[k] || 0) * 1000) / 10}٪`).join("، ");
+}
+
+const ASSET_ORDER_FOR_PROMPT = ["cash", "gold", "currency", "stock", "fund", "realestate", "crypto", "other"];
+
+/**
+ * `computed` comes from optimizer.js (a real mean-variance QP solve, not the
+ * LLM). The model is ONLY asked to explain these already-computed numbers in
+ * Persian — it must not invent its own percentages, risk scores or returns.
+ */
+export function promptAssets(profile, computed) {
   return `${SYSTEM_PREAMBLE}
 
 ${buildProfileContext(profile)}
 
+### خروجی موتور بهینه‌سازی پرتفوی (محاسبه‌شده، نه حدسی — این اعداد را عیناً به‌کار ببر و عدد جدیدی نساز)
+ترکیب فعلی (درصد از کل دارایی): ${formatPct(computed.current.weights)}
+ترکیب پیشنهادی بهینه (خروجی مدل بهینه‌سازی میانگین-واریانس با قیود نقدشوندگی ایران): ${formatPct(computed.optimal.weights)}
+بازده مورد انتظار سالانه فعلی: ${(computed.current.expectedReturn * 100).toFixed(1)}٪ | پیشنهادی: ${(computed.optimal.expectedReturn * 100).toFixed(1)}٪
+نقدینگی فعلی: ${computed.current.liquidityPercent}٪ | پیشنهادی: ${computed.optimal.liquidityPercent}٪
+
 ### وظیفه
-ترکیب فعلی دارایی‌های کاربر را تحلیل کن: تنوع، تمرکز بیش از حد روی یک دارایی، کفایت نقدینگی، و تناسب کلی با پروفایل کاربر.${jsonInstruction(`{
-  "totalAssets": number,
-  "allocation": [{"category": "cash|gold|currency|stock|fund|realestate|crypto|other", "label": string, "amount": number, "percent": number}],
+فقط بر اساس همین اعداد محاسبه‌شده (نه با ساختن عدد جدید)، توضیح بده که چرا ترکیب فعلی این نقاط قوت/ضعف را دارد و چرا موتور بهینه‌سازی این ترکیب پیشنهادی را داده (مثلاً برای کاهش تمرکز، افزایش تنوع، یا تامین نقدینگی لازم). اگر تمرکز روی یک دارایی بیش از حد است هشدار بده.${jsonInstruction(`{
   "concentrationWarning": string or null,
   "strengths": [string],
   "weaknesses": [string],
@@ -86,17 +101,18 @@ ${buildProfileContext(profile)}
 }`)}`;
 }
 
-export function promptRisk(profile) {
+export function promptRisk(profile, computed) {
   return `${SYSTEM_PREAMBLE}
 
 ${buildProfileContext(profile)}
 
+### خروجی موتور بهینه‌سازی پرتفوی (محاسبه‌شده با یک مدل میانگین-واریانس واقعی، نه توسط تو — این اعداد قطعی هستند)
+ریسک فعلی سبد: ${computed.current.riskScore} از ۱۰۰ (سطح: ${computed.current.riskLevel}) — نوسان سالانه محاسبه‌شده: ${(computed.current.volatility * 100).toFixed(1)}٪
+ریسک پیشنهادی (بر اساس ریسک‌پذیری اعلامی کاربر و بهینه‌سازی میانگین-واریانس با قید نقدشوندگی): ${computed.optimal.riskScore} از ۱۰۰ (سطح: ${computed.optimal.riskLevel})
+اختلاف: ${computed.optimal.riskScore - computed.current.riskScore}
+
 ### وظیفه
-ریسک فعلی سبد دارایی کاربر را بر اساس نوع دارایی‌ها و تمرکز آن‌ها محاسبه کن (عدد ۰ تا ۱۰۰). سپس با توجه به سن، ریسک‌پذیری اعلامی، افق زمانی و اهداف کاربر، یک ریسک پیشنهادی (۰ تا ۱۰۰) ارائه بده. تفاوت این دو را مشخص کن و توضیح بده این تفاوت ناشی از چه رفتار یا ترکیب دارایی خاصی است و چه اقدامی پیشنهاد می‌شود.${jsonInstruction(`{
-  "currentRiskScore": number,
-  "suggestedRiskScore": number,
-  "difference": number,
-  "riskLevel": "کم" or "متوسط" or "زیاد" or "بسیار زیاد",
+فقط بر اساس همین دو عدد محاسبه‌شده (آن‌ها را دوباره حدس نزن یا تغییر نده)، توضیح بده این ریسک از کجا می‌آید (کدام دارایی‌ها و چه تمرکزی باعثش شده)، چه رفتار یا سوگیری اقتصادی/روانی ممکن است پشت این ترکیب باشد، و چه اقدامی برای نزدیک‌شدن به ریسک پیشنهادی توصیه می‌شود.${jsonInstruction(`{
   "reasons": [string],
   "behavioralFactors": [string],
   "suggestions": [string],

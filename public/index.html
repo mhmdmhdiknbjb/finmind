@@ -89,15 +89,26 @@
     </section>
 
     <!-- Assets Analysis Widget -->
-    <section class="card span-6" id="assetsAnalysisCard">
+    <section class="card span-12" id="assetsAnalysisCard">
       <div class="card-head">
-        <h2><span class="ico">📊</span> تحلیل ترکیب دارایی‌ها</h2>
+        <h2><span class="ico">📊</span> تحلیل ترکیب دارایی‌ها <span class="engine-tag">موتور بهینه‌سازی پرتفوی</span></h2>
         <button class="btn btn-ghost btn-small" id="refreshAssetsBtn">تحلیل مجدد</button>
       </div>
       <div class="card-body">
-        <div class="loading" id="assetsLoading">در حال تحلیل توسط هوش مصنوعی...</div>
-        <div id="assetsContent" class="hidden">
-          <div class="chart-wrap"><canvas id="assetsChart"></canvas></div>
+        <div class="loading" id="assetsLoading">در حال محاسبه و تحلیل...</div>
+        <div id="assetsContent" class="hidden two-col">
+          <div>
+            <h4 class="tag-neu">ترکیب فعلی</h4>
+            <div class="chart-wrap chart-wrap-sm"><canvas id="assetsChart"></canvas></div>
+            <div class="stat-row" id="currentStatsRow"></div>
+          </div>
+          <div>
+            <h4 class="tag-sug">ترکیب فعلی در برابر پیشنهادی موتور بهینه‌سازی</h4>
+            <div class="chart-wrap chart-wrap-sm"><canvas id="optimalChart"></canvas></div>
+            <div class="stat-row" id="optimalStatsRow"></div>
+          </div>
+        </div>
+        <div id="assetsTextContent" class="hidden">
           <div class="banner banner-warn hidden" id="concentrationWarning"></div>
           <div class="list-cols">
             <div><h4 class="tag-pos">نقاط قوت</h4><ul id="assetsStrengths"></ul></div>
@@ -111,9 +122,9 @@
     </section>
 
     <!-- Risk Widget -->
-    <section class="card span-6" id="riskCard">
+    <section class="card span-12" id="riskCard">
       <div class="card-head">
-        <h2><span class="ico">🎯</span> ریسک سبد دارایی</h2>
+        <h2><span class="ico">🎯</span> ریسک سبد دارایی <span class="engine-tag">محاسبه‌شده</span></h2>
         <button class="btn btn-ghost btn-small" id="refreshRiskBtn">محاسبه مجدد</button>
       </div>
       <div class="card-body">
