@@ -1,0 +1,17 @@
+{
+  "name": "finmind",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "express": "^5.2.1"
+  }
+}
