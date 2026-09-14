@@ -126,6 +126,34 @@ export function portfolioStats(weightsObj) {
   };
 }
 
+/**
+ * Validates and bounds an LLM-proposed weight adjustment against the
+ * optimizer's own solution. The LLM may refine the allocation for a
+ * qualitative reason the QP can't model (a stated concern, an upcoming
+ * near-term expense, a specific constraint the user typed in chat) — but it
+ * may not invent an arbitrarily different portfolio. Each category is
+ * clamped to at most `maxDeviation` away from the optimizer's weight, then
+ * the whole vector is renormalized to sum to 1. Returns null if the
+ * proposal is missing/malformed or the net change is negligible.
+ */
+export function sanitizeAdjustedWeights(proposed, optimalWeights, maxDeviation = 0.2) {
+  if (!proposed || typeof proposed !== "object") return null;
+  const adjusted = {};
+  let any = false;
+  for (const k of ASSET_ORDER) {
+    const base = optimalWeights[k] || 0;
+    const raw = Number(proposed[k]);
+    const p = Number.isFinite(raw) ? (raw > 1 ? raw / 100 : raw) : base;
+    const bounded = clamp(p, Math.max(0, base - maxDeviation), Math.min(1, base + maxDeviation));
+    if (Math.abs(bounded - base) > 0.01) any = true;
+    adjusted[k] = bounded;
+  }
+  if (!any) return null;
+  const sum = Object.values(adjusted).reduce((s, v) => s + v, 0) || 1;
+  for (const k of ASSET_ORDER) adjusted[k] = adjusted[k] / sum;
+  return adjusted;
+}
+
 /** riskTolerance 1..10 -> mean-variance risk-aversion coefficient lambda. */
 function riskAversionFromTolerance(riskTolerance) {
   const t = clamp(Number(riskTolerance) || 5, 1, 10);

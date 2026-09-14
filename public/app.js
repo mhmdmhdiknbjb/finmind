@@ -228,14 +228,28 @@ function renderAssetsWidget(data) {
     warnEl.classList.add("hidden");
   }
 
+  const adjustEl = $("adjustmentBanner");
+  if (data.adjusted && data.adjustmentReason) {
+    adjustEl.textContent = "🤖 هوش مصنوعی این ترکیب را تعدیل کرد: " + data.adjustmentReason;
+    adjustEl.classList.remove("hidden");
+  } else {
+    adjustEl.classList.add("hidden");
+  }
+
   fillList("assetsStrengths", data.strengths);
   fillList("assetsWeaknesses", data.weaknesses);
   fillList("assetsSuggestions", data.suggestions);
   $("assetsSummary").textContent = data.summary || "";
 
-  renderOptimalComparisonChart(data.allocation, data.optimal);
+  renderOptimalComparisonChart(data.allocation, data.optimal, data.adjusted);
   renderStatChips("currentStatsRow", data.currentStats);
   renderStatChips("optimalStatsRow", data.optimalStats);
+  if (data.adjusted && data.adjustedStats) {
+    renderStatChips("adjustedStatsRow", data.adjustedStats);
+    $("adjustedStatsRow").classList.remove("hidden");
+  } else {
+    $("adjustedStatsRow").classList.add("hidden");
+  }
 }
 
 function statChip(label, value) {
@@ -254,29 +268,36 @@ function renderStatChips(elId, stats) {
   wrap.appendChild(statChip("نقدینگی", formatPercent(stats.liquidityPercent)));
 }
 
-function renderOptimalComparisonChart(current, optimal) {
+function renderOptimalComparisonChart(current, optimal, adjusted) {
   destroyChart("optimal");
   const byCategory = {};
-  (current || []).forEach((a) => (byCategory[a.category] = { label: a.label, current: a.percent, optimal: 0 }));
+  (current || []).forEach((a) => (byCategory[a.category] = { label: a.label, current: a.percent, optimal: 0, adjusted: 0 }));
   (optimal || []).forEach((a) => {
-    if (!byCategory[a.category]) byCategory[a.category] = { label: a.label, current: 0, optimal: 0 };
+    if (!byCategory[a.category]) byCategory[a.category] = { label: a.label, current: 0, optimal: 0, adjusted: 0 };
     byCategory[a.category].optimal = a.percent;
+  });
+  (adjusted || []).forEach((a) => {
+    if (!byCategory[a.category]) byCategory[a.category] = { label: a.label, current: 0, optimal: 0, adjusted: 0 };
+    byCategory[a.category].adjusted = a.percent;
   });
   const entries = Object.entries(byCategory);
   const labels = entries.map(([, v]) => v.label);
   const currentVals = entries.map(([, v]) => v.current);
   const optimalVals = entries.map(([, v]) => v.optimal);
+  const adjustedVals = entries.map(([, v]) => v.adjusted);
+
+  const datasets = [
+    { label: "فعلی", data: currentVals, backgroundColor: "#7c6bf2", borderRadius: 5 },
+    { label: "پیشنهادی موتور", data: optimalVals, backgroundColor: "#4fd1c5", borderRadius: 5 },
+  ];
+  if (adjusted && adjusted.length) {
+    datasets.push({ label: "تعدیل‌شده توسط هوش مصنوعی", data: adjustedVals, backgroundColor: "#fbbf24", borderRadius: 5 });
+  }
 
   const ctx = $("optimalChart").getContext("2d");
   charts.optimal = new Chart(ctx, {
     type: "bar",
-    data: {
-      labels,
-      datasets: [
-        { label: "فعلی", data: currentVals, backgroundColor: "#7c6bf2", borderRadius: 5 },
-        { label: "پیشنهادی", data: optimalVals, backgroundColor: "#4fd1c5", borderRadius: 5 },
-      ],
-    },
+    data: { labels, datasets },
     options: {
       maintainAspectRatio: false,
       indexAxis: "y",

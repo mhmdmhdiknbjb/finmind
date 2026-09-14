@@ -168,6 +168,7 @@ li::marker { color: var(--text-faint); }
 
 .banner { padding: 10px 14px; border-radius: 10px; font-size: 12.5px; margin-bottom: 12px; }
 .banner-warn { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.4); color: #fcd34d; }
+.banner-adjust { background: rgba(124,107,242,0.12); border: 1px solid rgba(124,107,242,0.4); color: #c4b8ff; }
 .banner-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 
 .meter-row { margin-bottom: 14px; }

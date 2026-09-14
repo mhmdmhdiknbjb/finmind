@@ -16,7 +16,7 @@ import {
   promptChat,
   categoryLabel,
 } from "./prompts.js";
-import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
+import { optimizePortfolio, portfolioStats, sanitizeAdjustedWeights, ASSET_ORDER } from "./optimizer.js";
 import { simulateShock } from "./monteCarlo.js";
 
 // Preset scenario -> deterministic asset-return shock, simulated with real
@@ -105,10 +105,19 @@ app.post(
     const profile = loadProfile();
     const computed = optimizePortfolio(profile);
     const explanation = await callLLMJSON(promptAssets(profile, computed), { effort: "medium" });
+
+    // The LLM may propose a bounded refinement of the optimizer's output
+    // (see sanitizeAdjustedWeights docstring) — it never invents the impact
+    // numbers themselves; those are recomputed with the same real stats
+    // engine used for "current" and "optimal".
+    const adjustedWeights = sanitizeAdjustedWeights(explanation.adjustedWeights, computed.optimal.weights);
+    const adjustedStatsRaw = adjustedWeights ? portfolioStats(adjustedWeights) : null;
+
     res.json({
       totalAssets: computed.current.total,
       allocation: allocationArray(computed.current.weights, computed.current.total),
       optimal: allocationArray(computed.optimal.weights, computed.current.total),
+      adjusted: adjustedWeights ? allocationArray(adjustedWeights, computed.current.total) : null,
       currentStats: {
         expectedReturn: computed.current.expectedReturn,
         volatility: computed.current.volatility,
@@ -119,6 +128,14 @@ app.post(
         volatility: computed.optimal.volatility,
         liquidityPercent: computed.optimal.liquidityPercent,
       },
+      adjustedStats: adjustedStatsRaw
+        ? {
+            expectedReturn: adjustedStatsRaw.expectedReturn,
+            volatility: adjustedStatsRaw.volatility,
+            liquidityPercent: adjustedStatsRaw.liquidityPercent,
+          }
+        : null,
+      adjustmentReason: adjustedWeights ? explanation.adjustmentReason || null : null,
       concentrationWarning: explanation.concentrationWarning,
       strengths: explanation.strengths,
       weaknesses: explanation.weaknesses,
