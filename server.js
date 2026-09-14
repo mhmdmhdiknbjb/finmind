@@ -22,6 +22,7 @@ import { simulateShock } from "./monteCarlo.js";
 import { forecastSeries } from "./forecast.js";
 import { loadMarketHistory, addHistoryPoint, FORECASTABLE_ASSETS } from "./marketStore.js";
 import { logEvent, effectiveRiskTolerance, getBehaviorState } from "./behaviorStore.js";
+import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./dataAsset.js";
 
 /** Blends the profile's self-reported riskTolerance with the behaviorally-learned one (Phase 4) before it reaches the optimizer. */
 function profileWithEffectiveRisk(profile) {
@@ -79,6 +80,7 @@ app.post(
     const current = loadProfile();
     const updated = { ...current, ...req.body };
     saveProfile(updated);
+    logProfileSnapshot(updated);
     res.json(updated);
   })
 );
@@ -217,6 +219,7 @@ app.post(
     if (shocks) {
       const mc = simulateShock(profile, shocks, 8000);
       const explanation = await callLLMJSON(promptScenarioExplain(profile, scenarioTitle, mc), { effort: "medium" });
+      logInteraction("scenario_run", { scenarioTitle, engine: "monte_carlo", shocks, portfolioChangePercent: mc.portfolio.p50Percent });
       res.json({
         scenarioTitle,
         impactByAsset: mc.impactByAsset.map((a) => ({
@@ -241,6 +244,7 @@ app.post(
       });
     } else {
       const result = await callLLMJSON(promptScenarioQualitative(profile, scenario), { effort: "medium" });
+      logInteraction("scenario_run", { scenarioTitle, engine: "qualitative_llm" });
       res.json(result);
     }
   })
@@ -267,7 +271,15 @@ app.post(
     if (followed && recommendation === "پیشنهاد نمی‌شود") nudgeKey = "decisionFollowedRisky";
     else if (!followed && recommendation === "پیشنهاد می‌شود") nudgeKey = "decisionAbandonedSafe";
     const state = nudgeKey ? logEvent("decision_outcome", nudgeKey, { followed, recommendation }) : getBehaviorState();
+    logInteraction("decision_outcome", { followed, recommendation });
     res.json(state);
+  })
+);
+
+app.get(
+  "/api/insights",
+  handleAsync(async (req, res) => {
+    res.json(getAggregateInsights());
   })
 );
 
@@ -313,6 +325,7 @@ app.post(
       return;
     }
     const explanation = await callLLMJSON(promptForecast(profile, asset, computed, market.synthetic), { effort: "medium" });
+    logInteraction("forecast_run", { asset, synthetic: market.synthetic, totalChangePercent: computed.totalChangePercent });
     res.json({
       asset,
       label: categoryLabel(asset),
