@@ -1,45 +1,55 @@
 /**
- * Real, free, no-key, no-signup market data feed.
- *
- * Source: fawazahmed0/currency-api, hosted on the jsDelivr CDN — a live,
- * daily-updated JSON currency/commodity dataset with no rate limit. It is
- * reachable directly from this server (verified) and gives us:
- *   - usd -> irr: how many rial one US dollar buys
- *   - xau -> usd: the international gold price per troy ounce
- *
- * Honesty note: this is a general/global rate feed, not Iran's informal
- * free-market (بازار آزاد) rate specifically, and the gold figure is the
- * world price with no adjustment for the local coin-market premium
- * ("حباب سکه"). It's still real, live data — a meaningful upgrade over a
- * fully synthetic series — but should be described to the user as such,
- * not as an authoritative Iranian market quote.
+ * Real, live market data feed — BrsApi.ir free Gold/Currency/Crypto
+ * webservice (https://brsapi.ir/free-api-gold-currency-webservice/).
+ * Unlike the previous generic feed, this one quotes gold and currency
+ * directly in Toman for the Iranian market (gold per gram at 18-karat
+ * purity, the figure Iranians actually reference day-to-day), plus a full
+ * cryptocurrency list in USD. Free tier: up to 1500 requests/day, no
+ * payment required.
  */
 
-const BASE = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies";
-const GRAMS_PER_OUNCE = 31.1034768;
+import { BRSAPI_KEY } from "./config.js";
+
+const ENDPOINT = "https://Api.BrsApi.ir/Market/Gold_Currency.php";
 
 async function fetchJSON(url, timeoutMs = 15000) {
   const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-  if (!res.ok) throw new Error(`market feed request failed: ${res.status}`);
+  if (!res.ok) throw new Error(`BrsApi request failed: ${res.status}`);
   return res.json();
 }
 
 /**
- * Returns live { usdToman, goldTomanPerGram, date, source } or throws if
- * the feed is unreachable — callers should catch and fall back gracefully.
+ * Returns live rates or throws if the feed/key is unreachable — callers
+ * should catch and fall back gracefully.
+ *   goldTomanPerGram : 18-karat gold price per gram, Toman
+ *   currencies       : { USD: tomanPrice, EUR: tomanPrice, ... }
+ *   cryptos          : { BTC: usdPrice, ETH: usdPrice, ... }
  */
 export async function fetchLiveRates() {
-  const [usdData, xauData] = await Promise.all([fetchJSON(`${BASE}/usd.json`), fetchJSON(`${BASE}/xau.json`)]);
-  const usdIrr = usdData.usd.irr;
-  const usdToman = usdIrr / 10;
-  const xauUsdPerOunce = xauData.xau.usd;
-  const goldTomanPerGram = (xauUsdPerOunce / GRAMS_PER_OUNCE) * usdToman;
+  if (!BRSAPI_KEY) throw new Error("BRSAPI_KEY تنظیم نشده است");
+
+  const data = await fetchJSON(`${ENDPOINT}?key=${encodeURIComponent(BRSAPI_KEY)}`);
+  if (data.successful === false) throw new Error(data.message_error || "BrsApi error");
+
+  const gold18k = (data.gold || []).find((g) => g.symbol === "IR_GOLD_18K");
+  if (!gold18k) throw new Error("قیمت طلای ۱۸ عیار در پاسخ BrsApi یافت نشد");
+
+  const currencies = {};
+  for (const c of data.currency || []) currencies[c.symbol] = c.price;
+
+  const cryptos = {};
+  for (const c of data.cryptocurrency || []) cryptos[c.symbol] = Number(c.price);
+
+  if (!currencies.USD) throw new Error("نرخ دلار در پاسخ BrsApi یافت نشد");
 
   return {
     fetchedAt: new Date().toISOString(),
-    date: usdData.date,
-    usdToman: Math.round(usdToman),
-    goldTomanPerGram: Math.round(goldTomanPerGram),
-    source: "fawazahmed0/currency-api (jsDelivr) — نرخ جهانی/عمومی؛ نرخ بازار آزاد ایران یا حباب سکه در آن لحاظ نشده",
+    date: data.date,
+    time: data.time,
+    usdToman: currencies.USD,
+    goldTomanPerGram: gold18k.price,
+    currencies,
+    cryptos,
+    source: "BrsApi.ir (نرخ آزاد بازار ایران)",
   };
 }

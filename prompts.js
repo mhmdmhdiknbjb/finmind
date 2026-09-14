@@ -30,10 +30,13 @@ function fmtNum(n) {
 function assetLine(a, i) {
   const label = a.label ? a.label + " — " : "";
   if (a.category === "gold") {
-    return `${i + 1}. ${label}طلا — ${fmtNum(a.quantity)} گرم — معادل ${fmtNum(a.amount)} تومان به قیمت آنی`;
+    return `${i + 1}. ${label}طلا (۱۸ عیار) — ${fmtNum(a.quantity)} گرم — معادل ${fmtNum(a.amount)} تومان به قیمت آنی`;
   }
   if (a.category === "currency") {
-    return `${i + 1}. ${label}ارز — ${fmtNum(a.quantity)} دلار — معادل ${fmtNum(a.amount)} تومان به نرخ آنی`;
+    return `${i + 1}. ${label}ارز (${a.symbol || "USD"}) — ${fmtNum(a.quantity)} واحد — معادل ${fmtNum(a.amount)} تومان به نرخ آنی`;
+  }
+  if (a.category === "crypto") {
+    return `${i + 1}. ${label}رمزارز (${a.symbol || "BTC"}) — ${fmtNum(a.quantity)} واحد — معادل ${fmtNum(a.amount)} تومان به نرخ آنی`;
   }
   return `${i + 1}. ${label}${categoryLabel(a.category)} — ${fmtNum(a.amount)} تومان`;
 }
@@ -45,7 +48,7 @@ export function buildProfileContext(profile) {
   const assetLines = (profile.assets || []).length ? profile.assets.map(assetLine).join("\n") : "کاربر هنوز هیچ دارایی‌ای ثبت نکرده است.";
 
   const liveRatesLine = profile._liveRates
-    ? `\n(نرخ‌های آنی استفاده‌شده برای تبدیل طلا/ارز به تومان: هر گرم طلا ${fmtNum(profile._liveRates.goldTomanPerGram)} تومان، هر دلار ${fmtNum(profile._liveRates.usdToman)} تومان — منبع: ${profile._liveRates.source})`
+    ? `\n(نرخ‌های آنی استفاده‌شده برای تبدیل طلا/ارز/رمزارز به تومان: هر گرم طلای ۱۸ عیار ${fmtNum(profile._liveRates.goldTomanPerGram)} تومان، هر دلار ${fmtNum(profile._liveRates.usdToman)} تومان — منبع: ${profile._liveRates.source} — تاریخ ${profile._liveRates.date}، ساعت ${profile._liveRates.time})`
     : "";
 
   const goalLines = (profile.goals || []).length

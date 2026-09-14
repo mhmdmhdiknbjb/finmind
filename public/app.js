@@ -19,6 +19,18 @@ const CATEGORY_COLORS = {
   other: "#94a3b8",
 };
 
+const CURRENCY_SYMBOLS = [
+  ["USD", "دلار آمریکا"], ["EUR", "یورو"], ["GBP", "پوند"], ["AED", "درهم امارات"],
+  ["TRY", "لیر ترکیه"], ["CAD", "دلار کانادا"], ["AUD", "دلار استرالیا"], ["CHF", "فرانک سوئیس"],
+  ["CNY", "یوآن چین"], ["SAR", "ریال عربستان"], ["KWD", "دینار کویت"], ["IQD", "دینار عراق"],
+  ["JPY", "ین ژاپن"], ["INR", "روپیه هند"], ["RUB", "روبل روسیه"],
+];
+const CRYPTO_SYMBOLS = [
+  ["BTC", "بیت‌کوین"], ["ETH", "اتریوم"], ["USDT", "تتر"], ["XRP", "ایکس‌آرپی"], ["BNB", "بی‌ان‌بی"],
+  ["SOL", "سولانا"], ["USDC", "یواس‌دی کوین"], ["ADA", "کاردانو"], ["DOGE", "دوج‌کوین"], ["TRX", "ترون"],
+  ["LINK", "چین‌لینک"], ["XLM", "استلار"], ["AVAX", "آوالانچ"], ["LTC", "لایت‌کوین"], ["DOT", "پولکادات"],
+];
+
 const SCENARIO_PRESETS = [
   { id: "usd_up_30", title: "دلار ۳۰٪ رشد کند", description: "نرخ دلار آزاد نسبت به وضعیت فعلی ۳۰ درصد افزایش پیدا می‌کند." },
   { id: "gold_down_20", title: "طلا ۲۰٪ کاهش پیدا کند", description: "قیمت طلا و سکه نسبت به وضعیت فعلی ۲۰ درصد کاهش می‌یابد." },
@@ -113,9 +125,10 @@ function populateProfileForm() {
   renderGoalsList();
 }
 
-// Gold and currency are entered by quantity (grams / units), never a toman
-// amount the user would have to compute themselves — the server converts
-// using the live rate. This cache just avoids re-fetching on every keystroke.
+// Gold, currency and crypto are entered by quantity (grams / units of a
+// chosen currency or coin), never a toman amount the user would have to
+// compute themselves — the server converts using the live rate. This cache
+// just avoids re-fetching on every keystroke.
 let liveRatesCache = null;
 async function getLiveRatesCached() {
   if (liveRatesCache) return liveRatesCache;
@@ -130,7 +143,13 @@ async function getLiveRatesCached() {
 }
 
 function isQuantityCategory(cat) {
-  return cat === "gold" || cat === "currency";
+  return cat === "gold" || cat === "currency" || cat === "crypto";
+}
+
+function symbolListFor(cat) {
+  if (cat === "currency") return CURRENCY_SYMBOLS;
+  if (cat === "crypto") return CRYPTO_SYMBOLS;
+  return null;
 }
 
 function renderAssetRows(assets) {
@@ -154,9 +173,11 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
     select.appendChild(opt);
   });
 
-  const labelInput = document.createElement("input");
-  labelInput.placeholder = "توضیح (اختیاری) مثلاً سپرده بانک ملت";
-  labelInput.value = asset.label || "";
+  // Second field: a free-text label for most categories, or a symbol picker
+  // (which currency / which coin) for currency & crypto.
+  let secondField = document.createElement("input");
+  secondField.placeholder = "توضیح (اختیاری) مثلاً سپرده بانک ملت";
+  secondField.value = asset.label || "";
 
   const valueInput = document.createElement("input");
   valueInput.type = "number";
@@ -164,13 +185,41 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
   const hint = document.createElement("div");
   hint.className = "asset-row-hint hidden";
 
+  function buildSymbolSelect(cat, symbol) {
+    const sel = document.createElement("select");
+    symbolListFor(cat).forEach(([val, label]) => {
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.textContent = `${val} — ${label}`;
+      if (val === symbol) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onchange = updateHint;
+    return sel;
+  }
+
+  function rebuildSecondField(cat, initialAsset) {
+    const list = symbolListFor(cat);
+    const next = list ? buildSymbolSelect(cat, initialAsset?.category === cat ? initialAsset.symbol : null) : (() => {
+      const input = document.createElement("input");
+      input.placeholder = "توضیح (اختیاری) مثلاً سپرده بانک ملت";
+      input.value = initialAsset?.category === cat ? initialAsset.label || "" : "";
+      return input;
+    })();
+    secondField.replaceWith(next);
+    secondField = next;
+  }
+
   function setPlaceholderFor(cat) {
     if (cat === "gold") {
       valueInput.step = "0.001";
       valueInput.placeholder = "مقدار (گرم)";
     } else if (cat === "currency") {
       valueInput.step = "0.01";
-      valueInput.placeholder = "تعداد (دلار)";
+      valueInput.placeholder = "تعداد";
+    } else if (cat === "crypto") {
+      valueInput.step = "0.0001";
+      valueInput.placeholder = "تعداد واحد";
     } else {
       valueInput.step = "0.1";
       valueInput.placeholder = "مبلغ (میلیون تومان)";
@@ -188,11 +237,22 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
       hint.classList.add("hidden");
       return;
     }
-    const price = cat === "gold" ? rates.goldTomanPerGram : rates.usdToman;
+    let price = null;
+    if (cat === "gold") price = rates.goldTomanPerGram;
+    else if (cat === "currency") price = rates.currencies[secondField.value || "USD"] ?? rates.usdToman;
+    else if (cat === "crypto") {
+      const usd = rates.cryptos[secondField.value || "BTC"];
+      price = usd ? usd * rates.usdToman : null;
+    }
+    if (!price) {
+      hint.classList.add("hidden");
+      return;
+    }
     hint.textContent = `≈ ${formatToman(Number(valueInput.value) * price)} (نرخ آنی)`;
     hint.classList.remove("hidden");
   }
 
+  rebuildSecondField(asset.category, asset);
   setPlaceholderFor(asset.category);
   if (isQuantityCategory(asset.category)) {
     valueInput.value = asset.quantity ?? "";
@@ -202,6 +262,7 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
   updateHint();
 
   select.onchange = () => {
+    rebuildSecondField(select.value, null);
     setPlaceholderFor(select.value);
     valueInput.value = "";
     hint.classList.add("hidden");
@@ -218,21 +279,24 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
   valueWrap.className = "asset-value-wrap";
   valueWrap.append(valueInput, hint);
 
-  row.append(select, labelInput, valueWrap, delBtn);
+  row.append(select, secondField, valueWrap, delBtn);
   wrap.appendChild(row);
 }
 
 function collectProfileFromForm() {
   const assets = [];
   $("assetRows").querySelectorAll(".asset-row").forEach((row) => {
-    const [select, labelInput, valueInput] = row.querySelectorAll("select, input");
+    const [select, secondField, valueInput] = row.querySelectorAll("select, input");
     const category = select.value;
-    if (isQuantityCategory(category)) {
+    if (category === "currency" || category === "crypto") {
       const quantity = Number(valueInput.value) || 0;
-      if (quantity > 0) assets.push({ category, label: labelInput.value.trim(), quantity });
+      if (quantity > 0) assets.push({ category, symbol: secondField.value, quantity });
+    } else if (category === "gold") {
+      const quantity = Number(valueInput.value) || 0;
+      if (quantity > 0) assets.push({ category, label: secondField.value.trim(), quantity });
     } else {
       const amount = millionInputToToman(valueInput.value);
-      if (amount > 0) assets.push({ category, label: labelInput.value.trim(), amount });
+      if (amount > 0) assets.push({ category, label: secondField.value.trim(), amount });
     }
   });
 
