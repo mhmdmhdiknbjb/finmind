@@ -277,3 +277,31 @@ ${message}
   "emotional": {"flag": boolean, "reason": string or null, "message": string or null}
 }`)}`;
 }
+
+/**
+ * `computed` comes from forecast.js (Holt's linear trend method fit on
+ * historical data, not an LLM guess). The model only explains the numbers.
+ */
+export function promptForecast(profile, assetKey, computed, isSynthetic) {
+  const label = categoryLabel(assetKey);
+  const pointsText = computed.points
+    .map((p) => `دوره ${p.h}: میانه ${Math.round(p.p50 * 100) / 100} (بازه ۷۰٪: ${Math.round(p.p15 * 100) / 100} تا ${Math.round(p.p85 * 100) / 100})`)
+    .join("\n");
+
+  return `${SYSTEM_PREAMBLE}
+
+${buildProfileContext(profile)}
+
+### خروجی مدل پیش‌بینی روند برای «${label}» (روش Holt's Linear Trend روی ${computed.points.length ? "داده تاریخی" : "—"}، محاسبه‌شده — نه حدس)
+${isSynthetic ? "توجه: این پیش‌بینی روی داده‌ی نمایشی (Synthetic) تولیدشده از فرضیات بازده/نوسان است، نه داده‌ی واقعی بازار — این محدودیت را صریح به کاربر بگو." : "این پیش‌بینی روی داده‌ی واقعی وارد‌شده توسط کاربر محاسبه شده است."}
+مقدار آخرین نقطه شناخته‌شده: ${computed.lastValue}
+روند هر دوره: ${computed.trendPerPeriod > 0 ? "+" : ""}${Math.round(computed.trendPerPeriod * 100) / 100}
+تغییر کل پیش‌بینی‌شده تا افق نهایی: ${computed.totalChangePercent > 0 ? "+" : ""}${computed.totalChangePercent}٪
+${pointsText}
+
+### وظیفه
+فقط بر اساس همین اعداد محاسبه‌شده، به زبان ساده توضیح بده روند این دارایی به کدام سمت است و عدم‌قطعیت (بازه ۷۰٪ اطمینان) چقدر است. اگر کاربر مقداری از این دارایی را در سبد خود دارد، توضیح بده این روند چه معنایی برای دارایی‌های او دارد. اگر داده synthetic است، حتماً محدودیت آن را به کاربر یادآوری کن.${jsonInstruction(`{
+  "explanation": string,
+  "portfolioRelevance": string
+}`)}`;
+}

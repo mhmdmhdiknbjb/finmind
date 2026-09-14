@@ -14,10 +14,20 @@ import {
   promptGoal,
   promptDecision,
   promptChat,
+  promptForecast,
   categoryLabel,
 } from "./prompts.js";
 import { optimizePortfolio, portfolioStats, sanitizeAdjustedWeights, ASSET_ORDER } from "./optimizer.js";
 import { simulateShock } from "./monteCarlo.js";
+import { forecastSeries } from "./forecast.js";
+import { loadMarketHistory, addHistoryPoint, FORECASTABLE_ASSETS } from "./marketStore.js";
+import { logEvent, effectiveRiskTolerance, getBehaviorState } from "./behaviorStore.js";
+
+/** Blends the profile's self-reported riskTolerance with the behaviorally-learned one (Phase 4) before it reaches the optimizer. */
+function profileWithEffectiveRisk(profile) {
+  const info = effectiveRiskTolerance(profile.riskTolerance);
+  return { profile: { ...profile, riskTolerance: info.effective }, riskInfo: info };
+}
 
 // Preset scenario -> deterministic asset-return shock, simulated with real
 // statistics (monteCarlo.js) instead of asked to the LLM. Scenarios with no
@@ -103,7 +113,8 @@ app.post(
   "/api/widgets/assets",
   handleAsync(async (req, res) => {
     const profile = loadProfile();
-    const computed = optimizePortfolio(profile);
+    const { profile: profileForOpt } = profileWithEffectiveRisk(profile);
+    const computed = optimizePortfolio(profileForOpt);
     const explanation = await callLLMJSON(promptAssets(profile, computed), { effort: "medium" });
 
     // The LLM may propose a bounded refinement of the optimizer's output
@@ -149,13 +160,15 @@ app.post(
   "/api/widgets/risk",
   handleAsync(async (req, res) => {
     const profile = loadProfile();
-    const computed = optimizePortfolio(profile);
+    const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(profile);
+    const computed = optimizePortfolio(profileForOpt);
     const explanation = await callLLMJSON(promptRisk(profile, computed), { effort: "medium" });
     res.json({
       currentRiskScore: computed.current.riskScore,
       suggestedRiskScore: computed.optimal.riskScore,
       difference: computed.optimal.riskScore - computed.current.riskScore,
       riskLevel: computed.current.riskLevel,
+      riskToleranceInfo: riskInfo,
       reasons: explanation.reasons,
       behavioralFactors: explanation.behavioralFactors,
       suggestions: explanation.suggestions,
@@ -243,13 +256,72 @@ app.post(
   })
 );
 
+// Phase 4: revealed preference. The decision widget asks "did you actually
+// go through with this?" after showing a recommendation; whether the user
+// followed or ignored it nudges the behaviorally-learned risk tolerance.
+app.post(
+  "/api/behavior/decision-outcome",
+  handleAsync(async (req, res) => {
+    const { followed, recommendation } = req.body;
+    let nudgeKey = null;
+    if (followed && recommendation === "پیشنهاد نمی‌شود") nudgeKey = "decisionFollowedRisky";
+    else if (!followed && recommendation === "پیشنهاد می‌شود") nudgeKey = "decisionAbandonedSafe";
+    const state = nudgeKey ? logEvent("decision_outcome", nudgeKey, { followed, recommendation }) : getBehaviorState();
+    res.json(state);
+  })
+);
+
 app.post(
   "/api/chat",
   handleAsync(async (req, res) => {
     const profile = loadProfile();
     const { message, history } = req.body;
     const result = await callLLMJSON(promptChat(profile, message, history), { effort: "medium" });
+    if (result.emotional && result.emotional.flag) {
+      logEvent("chat_emotional", "emotionalFlag", { reason: result.emotional.reason });
+    }
     res.json(result);
+  })
+);
+
+app.get(
+  "/api/market-history",
+  handleAsync(async (req, res) => {
+    res.json(loadMarketHistory());
+  })
+);
+
+app.post(
+  "/api/market-history",
+  handleAsync(async (req, res) => {
+    const { asset, period, value } = req.body;
+    const store = addHistoryPoint(asset, period, value);
+    res.json(store);
+  })
+);
+
+app.post(
+  "/api/widgets/forecast",
+  handleAsync(async (req, res) => {
+    const profile = loadProfile();
+    const asset = FORECASTABLE_ASSETS.includes(req.body.asset) ? req.body.asset : "gold";
+    const market = loadMarketHistory();
+    const series = market.series[asset] || [];
+    const computed = forecastSeries(series, 6);
+    if (computed.error) {
+      res.json({ asset, label: categoryLabel(asset), error: computed.error, synthetic: market.synthetic, series });
+      return;
+    }
+    const explanation = await callLLMJSON(promptForecast(profile, asset, computed, market.synthetic), { effort: "medium" });
+    res.json({
+      asset,
+      label: categoryLabel(asset),
+      synthetic: market.synthetic,
+      series,
+      forecast: computed,
+      explanation: explanation.explanation,
+      portfolioRelevance: explanation.portfolioRelevance,
+    });
   })
 );
 

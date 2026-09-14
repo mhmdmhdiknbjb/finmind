@@ -344,6 +344,15 @@ function renderRiskWidget(data) {
   fillList("riskBehavioral", data.behavioralFactors);
   fillList("riskSuggestions", data.suggestions);
   $("riskSummary").textContent = data.summary || "";
+
+  const bBanner = $("behaviorBanner");
+  const info = data.riskToleranceInfo;
+  if (info && info.eventCount > 0) {
+    bBanner.textContent = `🧠 مدل رفتاری: بر اساس ${info.eventCount} تصمیم/واکنش واقعی شما، ریسک‌پذیری موثر ${info.effective.toFixed(1)} از ۱۰ برآورد شده (ریسک‌پذیری اعلامی: ${info.base} از ۱۰).`;
+    bBanner.classList.remove("hidden");
+  } else {
+    bBanner.classList.add("hidden");
+  }
 }
 
 /* ---------------- Liquidity Widget ---------------- */
@@ -578,6 +587,96 @@ function renderScenarioResult(data) {
   $("scenarioRecommendation").textContent = data.recommendation || "";
 }
 
+/* ---------------- Forecast Widget ---------------- */
+
+async function loadForecastWidget() {
+  const asset = $("forecastAsset").value;
+  $("forecastLoading").classList.remove("hidden");
+  $("forecastContent").classList.add("hidden");
+  try {
+    const res = await fetch("/api/widgets/forecast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ asset }),
+    });
+    const data = await res.json();
+    $("forecastLoading").classList.add("hidden");
+    $("forecastSyntheticBanner").classList.toggle("hidden", !data.synthetic);
+    if (data.error) {
+      $("forecastExplanation").textContent = data.error;
+      $("forecastRelevance").textContent = "";
+      destroyChart("forecast");
+      $("forecastContent").classList.remove("hidden");
+      return;
+    }
+    $("forecastContent").classList.remove("hidden");
+    renderForecastChart(data);
+    $("forecastExplanation").textContent = data.explanation || "";
+    $("forecastRelevance").textContent = data.portfolioRelevance || "";
+  } catch (e) {
+    console.error(e);
+    $("forecastLoading").classList.add("hidden");
+  }
+}
+
+function renderForecastChart(data) {
+  destroyChart("forecast");
+  const histLabels = data.series.map((p) => p.period);
+  const histValues = data.series.map((p) => p.value);
+  const futureLabels = data.forecast.points.map((p) => `+${p.h}`);
+  const labels = [...histLabels, ...futureLabels];
+
+  const historyDataset = [...histValues, ...futureLabels.map(() => null)];
+  const forecastMid = [...histValues.map(() => null)];
+  forecastMid[histValues.length - 1] = histValues[histValues.length - 1];
+  data.forecast.points.forEach((p) => forecastMid.push(p.p50));
+  const forecastLow = [...histValues.map(() => null)];
+  forecastLow[histValues.length - 1] = histValues[histValues.length - 1];
+  data.forecast.points.forEach((p) => forecastLow.push(p.p15));
+  const forecastHigh = [...histValues.map(() => null)];
+  forecastHigh[histValues.length - 1] = histValues[histValues.length - 1];
+  data.forecast.points.forEach((p) => forecastHigh.push(p.p85));
+
+  const ctx = $("forecastChart").getContext("2d");
+  charts.forecast = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "بازه ۷۰٪ اطمینان (بالا)", data: forecastHigh, borderColor: "transparent", backgroundColor: "rgba(79,209,197,0.12)", fill: "+1", pointRadius: 0, tension: 0.3 },
+        { label: "پیش‌بینی (میانه)", data: forecastMid, borderColor: "#4fd1c5", borderDash: [6, 4], backgroundColor: "transparent", pointRadius: 2, tension: 0.3 },
+        { label: "بازه ۷۰٪ اطمینان (پایین)", data: forecastLow, borderColor: "transparent", backgroundColor: "rgba(79,209,197,0.12)", fill: false, pointRadius: 0, tension: 0.3 },
+        { label: "داده تاریخی", data: historyDataset, borderColor: "#7c6bf2", backgroundColor: "transparent", pointRadius: 1.5, tension: 0.3 },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom", labels: { color: cssVar("--text-dim"), font: { family: "Vazirmatn" }, filter: (item) => !item.text.includes("بالا") && !item.text.includes("پایین") } },
+      },
+      scales: {
+        x: { ticks: { color: cssVar("--text-dim"), font: { family: "Vazirmatn" }, maxRotation: 0, autoSkip: true }, grid: { display: false } },
+        y: { ticks: { color: cssVar("--text-dim") }, grid: { color: cssVar("--border") } },
+      },
+    },
+  });
+}
+
+async function addForecastPoint() {
+  const asset = $("forecastAsset").value;
+  const period = $("forecastPeriod").value.trim();
+  const value = Number($("forecastValue").value);
+  if (!period || !value) return;
+  await fetch("/api/market-history", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ asset, period, value }),
+  });
+  $("forecastPeriod").value = "";
+  $("forecastValue").value = "";
+  loadForecastWidget();
+}
+
 /* ---------------- Decision Widget ---------------- */
 
 async function runDecision() {
@@ -624,6 +723,26 @@ function renderDecisionResult(data) {
   else if (data.recommendation === "پیشنهاد نمی‌شود") recEl.classList.add("rec-no");
 
   fillList("decisionReasoning", data.reasoning);
+
+  $("decisionOutcomeBox").classList.remove("hidden");
+  $("decisionOutcomeThanks").classList.add("hidden");
+  $("decisionFollowedBtn").onclick = () => recordDecisionOutcome(true, data.recommendation);
+  $("decisionAbandonedBtn").onclick = () => recordDecisionOutcome(false, data.recommendation);
+}
+
+async function recordDecisionOutcome(followed, recommendation) {
+  $("decisionFollowedBtn").disabled = true;
+  $("decisionAbandonedBtn").disabled = true;
+  try {
+    await fetch("/api/behavior/decision-outcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ followed, recommendation }),
+    });
+    $("decisionOutcomeThanks").classList.remove("hidden");
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 /* ---------------- Emotional Alerts ---------------- */
@@ -709,6 +828,10 @@ function wireEvents() {
 
   $("runDecisionBtn").onclick = runDecision;
 
+  $("refreshForecastBtn").onclick = loadForecastWidget;
+  $("forecastAsset").onchange = loadForecastWidget;
+  $("addForecastPointBtn").onclick = addForecastPoint;
+
   $("clearEmotionalBtn").onclick = () => {
     $("emotionalList").innerHTML = "";
     $("emotionalCard").classList.add("hidden");
@@ -731,6 +854,7 @@ async function init() {
   renderScenarioPresets();
   await fetchProfile();
   refreshCoreWidgets();
+  loadForecastWidget();
 }
 
 init();

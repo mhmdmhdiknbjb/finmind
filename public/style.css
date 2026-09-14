@@ -190,6 +190,11 @@ li::marker { color: var(--text-faint); }
 @media (max-width: 700px) { .goal-add-form { grid-template-columns: 1fr; } }
 .goal-add-form input { width: 100%; }
 
+.forecast-controls { display: flex; gap: 8px; align-items: center; }
+.forecast-controls select { padding: 8px 12px; }
+.forecast-add-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 10px; }
+@media (max-width: 700px) { .forecast-add-form { grid-template-columns: 1fr; } }
+
 .goals-list { display: flex; flex-direction: column; gap: 12px; }
 .goal-item { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
 .goal-item-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
@@ -229,6 +234,9 @@ li::marker { color: var(--text-faint); }
 .recommendation-badge.rec-go { background: rgba(52,211,153,0.14); border-color: var(--pos); color: var(--pos); }
 .recommendation-badge.rec-caution { background: rgba(251,191,36,0.14); border-color: var(--warn); color: var(--warn); }
 .recommendation-badge.rec-no { background: rgba(248,113,113,0.14); border-color: var(--neg); color: var(--neg); }
+
+.decision-outcome { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: 12.5px; color: var(--text-dim); }
+.decision-outcome-thanks { color: var(--pos); font-size: 12px; }
 
 .emotional-card { border-color: var(--warn); }
 .emotional-list { display: flex; flex-direction: column; gap: 10px; }
