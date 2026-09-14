@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PORT } from "./config.js";
 import { loadProfile, saveProfile } from "./store.js";
-import { callLLMJSON } from "./llm.js";
+import { callLLMJSON, streamLLM } from "./llm.js";
 import {
   promptAssets,
   promptRisk,
@@ -13,7 +13,8 @@ import {
   promptScenarioExplain,
   promptGoal,
   promptDecision,
-  promptChat,
+  promptChatReply,
+  promptChatEmotionalCheck,
   promptVoiceExtract,
   categoryLabel,
 } from "./prompts.js";
@@ -337,18 +338,52 @@ app.get(
   })
 );
 
-app.post(
-  "/api/chat",
-  handleAsync(async (req, res) => {
+// Streams the chat reply live (word-by-word) as Server-Sent Events instead
+// of waiting for the full LLM response. Each event is a JSON line:
+//   {"type":"delta","text":"..."}      — one more chunk of the reply
+//   {"type":"emotional",...}           — emotional-reaction check result (sent once, at the end)
+//   {"type":"error","message":"..."}   — only if something failed mid-stream
+// followed by a final "data: [DONE]\n\n". The emotional check runs
+// concurrently with the streamed reply so it doesn't add extra latency.
+app.post("/api/chat", (req, res) => {
+  (async () => {
     const profile = await resolveProfileAssets(loadProfile());
     const { message, history } = req.body;
-    const result = await callLLMJSON(promptChat(profile, message, history), { effort: "medium" });
-    if (result.emotional && result.emotional.flag) {
-      logEvent("chat_emotional", "emotionalFlag", { reason: result.emotional.reason });
+
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    const emotionalPromise = callLLMJSON(promptChatEmotionalCheck(message, history), { effort: "low" }).catch(
+      () => ({ flag: false, reason: null, message: null })
+    );
+
+    await streamLLM(promptChatReply(profile, message, history), { effort: "medium" }, (delta) => {
+      res.write(`data: ${JSON.stringify({ type: "delta", text: delta })}\n\n`);
+    });
+
+    const emotional = await emotionalPromise;
+    if (emotional && emotional.flag) {
+      logEvent("chat_emotional", "emotionalFlag", { reason: emotional.reason });
     }
-    res.json(result);
-  })
-);
+    res.write(`data: ${JSON.stringify({ type: "emotional", ...emotional })}\n\n`);
+    res.write("data: [DONE]\n\n");
+    res.end();
+  })().catch((err) => {
+    console.error(err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message || "خطای داخلی سرور" });
+    } else {
+      try {
+        res.write(`data: ${JSON.stringify({ type: "error", message: err.message || "خطای داخلی سرور" })}\n\n`);
+      } catch {
+        /* ignore */
+      }
+      res.end();
+    }
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`FinMind server running at http://localhost:${PORT}`);

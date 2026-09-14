@@ -286,28 +286,59 @@ ${decision.amount ? `مبلغ مرتبط: ${fmtNum(decision.amount)} تومان`
 }`)}`;
 }
 
-export function promptChat(profile, message, history) {
-  const historyText = (history || [])
+function chatHistoryText(history) {
+  return (history || [])
     .slice(-10)
     .map((h) => `${h.role === "user" ? "کاربر" : "دستیار"}: ${h.content}`)
     .join("\n");
+}
 
+/**
+ * Plain-text reply prompt (no JSON wrapper) — used with llm.js's streamLLM
+ * so the reply can render live, word-by-word, instead of appearing all at
+ * once when the full response finishes. The emotional-reaction check is a
+ * separate, small, non-streamed call (see promptChatEmotionalCheck) so it
+ * doesn't force the visible reply to wait on JSON structure.
+ */
+export function promptChatReply(profile, message, history) {
   return `${SYSTEM_PREAMBLE}
 
 ${buildProfileContext(profile)}
 
 ### تاریخچه گفتگو (آخرین پیام‌ها)
-${historyText || "(بدون تاریخچه قبلی)"}
+${chatHistoryText(history)}
 
 ### پیام جدید کاربر
 ${message}
 
-### وظیفه
-به پیام کاربر با توجه کامل به پروفایل و دارایی‌های او پاسخ بده. پاسخ باید دقیق، مفید و شخصی‌سازی‌شده باشد نه کلی‌گویی. اگر لازم است سناریو شبیه‌سازی کن یا محاسبه انجام بده.
-همچنین بررسی کن آیا این پیام نشانه یک تصمیم یا واکنش هیجانی/آنی است (مثلاً ترس ناگهانی از نوسان کوتاه‌مدت بازار، هیجان زیاد برای ورود سریع به یک دارایی داغ، یا تصمیمی که با اهداف بلندمدت و ساختار مالی فعلی او در تضاد است). اگر چنین نشانه‌ای هست flag را true بگذار و دلیل و پیام هشدار را بنویس؛ در غیر این صورت flag را false بگذار.${jsonInstruction(`{
-  "reply": string,
-  "emotional": {"flag": boolean, "reason": string or null, "message": string or null}
-}`)}`;
+### نحوه‌ی پاسخ‌دهی به‌عنوان مشاور مالی چت
+۱. اول ببین این پیام دقیقاً چه می‌پرسد یا چه تصمیمی را مطرح می‌کند؛ اگر ابهام دارد (مثلاً معلوم نیست منظورش کدام دارایی یا کدام هدف است)، به‌جای حدس زدن، همان ابتدا با یک سؤال کوتاه روشنش کن.
+۲. اگر روشن است، قبل از نوشتن پاسخ در ذهن خودت مرور کن: این موضوع به کدام بخش از وضعیت کاربر مربوط است — نقدینگی، ریسک، بدهی، افق زمانی، یا اهداف مالی ثبت‌شده‌اش؟ معمولاً بیش از یکی از این‌ها با هم مرتبط‌اند (مثلاً یک تصمیم سرمایه‌گذاری هم روی ریسک اثر دارد هم روی نقدینگی لازم برای هدف نزدیکش)؛ همه‌ی این ابعاد مرتبط را در پاسخ لحاظ کن، نه فقط یکی.
+۳. پاسخ را با جواب مستقیم و روشن شروع کن (نه با مقدمه‌چینی)، بعد دلیل و اعداد پشتیبان را بیاور. همیشه از اعداد واقعی خود همین کاربر استفاده کن (مبلغ دقیق دارایی/درآمد/هدف)، نه توصیف کلی مثل «دارایی قابل‌توجهی دارید».
+۴. اگر پیام کاربر درباره‌ی یک تصمیم یا سناریوی فرضی است، اثر آن را روی دارایی‌ها/ریسک/نقدینگی/اهداف او با محاسبه‌ی تقریبی نشان بده، نه فقط توصیف کیفی.
+۵. اگر پاسخ به یک هدف مالی ثبت‌شده‌ی کاربر مربوط می‌شود، آن را صریح نام ببر و بگو این پاسخ چه تاثیری روی رسیدن به آن هدف در مهلت تعیین‌شده‌اش دارد.
+۶. در پایان اگر منطقی است، یک گام عملی بعدی پیشنهاد بده (نه صرفاً توضیح) — دقیقاً همان قانون کیفیت پیشنهادها که در بالا آمد (عدد/درصد/دارایی مشخص، نه کلی‌گویی).
+۷. لحن دوستانه و طبیعی چت باشد، نه گزارش رسمی؛ ولی هرگز محتوا را فدای لحن نکن.
+
+فقط متن پاسخ را به فارسی بنویس — بدون JSON، بدون Markdown، بدون هیچ نشانه‌گذاری اضافه دور پاسخ.`;
+}
+
+/**
+ * Small, fast, non-streamed classification call: does this specific user
+ * message show signs of an emotional/impulsive reaction? Runs alongside
+ * the streamed reply so the emotional-alert widget can still work without
+ * forcing the visible chat text through a JSON wrapper.
+ */
+export function promptChatEmotionalCheck(message, history) {
+  return `بررسی کن آیا پیام زیر از یک کاربر در یک اپ مالی، نشانه‌ی یک تصمیم یا واکنش هیجانی/آنی است (مثلاً ترس ناگهانی از نوسان کوتاه‌مدت بازار، هیجان زیاد برای ورود سریع به یک دارایی داغ، یا تصمیمی که آشکارا با برنامه‌ریزی بلندمدت در تضاد است). فقط بر اساس همین پیام قضاوت کن.
+
+### تاریخچه گفتگو (برای زمینه)
+${chatHistoryText(history)}
+
+### پیام کاربر
+${message}
+
+اگر flag=false است، reason و message را null بگذار.${jsonInstruction(`{"flag": boolean, "reason": string or null, "message": string or null}`)}`;
 }
 
 /**

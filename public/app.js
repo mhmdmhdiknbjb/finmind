@@ -93,6 +93,47 @@ function fillList(elId, items) {
   }
 }
 
+// Tracks the "latest reveal" for a given element so a newer call (e.g. the
+// widget was refreshed again before the previous animation finished) can
+// invalidate the older, now-stale animation instead of letting both race.
+const liveRevealTokens = new WeakMap();
+
+/** Reveals `text` inside `el` live, word-by-word, instead of setting it all at once. */
+async function typeWordsInto(el, text, delayMs = 28) {
+  if (!el) return;
+  const token = Symbol();
+  liveRevealTokens.set(el, token);
+  el.textContent = "";
+  const parts = String(text || "").split(/(\s+)/);
+  for (const part of parts) {
+    if (liveRevealTokens.get(el) !== token) return;
+    el.textContent += part;
+    if (part.trim().length) await new Promise((r) => setTimeout(r, delayMs));
+  }
+}
+
+/** Same as fillList, but reveals each list item live, word-by-word, one item after another. */
+async function fillListLive(elId, items, delayMs = 28) {
+  const el = $(elId);
+  if (!el) return;
+  const token = Symbol();
+  liveRevealTokens.set(el, token);
+  el.innerHTML = "";
+  if (!items || !items.length) {
+    const li = document.createElement("li");
+    li.textContent = "موردی یافت نشد.";
+    li.style.color = "var(--text-faint)";
+    el.appendChild(li);
+    return;
+  }
+  for (const it of items) {
+    if (liveRevealTokens.get(el) !== token) return;
+    const li = document.createElement("li");
+    el.appendChild(li);
+    await typeWordsInto(li, it, delayMs);
+  }
+}
+
 function destroyChart(key) {
   if (charts[key]) {
     charts[key].destroy();
@@ -649,10 +690,10 @@ function renderAssetsWidget(data) {
     warnEl.classList.add("hidden");
   }
 
-  fillList("assetsStrengths", data.strengths);
-  fillList("assetsWeaknesses", data.weaknesses);
-  fillList("assetsSuggestions", data.suggestions);
-  $("assetsSummary").textContent = data.summary || "";
+  fillListLive("assetsStrengths", data.strengths);
+  fillListLive("assetsWeaknesses", data.weaknesses);
+  fillListLive("assetsSuggestions", data.suggestions);
+  typeWordsInto($("assetsSummary"), data.summary || "");
 
   renderOptimalComparisonChart(data.allocation, data.optimal);
   renderStatChips("currentStatsRow", data.currentStats);
@@ -739,10 +780,10 @@ function renderRiskWidget(data) {
   const diff = data.difference ?? (data.currentRiskScore - data.suggestedRiskScore);
   $("riskDiffBadge").textContent = `اختلاف: ${diff > 0 ? "+" : ""}${Math.round(diff)}`;
 
-  fillList("riskReasons", data.reasons);
-  fillList("riskBehavioral", data.behavioralFactors);
-  fillList("riskSuggestions", data.suggestions);
-  $("riskSummary").textContent = data.summary || "";
+  fillListLive("riskReasons", data.reasons);
+  fillListLive("riskBehavioral", data.behavioralFactors);
+  fillListLive("riskSuggestions", data.suggestions);
+  typeWordsInto($("riskSummary"), data.summary || "");
 
   const bBanner = $("behaviorBanner");
   const info = data.riskToleranceInfo;
@@ -873,9 +914,11 @@ function renderGoalsList() {
           <div>امکان‌پذیری: <span class="${d.feasible ? "feasible-yes" : "feasible-no"}">${d.feasible ? "قابل دستیابی است" : "با شرایط فعلی دشوار است"}</span></div>
           <div>پس‌انداز ماهانه لازم: <b>${formatToman(d.requiredMonthlySaving)}</b></div>
           <div>توان پس‌انداز فعلی: <b>${formatToman(d.currentMonthlySavingCapacity)}</b></div>
-          <ul>${(d.suggestedPath || []).map((s) => `<li>${s}</li>`).join("")}</ul>
-          <p>${d.summary || ""}</p>
+          <ul id="goalPathList_${g.id}"></ul>
+          <p id="goalSummary_${g.id}"></p>
         `;
+        fillListLive(`goalPathList_${g.id}`, d.suggestedPath);
+        typeWordsInto(box.querySelector(`#goalSummary_${g.id}`), d.summary || "");
       } catch (err) {
         box.textContent = "خطا در دریافت تحلیل.";
       } finally {
@@ -982,8 +1025,8 @@ function renderScenarioResult(data) {
   const engineTag = $("scenarioEngineTag");
   if (engineTag) engineTag.textContent = data.confidenceRange ? "مونت‌کارلو" : "تحلیل کیفی";
 
-  $("scenarioExplanation").textContent = data.explanation || "";
-  $("scenarioRecommendation").textContent = data.recommendation || "";
+  typeWordsInto($("scenarioExplanation"), data.explanation || "");
+  typeWordsInto($("scenarioRecommendation"), data.recommendation || "");
 }
 
 /* ---------------- Decision Widget ---------------- */
@@ -1012,7 +1055,7 @@ async function runDecision() {
 }
 
 function renderDecisionResult(data) {
-  $("decisionSummary").textContent = data.decisionSummary || "";
+  typeWordsInto($("decisionSummary"), data.decisionSummary || "");
   const b = data.before || {};
   const a = data.after || {};
   $("beforeTotal").textContent = formatToman(b.totalAssets);
@@ -1022,7 +1065,7 @@ function renderDecisionResult(data) {
   $("afterRisk").textContent = `${Math.round(a.riskScore ?? 0)} از ۱۰۰`;
   $("afterLiquid").textContent = formatPercent(a.liquidPercent);
 
-  $("decisionGoalImpact").textContent = data.goalImpact || "—";
+  typeWordsInto($("decisionGoalImpact"), data.goalImpact || "—");
 
   const recEl = $("decisionRecommendation");
   recEl.textContent = data.recommendation || "—";
@@ -1031,7 +1074,7 @@ function renderDecisionResult(data) {
   else if (data.recommendation === "با احتیاط") recEl.classList.add("rec-caution");
   else if (data.recommendation === "پیشنهاد نمی‌شود") recEl.classList.add("rec-no");
 
-  fillList("decisionReasoning", data.reasoning);
+  fillListLive("decisionReasoning", data.reasoning);
 
   $("decisionOutcomeBox").classList.remove("hidden");
   $("decisionOutcomeThanks").classList.add("hidden");
@@ -1088,27 +1131,82 @@ function appendChatMessage(role, text, thinking = false) {
   return div;
 }
 
+// Reads the /api/chat SSE stream and appends the reply text into `botEl`
+// live, as each delta actually arrives from the LLM — not a reveal
+// animation played after the fact, but the real live output.
+async function streamChatReplyInto(botEl, message) {
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history: chatHistory }),
+  });
+  if (!res.ok || !res.body) throw new Error("پاسخ سرور نامعتبر بود.");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullReply = "";
+  let emotional = null;
+  let started = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      let evt;
+      try {
+        evt = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+      if (evt.type === "delta" && typeof evt.text === "string") {
+        if (!started) {
+          started = true;
+          botEl.classList.remove("thinking");
+          botEl.textContent = "";
+        }
+        fullReply += evt.text;
+        botEl.textContent = fullReply;
+        const wrap = $("chatMessages");
+        wrap.scrollTop = wrap.scrollHeight;
+      } else if (evt.type === "emotional") {
+        emotional = evt;
+      } else if (evt.type === "error") {
+        throw new Error(evt.message || "خطا در دریافت پاسخ.");
+      }
+    }
+  }
+
+  return { fullReply, emotional };
+}
+
 async function sendChatMessage(message) {
   appendChatMessage("user", message);
   chatHistory.push({ role: "user", content: message });
-  const thinkingEl = appendChatMessage("bot", "در حال فکر کردن...", true);
+  const botEl = appendChatMessage("bot", "در حال فکر کردن...", true);
 
   try {
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, history: chatHistory }),
-    });
-    const data = await res.json();
-    thinkingEl.remove();
-    appendChatMessage("bot", data.reply || "متاسفانه پاسخی دریافت نشد.");
-    chatHistory.push({ role: "assistant", content: data.reply || "" });
-    if (data.emotional && data.emotional.flag) {
-      addEmotionalAlert(data.emotional);
+    const { fullReply, emotional } = await streamChatReplyInto(botEl, message);
+    if (!fullReply) {
+      botEl.classList.remove("thinking");
+      botEl.textContent = "متاسفانه پاسخی دریافت نشد.";
+    }
+    chatHistory.push({ role: "assistant", content: fullReply || "" });
+    if (emotional && emotional.flag) {
+      addEmotionalAlert(emotional);
     }
   } catch (e) {
-    thinkingEl.remove();
-    appendChatMessage("bot", "خطا در ارتباط با سرور.");
+    console.error(e);
+    botEl.classList.remove("thinking");
+    botEl.textContent = "خطا در ارتباط با سرور.";
   }
 }
 

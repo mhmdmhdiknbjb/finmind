@@ -40,6 +40,64 @@ export async function callLLM(input, { effort = "medium" } = {}) {
   return extractOutputText(data);
 }
 
+/**
+ * Streams a plain-text completion, invoking `onDelta(chunk)` as each token
+ * arrives from the Responses API's SSE stream (event type
+ * "response.output_text.delta"). Used for the chat widget so the reply
+ * appears live/word-by-word instead of popping in all at once when the
+ * full response finishes. Resolves with the full concatenated text.
+ */
+export async function streamLLM(input, { effort = "medium" } = {}, onDelta) {
+  const res = await fetch(`${API_BASE_URL}/responses`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      input,
+      stream: true,
+      ...(SUPPORTS_REASONING ? { reasoning: { effort } } : {}),
+    }),
+  });
+  if (!res.ok || !res.body) {
+    const body = res.body ? await res.text() : "";
+    throw new Error(`LLM stream API error ${res.status}: ${body.slice(0, 500)}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop(); // last (possibly incomplete) line stays in buffer
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      let evt;
+      try {
+        evt = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+      if (evt.type === "response.output_text.delta" && typeof evt.delta === "string") {
+        full += evt.delta;
+        onDelta(evt.delta);
+      }
+    }
+  }
+  return full;
+}
+
 function stripCodeFence(text) {
   let t = text.trim();
   if (t.startsWith("```")) {
