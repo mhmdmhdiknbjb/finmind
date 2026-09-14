@@ -10,18 +10,17 @@ const FILE = path.join(DATA_DIR, "interactions.jsonl");
  * Phase 5 — the proprietary dataset.
  *
  * This is honestly not a model at all: it's the append-only event log that,
- * aggregated across many real users in a deployed (multi-tenant) version of
- * this product, becomes the thing competitors running a bare LLM-wrapper
- * cannot replicate — structured Iranian-household financial-behavior data
- * (which scenarios people actually worry about, how allocation choices
- * relate to age/risk band, how often a recommendation is actually followed).
+ * aggregated across many real users of this multi-tenant product, becomes
+ * the thing competitors running a bare LLM-wrapper cannot replicate —
+ * structured Iranian-household financial-behavior data (which scenarios
+ * people actually worry about, how allocation choices relate to age/risk
+ * band, how often a recommendation is actually followed).
  *
- * In this single-user local prototype it's necessarily thin (n=1), so
- * getAggregateInsights() is a demonstration of the pipeline, not a claim of
- * a competitive moat yet. Every record is deliberately aggregate/structural
- * — asset *categories* and *percentages*, age/risk *bands*, never raw
- * amounts, names, or other PII — so the same logger is safe to point at a
- * real multi-user deployment later without a schema rewrite.
+ * Every record is deliberately aggregate/structural — asset *categories*
+ * and *percentages*, age/risk *bands*, never raw amounts, names, or other
+ * PII — plus a `userId` so per-user behavior can still be traced back if
+ * needed, without the aggregate stats themselves ever exposing anyone's
+ * actual numbers.
  */
 
 function ensureDataDir() {
@@ -37,14 +36,14 @@ function ageBand(age) {
   return "60+";
 }
 
-export function logInteraction(type, payload) {
+export function logInteraction(userId, type, payload) {
   ensureDataDir();
-  const record = { ts: new Date().toISOString(), type, ...payload };
+  const record = { ts: new Date().toISOString(), userId, type, ...payload };
   fs.appendFileSync(FILE, JSON.stringify(record) + "\n", "utf-8");
 }
 
-export function logProfileSnapshot(profile) {
-  logInteraction("profile_snapshot", {
+export function logProfileSnapshot(userId, profile) {
+  logInteraction(userId, "profile_snapshot", {
     ageBand: ageBand(profile.personal?.age),
     riskTolerance: profile.riskTolerance ?? null,
     assetCategoryCount: new Set((profile.assets || []).map((a) => a.category)).size,
@@ -94,6 +93,7 @@ export function getAggregateInsights() {
       followedAgainstAdvice,
       abandonedSafeAdvice: abandonedSafe,
     },
-    note: "این خلاصه از داده‌ی همین یک جلسه (n=1) ساخته شده — ارزش واقعی این دیتاست وقتی ظاهر می‌شود که در نسخه‌ی چندکاربره، این رویدادها از کاربران زیادی تجمیع شوند.",
+    userCount: new Set(records.map((r) => r.userId).filter(Boolean)).size,
+    note: "این خلاصه از تمام کاربران پلتفرم تجمیع شده — هرچه کاربران بیشتری از فین‌مایند استفاده کنند، این دیتاست ارزشمندتر می‌شود.",
   };
 }

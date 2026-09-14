@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>شبیه‌ساز سناریو | فین‌مایند</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body data-page="scenario">
+
+<div class="panel-shell">
+  <aside class="panel-sidebar" id="panelSidebar"></aside>
+  <div class="panel-main">
+    <header class="panel-topbar" id="panelTopbar"></header>
+    <main class="panel-content">
+
+      <section class="card span-12" id="scenarioCard">
+        <div class="card-head">
+          <h2><span class="ico">🌪️</span> شبیه‌ساز سناریو <span class="engine-tag" id="scenarioEngineTag">مونت‌کارلو</span></h2>
+        </div>
+        <div class="card-body">
+          <div class="scenario-presets" id="scenarioPresets"></div>
+          <div class="scenario-custom">
+            <textarea id="scenarioCustom" rows="2" placeholder="یا سناریوی دلخواه خودت رو بنویس... مثلاً: اگر دلار ۴۰٪ رشد کند چه اتفاقی می‌افتد؟"></textarea>
+            <button class="btn btn-primary btn-small" id="runScenarioBtn">شبیه‌سازی کن</button>
+          </div>
+          <div class="loading hidden" id="scenarioLoading">در حال شبیه‌سازی سناریو...</div>
+          <div id="scenarioContent" class="hidden">
+            <div class="chart-wrap chart-wrap-sm"><canvas id="scenarioChart"></canvas></div>
+            <div class="scenario-total" id="scenarioTotal"></div>
+            <div class="scenario-range hidden" id="scenarioRange"></div>
+            <p class="summary-text" id="scenarioExplanation"></p>
+            <p class="summary-text recommend" id="scenarioRecommendation"></p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script src="../vendor/chart.umd.min.js"></script>
+<script type="module" src="scenario-page.js"></script>
+</body>
+</html>

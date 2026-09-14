@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "data");
-const PROFILE_FILE = path.join(DATA_DIR, "profile.json");
+const USERS_DATA_DIR = path.join(DATA_DIR, "users");
 
 const DEFAULT_PROFILE = {
   onboarded: false,
@@ -29,26 +29,36 @@ const DEFAULT_PROFILE = {
   goals: [],
 };
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+function userDir(userId) {
+  return path.join(USERS_DATA_DIR, userId);
 }
 
-export function loadProfile() {
-  ensureDataDir();
-  if (!fs.existsSync(PROFILE_FILE)) {
-    saveProfile(DEFAULT_PROFILE);
+function profileFile(userId) {
+  return path.join(userDir(userId), "profile.json");
+}
+
+function ensureUserDir(userId) {
+  const dir = userDir(userId);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+export function loadProfile(userId) {
+  ensureUserDir(userId);
+  const file = profileFile(userId);
+  if (!fs.existsSync(file)) {
+    saveProfile(userId, DEFAULT_PROFILE);
     return structuredClone(DEFAULT_PROFILE);
   }
   try {
-    const raw = fs.readFileSync(PROFILE_FILE, "utf-8");
+    const raw = fs.readFileSync(file, "utf-8");
     return { ...structuredClone(DEFAULT_PROFILE), ...JSON.parse(raw) };
   } catch {
     return structuredClone(DEFAULT_PROFILE);
   }
 }
 
-export function saveProfile(profile) {
-  ensureDataDir();
-  fs.writeFileSync(PROFILE_FILE, JSON.stringify(profile, null, 2), "utf-8");
+export function saveProfile(userId, profile) {
+  ensureUserDir(userId);
+  fs.writeFileSync(profileFile(userId), JSON.stringify(profile, null, 2), "utf-8");
   return profile;
 }

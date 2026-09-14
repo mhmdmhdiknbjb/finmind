@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>دستیار قبل از تصمیم | فین‌مایند</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body data-page="decision">
+
+<div class="panel-shell">
+  <aside class="panel-sidebar" id="panelSidebar"></aside>
+  <div class="panel-main">
+    <header class="panel-topbar" id="panelTopbar"></header>
+    <main class="panel-content">
+
+      <section class="card span-12" id="decisionCard">
+        <div class="card-head">
+          <h2><span class="ico">🧭</span> دستیار قبل از تصمیم</h2>
+        </div>
+        <div class="card-body">
+          <div class="decision-form">
+            <textarea id="decisionText" rows="2" placeholder="تصمیم مالی خودت رو توضیح بده... مثلاً: می‌خوام ۲۰۰ میلیون از سپرده‌ام رو تبدیل به طلا کنم"></textarea>
+            <input id="decisionAmount" type="number" placeholder="مبلغ مرتبط (اختیاری، میلیون تومان)" />
+            <button class="btn btn-primary btn-small" id="runDecisionBtn">بررسی این تصمیم</button>
+          </div>
+          <div class="loading hidden" id="decisionLoading">در حال بررسی پیامدهای تصمیم...</div>
+          <div id="decisionContent" class="hidden">
+            <p class="decision-summary" id="decisionSummary"></p>
+            <div class="two-col">
+              <div class="compare-block">
+                <h4>قبل از تصمیم</h4>
+                <div class="compare-row"><span>کل دارایی</span><b id="beforeTotal">—</b></div>
+                <div class="compare-row"><span>ریسک</span><b id="beforeRisk">—</b></div>
+                <div class="compare-row"><span>نقدینگی</span><b id="beforeLiquid">—</b></div>
+              </div>
+              <div class="compare-block">
+                <h4>بعد از تصمیم</h4>
+                <div class="compare-row"><span>کل دارایی</span><b id="afterTotal">—</b></div>
+                <div class="compare-row"><span>ریسک</span><b id="afterRisk">—</b></div>
+                <div class="compare-row"><span>نقدینگی</span><b id="afterLiquid">—</b></div>
+              </div>
+            </div>
+            <p class="summary-text"><b>اثر بر اهداف: </b><span id="decisionGoalImpact"></span></p>
+            <div id="decisionRecommendation" class="recommendation-badge">—</div>
+            <h4 class="tag-neu">دلایل</h4>
+            <ul id="decisionReasoning"></ul>
+            <div class="decision-outcome" id="decisionOutcomeBox">
+              <span>در نهایت این تصمیم را گرفتی؟</span>
+              <button class="btn btn-ghost btn-small" id="decisionFollowedBtn">بله، اجرا کردم</button>
+              <button class="btn btn-ghost btn-small" id="decisionAbandonedBtn">نه، منصرف شدم</button>
+              <span class="decision-outcome-thanks hidden" id="decisionOutcomeThanks">ثبت شد — به مدل ریسک رفتاری شما اضافه شد ✓</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script type="module" src="decision-page.js"></script>
+</body>
+</html>

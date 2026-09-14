@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>اهداف مالی | فین‌مایند</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body data-page="goals">
+
+<div class="panel-shell">
+  <aside class="panel-sidebar" id="panelSidebar"></aside>
+  <div class="panel-main">
+    <header class="panel-topbar" id="panelTopbar"></header>
+    <main class="panel-content">
+
+      <section class="card span-12" id="goalsCard">
+        <div class="card-head">
+          <h2><span class="ico">🏁</span> اهداف مالی من</h2>
+        </div>
+        <div class="card-body">
+          <div class="goal-add-form">
+            <input id="goalTitle" placeholder="عنوان هدف، مثلاً خرید خانه" />
+            <input id="goalAmount" type="number" placeholder="مبلغ هدف (میلیون تومان)" />
+            <input id="goalMonths" type="number" placeholder="مهلت (ماه)" />
+            <button class="btn btn-primary btn-small" id="addGoalBtn">افزودن هدف</button>
+          </div>
+          <div id="goalsList" class="goals-list"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script type="module" src="goals-page.js"></script>
+</body>
+</html>

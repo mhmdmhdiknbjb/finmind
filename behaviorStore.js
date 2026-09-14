@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "data");
-const FILE = path.join(DATA_DIR, "behavior.json");
+const USERS_DATA_DIR = path.join(DATA_DIR, "users");
 
 /**
  * Phase 4 — Behavioral risk-scoring.
@@ -17,6 +17,7 @@ const FILE = path.join(DATA_DIR, "behavior.json");
  * "effective" risk tolerance away from the stated one accordingly. This is
  * a real (if simple) online-learning update rule, not a static
  * questionnaire, and it starts adjusting from the very first logged event.
+ * The log is kept per-user (each account learns from its own behavior only).
  *
  * Each event contributes a bounded nudge to `delta` (added to the
  * self-reported riskTolerance, clamped so a handful of events can't cause
@@ -41,46 +42,65 @@ const NUDGE = {
   onboardingStaysCalm: 1.5,
 };
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+function userDir(userId) {
+  return path.join(USERS_DATA_DIR, userId);
 }
 
-function load() {
-  ensureDataDir();
-  if (!fs.existsSync(FILE)) return { events: [], delta: 0 };
+function file(userId) {
+  return path.join(userDir(userId), "behavior.json");
+}
+
+function ensureUserDir(userId) {
+  const dir = userDir(userId);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function load(userId) {
+  ensureUserDir(userId);
+  const f = file(userId);
+  if (!fs.existsSync(f)) return { events: [], delta: 0 };
   try {
-    return JSON.parse(fs.readFileSync(FILE, "utf-8"));
+    return JSON.parse(fs.readFileSync(f, "utf-8"));
   } catch {
     return { events: [], delta: 0 };
   }
 }
 
-function save(state) {
-  ensureDataDir();
-  fs.writeFileSync(FILE, JSON.stringify(state, null, 2), "utf-8");
+function save(userId, state) {
+  ensureUserDir(userId);
+  fs.writeFileSync(file(userId), JSON.stringify(state, null, 2), "utf-8");
 }
 
 function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
 }
 
-export function logEvent(type, nudgeKey, meta = {}) {
-  const state = load();
+export function logEvent(userId, type, nudgeKey, meta = {}) {
+  const state = load(userId);
   const nudge = NUDGE[nudgeKey] || 0;
   state.events.push({ type, nudgeKey, nudge, meta, at: new Date().toISOString() });
   state.delta = clamp(state.delta + nudge, -MAX_DELTA, MAX_DELTA);
-  save(state);
+  save(userId, state);
   return state;
 }
 
-export function getBehaviorState() {
-  return load();
+export function getBehaviorState(userId) {
+  return load(userId);
 }
 
 /** Blends the self-reported riskTolerance with the accumulated behavioral delta. */
-export function effectiveRiskTolerance(selfReported) {
-  const state = load();
+export function effectiveRiskTolerance(userId, selfReported) {
+  const state = load(userId);
   const base = Number(selfReported) || 5;
   const effective = clamp(base + state.delta, 1, 10);
   return { base, delta: state.delta, effective, eventCount: state.events.length };
+}
+
+/** Recent chat messages flagged as an emotional/impulsive reaction, newest first. */
+export function getEmotionalEvents(userId) {
+  const state = load(userId);
+  return state.events
+    .filter((e) => e.type === "chat_emotional")
+    .map((e) => ({ at: e.at, reason: e.meta?.reason || null, message: e.meta?.message || null }))
+    .reverse();
 }

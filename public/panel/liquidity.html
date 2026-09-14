@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>نقدینگی من | فین‌مایند</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body data-page="liquidity">
+
+<div class="panel-shell">
+  <aside class="panel-sidebar" id="panelSidebar"></aside>
+  <div class="panel-main">
+    <header class="panel-topbar" id="panelTopbar"></header>
+    <main class="panel-content">
+
+      <section class="card span-12" id="liquidityCard">
+        <div class="card-head">
+          <h2><span class="ico">💧</span> نقدینگی من</h2>
+          <button class="btn btn-ghost btn-small" id="refreshLiquidityBtn">تحلیل مجدد</button>
+        </div>
+        <div class="card-body">
+          <div class="loading" id="liquidityLoading">در حال تحلیل نقدینگی...</div>
+          <div id="liquidityContent" class="hidden two-col">
+            <div>
+              <div class="chart-wrap chart-wrap-sm"><canvas id="liquidityDonut"></canvas></div>
+            </div>
+            <div>
+              <div class="chart-wrap chart-wrap-sm"><canvas id="liquidityBar"></canvas></div>
+              <div id="liquidityWarnings" class="banner-stack"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script src="../vendor/chart.umd.min.js"></script>
+<script type="module" src="liquidity-page.js"></script>
+</body>
+</html>

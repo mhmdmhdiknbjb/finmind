@@ -22,13 +22,21 @@ import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 import { simulateShock } from "./monteCarlo.js";
 import { resolveProfileAssets, getLiveRates, applyAssetChanges, normalizeExtractedAssets } from "./assetPricing.js";
-import { logEvent, effectiveRiskTolerance, getBehaviorState } from "./behaviorStore.js";
+import { logEvent, effectiveRiskTolerance, getBehaviorState, getEmotionalEvents } from "./behaviorStore.js";
 import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./dataAsset.js";
 import { transcribeAudio } from "./transcribe.js";
+import {
+  registerUser,
+  verifyLogin,
+  createSessionToken,
+  setSessionCookie,
+  clearSessionCookie,
+  requireAuth,
+} from "./auth.js";
 
 /** Blends the profile's self-reported riskTolerance with the behaviorally-learned one (Phase 4) before it reaches the optimizer. */
-function profileWithEffectiveRisk(profile) {
-  const info = effectiveRiskTolerance(profile.riskTolerance);
+function profileWithEffectiveRisk(userId, profile) {
+  const info = effectiveRiskTolerance(userId, profile.riskTolerance);
   return { profile: { ...profile, riskTolerance: info.effective }, riskInfo: info };
 }
 
@@ -64,32 +72,69 @@ function handleAsync(fn) {
   return (req, res) => {
     fn(req, res).catch((err) => {
       console.error(err);
-      res.status(500).json({ error: err.message || "خطای داخلی سرور" });
+      if (!res.headersSent) res.status(500).json({ error: err.message || "خطای داخلی سرور" });
     });
   };
 }
 
+/* ---------------- Auth ---------------- */
+
+app.post(
+  "/api/auth/register",
+  handleAsync(async (req, res) => {
+    const { name, email, password } = req.body || {};
+    const user = registerUser({ name, email, password });
+    const token = createSessionToken(user.id);
+    setSessionCookie(res, token);
+    res.json({ user });
+  })
+);
+
+app.post(
+  "/api/auth/login",
+  handleAsync(async (req, res) => {
+    const { email, password } = req.body || {};
+    const user = verifyLogin(email, password);
+    const token = createSessionToken(user.id);
+    setSessionCookie(res, token);
+    res.json({ user });
+  })
+);
+
+app.post("/api/auth/logout", (req, res) => {
+  clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.get("/api/auth/me", requireAuth, (req, res) => {
+  res.json({ user: req.user });
+});
+
+/* ---------------- Profile ---------------- */
+
 app.get(
   "/api/profile",
+  requireAuth,
   handleAsync(async (req, res) => {
-    res.json(loadProfile());
+    res.json(loadProfile(req.userId));
   })
 );
 
 app.post(
   "/api/profile",
+  requireAuth,
   handleAsync(async (req, res) => {
-    const current = loadProfile();
+    const current = loadProfile(req.userId);
     const updated = { ...current, ...req.body };
-    saveProfile(updated);
-    logProfileSnapshot(updated);
+    saveProfile(req.userId, updated);
+    logProfileSnapshot(req.userId, updated);
 
     // Onboarding just completed for the first time: seed the behavioral
     // risk model once from the self-reported "how would you react to a
     // 20% drop?" question (Phase 4 — see behaviorStore.js).
     if (!current.onboarded && updated.onboarded) {
-      if (updated.emotionalRiskReaction === "می‌فروشم") logEvent("onboarding_seed", "onboardingSellsImmediately", {});
-      else if (updated.emotionalRiskReaction === "بی‌تفاوتم یا بیشتر می‌خرم") logEvent("onboarding_seed", "onboardingStaysCalm", {});
+      if (updated.emotionalRiskReaction === "می‌فروشم") logEvent(req.userId, "onboarding_seed", "onboardingSellsImmediately", {});
+      else if (updated.emotionalRiskReaction === "بی‌تفاوتم یا بیشتر می‌خرم") logEvent(req.userId, "onboarding_seed", "onboardingStaysCalm", {});
     }
 
     res.json(updated);
@@ -110,6 +155,7 @@ app.get(
 // for something the user didn't mention.
 app.post(
   "/api/voice/transcribe",
+  requireAuth,
   express.raw({ type: "*/*", limit: "25mb" }),
   handleAsync(async (req, res) => {
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
@@ -124,6 +170,7 @@ app.post(
 
 app.post(
   "/api/voice/extract",
+  requireAuth,
   handleAsync(async (req, res) => {
     const transcript = (req.body.transcript || "").trim();
     if (!transcript) {
@@ -138,8 +185,9 @@ app.post(
 
 app.post(
   "/api/goals",
+  requireAuth,
   handleAsync(async (req, res) => {
-    const profile = loadProfile();
+    const profile = loadProfile(req.userId);
     const goal = {
       id: Date.now().toString(36),
       title: req.body.title,
@@ -147,26 +195,28 @@ app.post(
       targetMonths: Number(req.body.targetMonths) || 0,
     };
     profile.goals = [...(profile.goals || []), goal];
-    saveProfile(profile);
+    saveProfile(req.userId, profile);
     res.json(profile);
   })
 );
 
 app.delete(
   "/api/goals/:id",
+  requireAuth,
   handleAsync(async (req, res) => {
-    const profile = loadProfile();
+    const profile = loadProfile(req.userId);
     profile.goals = (profile.goals || []).filter((g) => g.id !== req.params.id);
-    saveProfile(profile);
+    saveProfile(req.userId, profile);
     res.json(profile);
   })
 );
 
 app.post(
   "/api/widgets/assets",
+  requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile());
-    const { profile: profileForOpt } = profileWithEffectiveRisk(profile);
+    const profile = await resolveProfileAssets(loadProfile(req.userId));
+    const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
     const computed = optimizePortfolio(profileForOpt);
     const explanation = await callLLMJSON(promptAssets(profile, computed), { effort: "medium" });
 
@@ -195,9 +245,10 @@ app.post(
 
 app.post(
   "/api/widgets/risk",
+  requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile());
-    const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(profile);
+    const profile = await resolveProfileAssets(loadProfile(req.userId));
+    const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(req.userId, profile);
     const computed = optimizePortfolio(profileForOpt);
     const explanation = await callLLMJSON(promptRisk(profile, computed), { effort: "medium" });
     res.json({
@@ -216,8 +267,9 @@ app.post(
 
 app.post(
   "/api/widgets/liquidity",
+  requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile());
+    const profile = await resolveProfileAssets(loadProfile(req.userId));
     const computed = computeLiquidity(profile);
     const explanation = await callLLMJSON(promptLiquidity(profile, computed), { effort: "medium" });
     res.json({
@@ -234,8 +286,9 @@ app.post(
 
 app.post(
   "/api/widgets/goal",
+  requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile());
+    const profile = await resolveProfileAssets(loadProfile(req.userId));
     const goal = req.body.goal;
     const result = await callLLMJSON(promptGoal(profile, goal), { effort: "medium" });
     res.json(result);
@@ -244,8 +297,9 @@ app.post(
 
 app.post(
   "/api/widgets/scenario",
+  requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile());
+    const profile = await resolveProfileAssets(loadProfile(req.userId));
     const scenario = req.body.scenario || {};
     let shocks = scenario.id && PRESET_SHOCKS[scenario.id] ? PRESET_SHOCKS[scenario.id] : null;
     let scenarioTitle = scenario.title;
@@ -263,7 +317,7 @@ app.post(
     if (shocks) {
       const mc = simulateShock(profile, shocks, 8000);
       const explanation = await callLLMJSON(promptScenarioExplain(profile, scenarioTitle, mc), { effort: "medium" });
-      logInteraction("scenario_run", { scenarioTitle, engine: "monte_carlo", shocks, portfolioChangePercent: mc.portfolio.p50Percent });
+      logInteraction(req.userId, "scenario_run", { scenarioTitle, engine: "monte_carlo", shocks, portfolioChangePercent: mc.portfolio.p50Percent });
       res.json({
         scenarioTitle,
         impactByAsset: mc.impactByAsset.map((a) => ({
@@ -288,7 +342,7 @@ app.post(
       });
     } else {
       const result = await callLLMJSON(promptScenarioQualitative(profile, scenario), { effort: "medium" });
-      logInteraction("scenario_run", { scenarioTitle, engine: "qualitative_llm" });
+      logInteraction(req.userId, "scenario_run", { scenarioTitle, engine: "qualitative_llm" });
       res.json(result);
     }
   })
@@ -296,8 +350,9 @@ app.post(
 
 app.post(
   "/api/widgets/decision",
+  requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile());
+    const profile = await resolveProfileAssets(loadProfile(req.userId));
     const decision = req.body.decision;
     const result = await callLLMJSON(promptDecision(profile, decision), { effort: "medium" });
     res.json(result);
@@ -309,21 +364,22 @@ app.post(
 // followed or ignored it nudges the behaviorally-learned risk tolerance.
 app.post(
   "/api/behavior/decision-outcome",
+  requireAuth,
   handleAsync(async (req, res) => {
     const { followed, recommendation, assetChanges } = req.body;
     let nudgeKey = null;
     if (followed && recommendation === "پیشنهاد نمی‌شود") nudgeKey = "decisionFollowedRisky";
     else if (!followed && recommendation === "پیشنهاد می‌شود") nudgeKey = "decisionAbandonedSafe";
-    const state = nudgeKey ? logEvent("decision_outcome", nudgeKey, { followed, recommendation }) : getBehaviorState();
-    logInteraction("decision_outcome", { followed, recommendation });
+    const state = nudgeKey ? logEvent(req.userId, "decision_outcome", nudgeKey, { followed, recommendation }) : getBehaviorState(req.userId);
+    logInteraction(req.userId, "decision_outcome", { followed, recommendation });
 
     // The user confirmed they actually went through with this decision:
     // apply its structured effect to the real portfolio, not just log it.
     let updatedProfile = null;
     if (followed && Array.isArray(assetChanges) && assetChanges.length) {
-      const profile = loadProfile();
+      const profile = loadProfile(req.userId);
       profile.assets = await applyAssetChanges(profile, assetChanges);
-      saveProfile(profile);
+      saveProfile(req.userId, profile);
       updatedProfile = profile;
     }
 
@@ -332,7 +388,16 @@ app.post(
 );
 
 app.get(
+  "/api/emotional-alerts",
+  requireAuth,
+  handleAsync(async (req, res) => {
+    res.json({ alerts: getEmotionalEvents(req.userId) });
+  })
+);
+
+app.get(
   "/api/insights",
+  requireAuth,
   handleAsync(async (req, res) => {
     res.json(getAggregateInsights());
   })
@@ -345,9 +410,10 @@ app.get(
 //   {"type":"error","message":"..."}   — only if something failed mid-stream
 // followed by a final "data: [DONE]\n\n". The emotional check runs
 // concurrently with the streamed reply so it doesn't add extra latency.
-app.post("/api/chat", (req, res) => {
+app.post("/api/chat", requireAuth, (req, res) => {
   (async () => {
-    const profile = await resolveProfileAssets(loadProfile());
+    const userId = req.userId;
+    const profile = await resolveProfileAssets(loadProfile(userId));
     const { message, history } = req.body;
 
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -365,7 +431,7 @@ app.post("/api/chat", (req, res) => {
 
     const emotional = await emotionalPromise;
     if (emotional && emotional.flag) {
-      logEvent("chat_emotional", "emotionalFlag", { reason: emotional.reason });
+      logEvent(userId, "chat_emotional", "emotionalFlag", { reason: emotional.reason, message: emotional.message });
     }
     res.write(`data: ${JSON.stringify({ type: "emotional", ...emotional })}\n\n`);
     res.write("data: [DONE]\n\n");

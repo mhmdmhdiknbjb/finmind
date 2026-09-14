@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>تحلیل دارایی‌ها | فین‌مایند</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body data-page="assets">
+
+<div class="panel-shell">
+  <aside class="panel-sidebar" id="panelSidebar"></aside>
+  <div class="panel-main">
+    <header class="panel-topbar" id="panelTopbar"></header>
+    <main class="panel-content">
+
+      <section class="card span-12" id="assetsAnalysisCard">
+        <div class="card-head">
+          <h2><span class="ico">📊</span> تحلیل ترکیب دارایی‌ها <span class="engine-tag">موتور بهینه‌سازی پرتفوی</span></h2>
+          <button class="btn btn-ghost btn-small" id="refreshAssetsBtn">تحلیل مجدد</button>
+        </div>
+        <div class="card-body">
+          <div class="loading" id="assetsLoading">در حال محاسبه و تحلیل...</div>
+          <div id="assetsContent" class="hidden two-col">
+            <div>
+              <h4 class="tag-neu">ترکیب فعلی</h4>
+              <div class="chart-wrap chart-wrap-sm"><canvas id="assetsChart"></canvas></div>
+              <div class="stat-row" id="currentStatsRow"></div>
+            </div>
+            <div>
+              <h4 class="tag-sug">ترکیب فعلی در برابر پیشنهادی موتور بهینه‌سازی</h4>
+              <div class="chart-wrap chart-wrap-sm"><canvas id="optimalChart"></canvas></div>
+              <div class="stat-row" id="optimalStatsRow"></div>
+            </div>
+          </div>
+          <div id="assetsTextContent" class="hidden">
+            <div class="banner banner-warn hidden" id="concentrationWarning"></div>
+            <div class="list-cols">
+              <div><h4 class="tag-pos">نقاط قوت</h4><ul id="assetsStrengths"></ul></div>
+              <div><h4 class="tag-neg">نقاط ضعف</h4><ul id="assetsWeaknesses"></ul></div>
+            </div>
+            <h4 class="tag-sug">پیشنهادها</h4>
+            <ul id="assetsSuggestions"></ul>
+            <p class="summary-text" id="assetsSummary"></p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script src="../vendor/chart.umd.min.js"></script>
+<script type="module" src="assets-page.js"></script>
+</body>
+</html>

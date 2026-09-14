@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>گفتگو با دستیار | فین‌مایند</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body data-page="chat">
+
+<div class="panel-shell">
+  <aside class="panel-sidebar" id="panelSidebar"></aside>
+  <div class="panel-main">
+    <header class="panel-topbar" id="panelTopbar"></header>
+    <main class="panel-content">
+
+      <div class="chat-page-wrap">
+        <div class="chat-page-messages" id="chatMessages">
+          <div class="chat-msg chat-msg-bot">سلام! من دستیار مالی تو هستم. هر سوالی درباره وضعیت مالی، دارایی‌ها یا تصمیماتت داری بپرس.</div>
+        </div>
+        <form class="chat-page-input-row" id="chatForm">
+          <input id="chatInput" autocomplete="off" placeholder="سوالت رو بنویس..." />
+          <button type="submit" class="btn btn-primary btn-small">ارسال</button>
+        </form>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script type="module" src="chat-page.js"></script>
+</body>
+</html>

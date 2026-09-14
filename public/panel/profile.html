@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>اطلاعات من | فین‌مایند</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body data-page="profile">
+
+<div class="panel-shell">
+  <aside class="panel-sidebar" id="panelSidebar"></aside>
+  <div class="panel-main">
+    <header class="panel-topbar" id="panelTopbar"></header>
+    <main class="panel-content">
+
+      <section class="card span-12" id="profileCard">
+        <div class="card-head">
+          <h2><span class="ico">👤</span> اطلاعات شخصی و دارایی‌های من</h2>
+          <div class="profile-head-right">
+            <span class="profile-summary hidden" id="profileSummary"></span>
+            <button class="btn btn-ghost" id="toggleProfileBtn">ویرایش اطلاعات</button>
+          </div>
+        </div>
+        <div class="card-body" id="profileBody">
+          <div class="onb-welcome hidden" id="onbWelcome">
+            <h3>خوش اومدی به فین‌مایند 👋</h3>
+            <p>برای اینکه پیشنهادها و تحلیل‌ها دقیقاً مخصوص وضعیت خودت باشن، یک‌بار (فقط همین یک‌بار) چند تا سوال کوتاه ازت می‌پرسیم. بعدش دیگه لازم نیست این اطلاعات رو دوباره وارد کنی — همیشه همینجا ذخیره می‌مونه و هر وقت خواستی می‌تونی ویرایشش کنی.</p>
+            <div class="onb-welcome-actions">
+              <button class="btn btn-primary" id="onbStartBtn">✍️ خودم تایپ می‌کنم</button>
+              <button class="btn btn-ghost" id="onbVoiceBtn">🎙️ با صدا می‌گم</button>
+            </div>
+          </div>
+
+          <div class="voice-assistant hidden" id="voicePanel">
+            <div class="voice-header">
+              <h3>🎙️ دستیار صوتی ورود اطلاعات</h3>
+              <p>دکمه‌ی ضبط رو بزن و راحت درباره‌ی خودت حرف بزن — سن، شغل، درآمد و هزینه، دارایی‌هات، و هدف مالیت. هر موردی که بگی از لیست پایین تیک می‌خوره. هر وقت خواستی می‌تونی چندبار ضبط کنی تا موارد باقی‌مونده رو هم بگی.</p>
+            </div>
+            <div class="voice-main">
+              <div class="voice-record-col">
+                <button class="voice-record-btn" id="voiceRecordBtn">
+                  <span id="voiceRecordIcon">🎙️</span>
+                </button>
+                <div class="voice-status" id="voiceStatus">برای شروع، دکمه رو بزن</div>
+                <div class="voice-transcript" id="voiceTranscript"></div>
+              </div>
+              <div class="voice-checklist-col">
+                <h4 class="sub-title">چک‌لیست اطلاعات</h4>
+                <ul class="voice-checklist" id="voiceChecklist"></ul>
+              </div>
+            </div>
+            <div class="voice-footer">
+              <button class="btn btn-ghost" id="voiceBackBtn">بازگشت</button>
+              <button class="btn btn-primary" id="voiceContinueBtn">ادامه و مرور نهایی</button>
+            </div>
+          </div>
+
+          <div class="profile-form" id="profileFormWrap">
+            <div class="onb-progress" id="onbProgress">
+              <span id="onbProgressText">مرحله ۱ از ۵</span>
+              <div class="onb-progress-bar"><div class="onb-progress-fill" id="onbProgressFill"></div></div>
+            </div>
+
+            <div class="onb-step" data-step="1">
+              <h4 class="sub-title">اطلاعات شخصی</h4>
+              <div class="form-grid">
+                <label>سن<input type="number" id="fAge" min="0" max="120" placeholder="مثلاً ۳۲" /></label>
+                <label>جنسیت
+                  <select id="fGender">
+                    <option value="مرد">مرد</option>
+                    <option value="زن">زن</option>
+                  </select>
+                </label>
+                <label>وضعیت تاهل
+                  <select id="fMarital">
+                    <option value="مجرد">مجرد</option>
+                    <option value="متاهل">متاهل</option>
+                  </select>
+                </label>
+                <label>تعداد فرزند<input type="number" id="fChildren" min="0" max="20" /></label>
+                <label>نوع شغل/درآمد
+                  <select id="fEmployment">
+                    <option value="کارمند بخش دولتی">کارمند بخش دولتی</option>
+                    <option value="کارمند بخش خصوصی">کارمند بخش خصوصی</option>
+                    <option value="کسب‌وکار آزاد/فریلنسر">کسب‌وکار آزاد/فریلنسر</option>
+                    <option value="کارفرما و صاحب کسب‌وکار">کارفرما و صاحب کسب‌وکار</option>
+                    <option value="بازنشسته">بازنشسته</option>
+                    <option value="دانشجو">دانشجو</option>
+                    <option value="بیکار">بیکار</option>
+                  </select>
+                </label>
+                <label>وضعیت مسکن
+                  <select id="fHousing">
+                    <option value="مالک مسکن">مالک مسکن</option>
+                    <option value="مستاجر">مستاجر</option>
+                    <option value="زندگی با خانواده">زندگی با خانواده</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div class="onb-step" data-step="2">
+              <h4 class="sub-title">ریسک و تجربه سرمایه‌گذاری</h4>
+              <label class="risk-slider-label">
+                میزان ریسک‌پذیری: <span id="riskSliderVal">5</span> از ۱۰
+                <input type="range" id="fRisk" min="1" max="10" value="5" />
+              </label>
+              <div class="form-grid">
+                <label>سطح تجربه سرمایه‌گذاری
+                  <select id="fExperience">
+                    <option value="مبتدی (کمتر از ۱ سال)">مبتدی (کمتر از ۱ سال)</option>
+                    <option value="متوسط (۱ تا ۵ سال)">متوسط (۱ تا ۵ سال)</option>
+                    <option value="حرفه‌ای (بیش از ۵ سال)">حرفه‌ای (بیش از ۵ سال)</option>
+                  </select>
+                </label>
+                <label>اگر ارزش دارایی‌هات یهو ۲۰٪ افت کنه چیکار می‌کنی؟
+                  <select id="fEmotionalReaction">
+                    <option value="می‌فروشم">فوراً می‌فروشم تا ضرر بیشتر نشه</option>
+                    <option value="صبر می‌کنم">نگران می‌شوم ولی صبر می‌کنم</option>
+                    <option value="بی‌تفاوتم یا بیشتر می‌خرم">خونسرد می‌مانم یا حتی بیشتر می‌خرم</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-grid-2">
+                <label>یادداشت افق زمانی سرمایه‌گذاری<textarea id="fHorizon" rows="2" placeholder="مثلاً حدود ۲ سال دیگر قصد خرید خانه دارم"></textarea></label>
+                <label>یادداشت نیاز به نقدینگی<textarea id="fLiquidityNote" rows="2" placeholder="مثلاً باید همیشه ۱۰۰ میلیون در دسترس داشته باشم"></textarea></label>
+              </div>
+            </div>
+
+            <div class="onb-step" data-step="3">
+              <h4 class="sub-title">درآمد، هزینه و بدهی</h4>
+              <div class="form-grid">
+                <label>درآمد ماهانه (میلیون تومان)<input type="number" id="fIncome" min="0" step="1" placeholder="مثلاً 45" /></label>
+                <label>هزینه ماهانه (میلیون تومان)<input type="number" id="fExpenses" min="0" step="1" placeholder="مثلاً 28" /></label>
+                <label>بدهی/اقساط وام فعلی (میلیون تومان)<input type="number" id="fDebt" min="0" step="1" placeholder="مثلاً 0" /></label>
+              </div>
+            </div>
+
+            <div class="onb-step" data-step="4">
+              <h3 class="sub-title">دارایی‌ها</h3>
+              <div id="assetRows" class="asset-rows"></div>
+              <button class="btn btn-ghost btn-small" id="addAssetBtn">+ افزودن دارایی</button>
+            </div>
+
+            <div class="onb-step" data-step="5">
+              <h4 class="sub-title">هدف اصلی</h4>
+              <label>مهم‌ترین هدف مالی زندگی‌ات چیه؟<textarea id="fMainGoal" rows="2" placeholder="مثلاً می‌خوام تا ۵ سال دیگه پیش‌قسط خونه رو جور کنم"></textarea></label>
+            </div>
+
+            <div class="onb-nav" id="onbNav">
+              <button class="btn btn-ghost" id="onbBackBtn">قبلی</button>
+              <button class="btn btn-primary" id="onbNextBtn">بعدی</button>
+            </div>
+
+            <div class="form-actions" id="normalFormActions">
+              <button class="btn btn-primary" id="saveProfileBtn">ذخیره</button>
+              <span class="save-status" id="saveStatus"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script type="module" src="profile.js"></script>
+</body>
+</html>

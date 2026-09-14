@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>فین‌مایند | دستیار مالی هوشمند</title>
+<title>فین‌مایند | تصمیم‌یار مالی هوشمند خانوار</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -11,370 +11,106 @@
 </head>
 <body>
 
-<div class="app">
-
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-icon">◈</div>
-      <div>
-        <h1>فین‌مایند</h1>
-        <p>تصمیم‌یار مالی هوشمند خانوار</p>
-      </div>
+<nav class="home-nav">
+  <div class="brand">
+    <div class="brand-icon">◈</div>
+    <div>
+      <h1>فین‌مایند</h1>
+      <p>تصمیم‌یار مالی هوشمند خانوار</p>
     </div>
-    <div class="topbar-stats" id="topbarStats">
-      <div class="stat-chip"><span class="stat-label">کل دارایی</span><span class="stat-value" id="statTotal">—</span></div>
-      <div class="stat-chip"><span class="stat-label">ریسک فعلی</span><span class="stat-value" id="statRisk">—</span></div>
-      <div class="stat-chip"><span class="stat-label">نقدینگی سریع</span><span class="stat-value" id="statLiquid">—</span></div>
+  </div>
+  <div class="home-nav-actions" id="homeNavActions">
+    <a class="btn btn-ghost" href="/login.html">ورود</a>
+    <a class="btn btn-primary" href="/login.html?mode=register">ثبت‌نام رایگان</a>
+  </div>
+</nav>
+
+<header class="home-hero">
+  <span class="hero-badge">مخصوص خانواده‌های ایرانی</span>
+  <h1>تصمیم‌های مالی‌ات رو با <span>عدد و منطق</span> بگیر، نه با حدس</h1>
+  <p>
+    فین‌مایند دارایی‌ها، ریسک، نقدینگی و اهدافت رو با موتورهای مالی واقعی (بهینه‌سازی پرتفوی، شبیه‌سازی مونت‌کارلو)
+    تحلیل می‌کنه و با هوش مصنوعی، دقیقاً بر اساس وضعیت خودت — نه توصیه‌های کلی — راهنمایی‌ات می‌کنه.
+  </p>
+  <div class="home-cta">
+    <a class="btn btn-primary" href="/login.html?mode=register">شروع رایگان</a>
+    <a class="btn btn-ghost" href="/login.html">وارد حساب کاربری‌ام می‌شوم</a>
+  </div>
+</header>
+
+<section class="home-features">
+  <div class="feature-card">
+    <div class="f-ico">📊</div>
+    <h3>تحلیل ترکیب دارایی‌ها</h3>
+    <p>سبد فعلی‌ات با موتور بهینه‌سازی پرتفوی (QP) مقایسه می‌شود و نقاط قوت و ضعفش دقیق نشان داده می‌شود.</p>
+  </div>
+  <div class="feature-card">
+    <div class="f-ico">🎯</div>
+    <h3>ریسک‌سنجی واقعی</h3>
+    <p>ریسک سبدت نه فقط از روی پاسخ خودت، بلکه از رفتار واقعی‌ات در تصمیم‌های قبلی یاد گرفته می‌شود.</p>
+  </div>
+  <div class="feature-card">
+    <div class="f-ico">💧</div>
+    <h3>نقدینگی من</h3>
+    <p>می‌بینی چقدر پول واقعاً فوری، تا یک ماه، یا تا یک سال در دسترست هست.</p>
+  </div>
+  <div class="feature-card">
+    <div class="f-ico">🏁</div>
+    <h3>اهداف مالی</h3>
+    <p>هر هدفی که ثبت کنی (خرید خانه، مهاجرت، ازدواج) با پس‌انداز واقعی‌ات سنجیده و مسیر رسیدنش شفاف می‌شود.</p>
+  </div>
+  <div class="feature-card">
+    <div class="f-ico">🌪️</div>
+    <h3>شبیه‌ساز سناریو</h3>
+    <p>با شبیه‌سازی مونت‌کارلو می‌بینی اگر دلار، طلا یا بورس نوسان کند، دقیقاً چقدر روی دارایی‌هات اثر می‌گذارد.</p>
+  </div>
+  <div class="feature-card">
+    <div class="f-ico">🧭</div>
+    <h3>دستیار قبل از تصمیم</h3>
+    <p>قبل از هر تصمیم مالی بزرگ، پیامدش را روی ریسک، نقدینگی و اهدافت بررسی می‌کنی.</p>
+  </div>
+  <div class="feature-card">
+    <div class="f-ico">⚠️</div>
+    <h3>هشدار تصمیم‌های هیجانی</h3>
+    <p>اگر پیام یا تصمیمی نشانه‌ی واکنش هیجانی به نوسان کوتاه‌مدت باشد، به‌موقع به تو هشدار داده می‌شود.</p>
+  </div>
+  <div class="feature-card">
+    <div class="f-ico">💬</div>
+    <h3>گفتگوی زنده با دستیار مالی</h3>
+    <p>هر سوالی درباره وضعیت مالی‌ات بپرس و پاسخی دقیق، شخصی‌سازی‌شده و زنده (کلمه‌به‌کلمه) دریافت کن.</p>
+  </div>
+</section>
+
+<section class="home-how">
+  <h2>چطور کار می‌کند؟</h2>
+  <div class="home-how-steps">
+    <div class="home-how-step">
+      <div class="step-num">۱</div>
+      <h4>یک‌بار حساب بساز</h4>
+      <p>ثبت‌نام رایگان و سریع — اطلاعات هر کاربر کاملاً جدا و خصوصی نگه‌داری می‌شود.</p>
     </div>
-  </header>
-
-  <main class="grid">
-
-    <!-- Profile & Assets Widget -->
-    <section class="card span-12" id="profileCard">
-      <div class="card-head">
-        <h2><span class="ico">👤</span> اطلاعات شخصی و دارایی‌های من</h2>
-        <div class="profile-head-right">
-          <span class="profile-summary hidden" id="profileSummary"></span>
-          <button class="btn btn-ghost" id="toggleProfileBtn">ویرایش اطلاعات</button>
-        </div>
-      </div>
-      <div class="card-body" id="profileBody">
-        <div class="onb-welcome hidden" id="onbWelcome">
-          <h3>خوش اومدی به فین‌مایند 👋</h3>
-          <p>برای اینکه پیشنهادها و تحلیل‌ها دقیقاً مخصوص وضعیت خودت باشن، یک‌بار (فقط همین یک‌بار) چند تا سوال کوتاه ازت می‌پرسیم. بعدش دیگه لازم نیست این اطلاعات رو دوباره وارد کنی — همیشه همینجا ذخیره می‌مونه و هر وقت خواستی می‌تونی ویرایشش کنی.</p>
-          <div class="onb-welcome-actions">
-            <button class="btn btn-primary" id="onbStartBtn">✍️ خودم تایپ می‌کنم</button>
-            <button class="btn btn-ghost" id="onbVoiceBtn">🎙️ با صدا می‌گم</button>
-          </div>
-        </div>
-
-        <div class="voice-assistant hidden" id="voicePanel">
-          <div class="voice-header">
-            <h3>🎙️ دستیار صوتی ورود اطلاعات</h3>
-            <p>دکمه‌ی ضبط رو بزن و راحت درباره‌ی خودت حرف بزن — سن، شغل، درآمد و هزینه، دارایی‌هات، و هدف مالیت. هر موردی که بگی از لیست پایین تیک می‌خوره. هر وقت خواستی می‌تونی چندبار ضبط کنی تا موارد باقی‌مونده رو هم بگی.</p>
-          </div>
-          <div class="voice-main">
-            <div class="voice-record-col">
-              <button class="voice-record-btn" id="voiceRecordBtn">
-                <span id="voiceRecordIcon">🎙️</span>
-              </button>
-              <div class="voice-status" id="voiceStatus">برای شروع، دکمه رو بزن</div>
-              <div class="voice-transcript" id="voiceTranscript"></div>
-              <button class="btn btn-ghost btn-small hidden" id="voiceProcessBtn">پردازش کن</button>
-            </div>
-            <div class="voice-checklist-col">
-              <h4 class="sub-title">چک‌لیست اطلاعات</h4>
-              <ul class="voice-checklist" id="voiceChecklist"></ul>
-            </div>
-          </div>
-          <div class="voice-footer">
-            <button class="btn btn-ghost" id="voiceBackBtn">بازگشت</button>
-            <button class="btn btn-primary" id="voiceContinueBtn">ادامه و مرور نهایی</button>
-          </div>
-        </div>
-
-        <div class="profile-form" id="profileFormWrap">
-          <div class="onb-progress" id="onbProgress">
-            <span id="onbProgressText">مرحله ۱ از ۵</span>
-            <div class="onb-progress-bar"><div class="onb-progress-fill" id="onbProgressFill"></div></div>
-          </div>
-
-          <div class="onb-step" data-step="1">
-            <h4 class="sub-title">اطلاعات شخصی</h4>
-            <div class="form-grid">
-              <label>سن<input type="number" id="fAge" min="0" max="120" placeholder="مثلاً ۳۲" /></label>
-              <label>جنسیت
-                <select id="fGender">
-                  <option value="مرد">مرد</option>
-                  <option value="زن">زن</option>
-                </select>
-              </label>
-              <label>وضعیت تاهل
-                <select id="fMarital">
-                  <option value="مجرد">مجرد</option>
-                  <option value="متاهل">متاهل</option>
-                </select>
-              </label>
-              <label>تعداد فرزند<input type="number" id="fChildren" min="0" max="20" /></label>
-              <label>نوع شغل/درآمد
-                <select id="fEmployment">
-                  <option value="کارمند بخش دولتی">کارمند بخش دولتی</option>
-                  <option value="کارمند بخش خصوصی">کارمند بخش خصوصی</option>
-                  <option value="کسب‌وکار آزاد/فریلنسر">کسب‌وکار آزاد/فریلنسر</option>
-                  <option value="کارفرما و صاحب کسب‌وکار">کارفرما و صاحب کسب‌وکار</option>
-                  <option value="بازنشسته">بازنشسته</option>
-                  <option value="دانشجو">دانشجو</option>
-                  <option value="بیکار">بیکار</option>
-                </select>
-              </label>
-              <label>وضعیت مسکن
-                <select id="fHousing">
-                  <option value="مالک مسکن">مالک مسکن</option>
-                  <option value="مستاجر">مستاجر</option>
-                  <option value="زندگی با خانواده">زندگی با خانواده</option>
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <div class="onb-step" data-step="2">
-            <h4 class="sub-title">ریسک و تجربه سرمایه‌گذاری</h4>
-            <label class="risk-slider-label">
-              میزان ریسک‌پذیری: <span id="riskSliderVal">5</span> از ۱۰
-              <input type="range" id="fRisk" min="1" max="10" value="5" />
-            </label>
-            <div class="form-grid">
-              <label>سطح تجربه سرمایه‌گذاری
-                <select id="fExperience">
-                  <option value="مبتدی (کمتر از ۱ سال)">مبتدی (کمتر از ۱ سال)</option>
-                  <option value="متوسط (۱ تا ۵ سال)">متوسط (۱ تا ۵ سال)</option>
-                  <option value="حرفه‌ای (بیش از ۵ سال)">حرفه‌ای (بیش از ۵ سال)</option>
-                </select>
-              </label>
-              <label>اگر ارزش دارایی‌هات یهو ۲۰٪ افت کنه چیکار می‌کنی؟
-                <select id="fEmotionalReaction">
-                  <option value="می‌فروشم">فوراً می‌فروشم تا ضرر بیشتر نشه</option>
-                  <option value="صبر می‌کنم">نگران می‌شوم ولی صبر می‌کنم</option>
-                  <option value="بی‌تفاوتم یا بیشتر می‌خرم">خونسرد می‌مانم یا حتی بیشتر می‌خرم</option>
-                </select>
-              </label>
-            </div>
-            <div class="form-grid-2">
-              <label>یادداشت افق زمانی سرمایه‌گذاری<textarea id="fHorizon" rows="2" placeholder="مثلاً حدود ۲ سال دیگر قصد خرید خانه دارم"></textarea></label>
-              <label>یادداشت نیاز به نقدینگی<textarea id="fLiquidityNote" rows="2" placeholder="مثلاً باید همیشه ۱۰۰ میلیون در دسترس داشته باشم"></textarea></label>
-            </div>
-          </div>
-
-          <div class="onb-step" data-step="3">
-            <h4 class="sub-title">درآمد، هزینه و بدهی</h4>
-            <div class="form-grid">
-              <label>درآمد ماهانه (میلیون تومان)<input type="number" id="fIncome" min="0" step="1" placeholder="مثلاً 45" /></label>
-              <label>هزینه ماهانه (میلیون تومان)<input type="number" id="fExpenses" min="0" step="1" placeholder="مثلاً 28" /></label>
-              <label>بدهی/اقساط وام فعلی (میلیون تومان)<input type="number" id="fDebt" min="0" step="1" placeholder="مثلاً 0" /></label>
-            </div>
-          </div>
-
-          <div class="onb-step" data-step="4">
-            <h3 class="sub-title">دارایی‌ها</h3>
-            <div id="assetRows" class="asset-rows"></div>
-            <button class="btn btn-ghost btn-small" id="addAssetBtn">+ افزودن دارایی</button>
-          </div>
-
-          <div class="onb-step" data-step="5">
-            <h4 class="sub-title">هدف اصلی</h4>
-            <label>مهم‌ترین هدف مالی زندگی‌ات چیه؟<textarea id="fMainGoal" rows="2" placeholder="مثلاً می‌خوام تا ۵ سال دیگه پیش‌قسط خونه رو جور کنم"></textarea></label>
-          </div>
-
-          <div class="onb-nav" id="onbNav">
-            <button class="btn btn-ghost" id="onbBackBtn">قبلی</button>
-            <button class="btn btn-primary" id="onbNextBtn">بعدی</button>
-          </div>
-
-          <div class="form-actions" id="normalFormActions">
-            <button class="btn btn-primary" id="saveProfileBtn">ذخیره و تحلیل مجدد</button>
-            <span class="save-status" id="saveStatus"></span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Emotional Warning Widget -->
-    <section class="card span-12 emotional-card hidden" id="emotionalCard">
-      <div class="card-head">
-        <h2><span class="ico">⚠️</span> هشدار تصمیم‌های هیجانی</h2>
-        <button class="btn btn-ghost btn-small" id="clearEmotionalBtn">پاک‌کردن</button>
-      </div>
-      <div class="card-body">
-        <div id="emotionalList" class="emotional-list"></div>
-      </div>
-    </section>
-
-    <!-- Assets Analysis Widget -->
-    <section class="card span-12" id="assetsAnalysisCard">
-      <div class="card-head">
-        <h2><span class="ico">📊</span> تحلیل ترکیب دارایی‌ها <span class="engine-tag">موتور بهینه‌سازی پرتفوی</span></h2>
-        <button class="btn btn-ghost btn-small" id="refreshAssetsBtn">تحلیل مجدد</button>
-      </div>
-      <div class="card-body">
-        <div class="loading" id="assetsLoading">در حال محاسبه و تحلیل...</div>
-        <div id="assetsContent" class="hidden two-col">
-          <div>
-            <h4 class="tag-neu">ترکیب فعلی</h4>
-            <div class="chart-wrap chart-wrap-sm"><canvas id="assetsChart"></canvas></div>
-            <div class="stat-row" id="currentStatsRow"></div>
-          </div>
-          <div>
-            <h4 class="tag-sug">ترکیب فعلی در برابر پیشنهادی موتور بهینه‌سازی</h4>
-            <div class="chart-wrap chart-wrap-sm"><canvas id="optimalChart"></canvas></div>
-            <div class="stat-row" id="optimalStatsRow"></div>
-          </div>
-        </div>
-        <div id="assetsTextContent" class="hidden">
-          <div class="banner banner-warn hidden" id="concentrationWarning"></div>
-          <div class="list-cols">
-            <div><h4 class="tag-pos">نقاط قوت</h4><ul id="assetsStrengths"></ul></div>
-            <div><h4 class="tag-neg">نقاط ضعف</h4><ul id="assetsWeaknesses"></ul></div>
-          </div>
-          <h4 class="tag-sug">پیشنهادها</h4>
-          <ul id="assetsSuggestions"></ul>
-          <p class="summary-text" id="assetsSummary"></p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Risk Widget -->
-    <section class="card span-12" id="riskCard">
-      <div class="card-head">
-        <h2><span class="ico">🎯</span> ریسک سبد دارایی <span class="engine-tag">محاسبه‌شده</span></h2>
-        <button class="btn btn-ghost btn-small" id="refreshRiskBtn">محاسبه مجدد</button>
-      </div>
-      <div class="card-body">
-        <div class="loading" id="riskLoading">در حال محاسبه ریسک...</div>
-        <div id="riskContent" class="hidden">
-          <div class="meter-row">
-            <div class="meter-label">ریسک فعلی <b id="riskCurrentVal">0</b></div>
-            <div class="meter-track"><div class="meter-fill meter-current" id="riskCurrentBar"></div></div>
-          </div>
-          <div class="meter-row">
-            <div class="meter-label">ریسک پیشنهادی <b id="riskSuggestedVal">0</b></div>
-            <div class="meter-track"><div class="meter-fill meter-suggested" id="riskSuggestedBar"></div></div>
-          </div>
-          <div class="risk-badges">
-            <span class="badge" id="riskLevelBadge">—</span>
-            <span class="badge badge-outline" id="riskDiffBadge">—</span>
-          </div>
-          <div class="banner banner-adjust hidden" id="behaviorBanner"></div>
-          <h4 class="tag-neu">دلایل</h4>
-          <ul id="riskReasons"></ul>
-          <h4 class="tag-neu">رفتارهای اقتصادی موثر</h4>
-          <ul id="riskBehavioral"></ul>
-          <h4 class="tag-sug">پیشنهادها</h4>
-          <ul id="riskSuggestions"></ul>
-          <p class="summary-text" id="riskSummary"></p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Liquidity Widget -->
-    <section class="card span-12" id="liquidityCard">
-      <div class="card-head">
-        <h2><span class="ico">💧</span> نقدینگی من</h2>
-        <button class="btn btn-ghost btn-small" id="refreshLiquidityBtn">تحلیل مجدد</button>
-      </div>
-      <div class="card-body">
-        <div class="loading" id="liquidityLoading">در حال تحلیل نقدینگی...</div>
-        <div id="liquidityContent" class="hidden two-col">
-          <div>
-            <div class="chart-wrap chart-wrap-sm"><canvas id="liquidityDonut"></canvas></div>
-          </div>
-          <div>
-            <div class="chart-wrap chart-wrap-sm"><canvas id="liquidityBar"></canvas></div>
-            <div id="liquidityWarnings" class="banner-stack"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Goals Widget -->
-    <section class="card span-6" id="goalsCard">
-      <div class="card-head">
-        <h2><span class="ico">🏁</span> اهداف مالی من</h2>
-      </div>
-      <div class="card-body">
-        <div class="goal-add-form">
-          <input id="goalTitle" placeholder="عنوان هدف، مثلاً خرید خانه" />
-          <input id="goalAmount" type="number" placeholder="مبلغ هدف (میلیون تومان)" />
-          <input id="goalMonths" type="number" placeholder="مهلت (ماه)" />
-          <button class="btn btn-primary btn-small" id="addGoalBtn">افزودن هدف</button>
-        </div>
-        <div id="goalsList" class="goals-list"></div>
-      </div>
-    </section>
-
-    <!-- Scenario Simulator Widget -->
-    <section class="card span-6" id="scenarioCard">
-      <div class="card-head">
-        <h2><span class="ico">🌪️</span> شبیه‌ساز سناریو <span class="engine-tag" id="scenarioEngineTag">مونت‌کارلو</span></h2>
-      </div>
-      <div class="card-body">
-        <div class="scenario-presets" id="scenarioPresets"></div>
-        <div class="scenario-custom">
-          <textarea id="scenarioCustom" rows="2" placeholder="یا سناریوی دلخواه خودت رو بنویس... مثلاً: اگر دلار ۴۰٪ رشد کند چه اتفاقی می‌افتد؟"></textarea>
-          <button class="btn btn-primary btn-small" id="runScenarioBtn">شبیه‌سازی کن</button>
-        </div>
-        <div class="loading hidden" id="scenarioLoading">در حال شبیه‌سازی سناریو...</div>
-        <div id="scenarioContent" class="hidden">
-          <div class="chart-wrap chart-wrap-sm"><canvas id="scenarioChart"></canvas></div>
-          <div class="scenario-total" id="scenarioTotal"></div>
-          <div class="scenario-range hidden" id="scenarioRange"></div>
-          <p class="summary-text" id="scenarioExplanation"></p>
-          <p class="summary-text recommend" id="scenarioRecommendation"></p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Decision Assistant Widget -->
-    <section class="card span-12" id="decisionCard">
-      <div class="card-head">
-        <h2><span class="ico">🧭</span> دستیار قبل از تصمیم</h2>
-      </div>
-      <div class="card-body">
-        <div class="decision-form">
-          <textarea id="decisionText" rows="2" placeholder="تصمیم مالی خودت رو توضیح بده... مثلاً: می‌خوام ۲۰۰ میلیون از سپرده‌ام رو تبدیل به طلا کنم"></textarea>
-          <input id="decisionAmount" type="number" placeholder="مبلغ مرتبط (اختیاری، میلیون تومان)" />
-          <button class="btn btn-primary btn-small" id="runDecisionBtn">بررسی این تصمیم</button>
-        </div>
-        <div class="loading hidden" id="decisionLoading">در حال بررسی پیامدهای تصمیم...</div>
-        <div id="decisionContent" class="hidden">
-          <p class="decision-summary" id="decisionSummary"></p>
-          <div class="two-col">
-            <div class="compare-block">
-              <h4>قبل از تصمیم</h4>
-              <div class="compare-row"><span>کل دارایی</span><b id="beforeTotal">—</b></div>
-              <div class="compare-row"><span>ریسک</span><b id="beforeRisk">—</b></div>
-              <div class="compare-row"><span>نقدینگی</span><b id="beforeLiquid">—</b></div>
-            </div>
-            <div class="compare-block">
-              <h4>بعد از تصمیم</h4>
-              <div class="compare-row"><span>کل دارایی</span><b id="afterTotal">—</b></div>
-              <div class="compare-row"><span>ریسک</span><b id="afterRisk">—</b></div>
-              <div class="compare-row"><span>نقدینگی</span><b id="afterLiquid">—</b></div>
-            </div>
-          </div>
-          <p class="summary-text"><b>اثر بر اهداف: </b><span id="decisionGoalImpact"></span></p>
-          <div id="decisionRecommendation" class="recommendation-badge">—</div>
-          <h4 class="tag-neu">دلایل</h4>
-          <ul id="decisionReasoning"></ul>
-          <div class="decision-outcome" id="decisionOutcomeBox">
-            <span>در نهایت این تصمیم را گرفتی؟</span>
-            <button class="btn btn-ghost btn-small" id="decisionFollowedBtn">بله، اجرا کردم</button>
-            <button class="btn btn-ghost btn-small" id="decisionAbandonedBtn">نه، منصرف شدم</button>
-            <span class="decision-outcome-thanks hidden" id="decisionOutcomeThanks">ثبت شد — به مدل ریسک رفتاری شما اضافه شد ✓</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-  </main>
-</div>
-
-<button class="chat-fab" id="chatFab">💬</button>
-<aside class="chat-panel" id="chatPanel">
-  <div class="chat-header">
-    <span>گفتگو با دستیار مالی</span>
-    <button class="btn btn-ghost btn-small" id="closeChatBtn">✕</button>
+    <div class="home-how-step">
+      <div class="step-num">۲</div>
+      <h4>اطلاعاتت را بگو</h4>
+      <p>با تایپ یا با صدا، وضعیت مالی‌ات را یک‌بار وارد کن — دیگر لازم نیست دوباره تکرار کنی.</p>
+    </div>
+    <div class="home-how-step">
+      <div class="step-num">۳</div>
+      <h4>تحلیل و تصمیم بگیر</h4>
+      <p>در پنل کاربری، هر بخش (دارایی، ریسک، اهداف، سناریو...) صفحه‌ی مخصوص خودش را دارد.</p>
+    </div>
   </div>
-  <div class="chat-messages" id="chatMessages">
-    <div class="chat-msg chat-msg-bot">سلام! من دستیار مالی تو هستم. هر سوالی درباره وضعیت مالی، دارایی‌ها یا تصمیماتت داری بپرس.</div>
-  </div>
-  <form class="chat-input-row" id="chatForm">
-    <input id="chatInput" autocomplete="off" placeholder="سوالت رو بنویس..." />
-    <button type="submit" class="btn btn-primary btn-small">ارسال</button>
-  </form>
-</aside>
+</section>
 
-<script src="vendor/chart.umd.min.js"></script>
-<script type="module" src="app.js"></script>
+<footer class="home-footer">فین‌مایند — تصمیم‌یار مالی هوشمند خانوار ایرانی</footer>
+
+<script type="module">
+  import { fetchCurrentUser } from "/common.js";
+  fetchCurrentUser().then((user) => {
+    if (!user) return;
+    document.getElementById("homeNavActions").innerHTML =
+      '<a class="btn btn-primary" href="/panel/dashboard.html">ورود به پنل کاربری</a>';
+  });
+</script>
 </body>
 </html>

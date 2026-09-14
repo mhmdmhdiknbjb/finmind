@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ریسک‌سنجی | فین‌مایند</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body data-page="risk">
+
+<div class="panel-shell">
+  <aside class="panel-sidebar" id="panelSidebar"></aside>
+  <div class="panel-main">
+    <header class="panel-topbar" id="panelTopbar"></header>
+    <main class="panel-content">
+
+      <section class="card span-12" id="riskCard">
+        <div class="card-head">
+          <h2><span class="ico">🎯</span> ریسک سبد دارایی <span class="engine-tag">محاسبه‌شده</span></h2>
+          <button class="btn btn-ghost btn-small" id="refreshRiskBtn">محاسبه مجدد</button>
+        </div>
+        <div class="card-body">
+          <div class="loading" id="riskLoading">در حال محاسبه ریسک...</div>
+          <div id="riskContent" class="hidden">
+            <div class="meter-row">
+              <div class="meter-label">ریسک فعلی <b id="riskCurrentVal">0</b></div>
+              <div class="meter-track"><div class="meter-fill meter-current" id="riskCurrentBar"></div></div>
+            </div>
+            <div class="meter-row">
+              <div class="meter-label">ریسک پیشنهادی <b id="riskSuggestedVal">0</b></div>
+              <div class="meter-track"><div class="meter-fill meter-suggested" id="riskSuggestedBar"></div></div>
+            </div>
+            <div class="risk-badges">
+              <span class="badge" id="riskLevelBadge">—</span>
+              <span class="badge badge-outline" id="riskDiffBadge">—</span>
+            </div>
+            <div class="banner banner-adjust hidden" id="behaviorBanner"></div>
+            <h4 class="tag-neu">دلایل</h4>
+            <ul id="riskReasons"></ul>
+            <h4 class="tag-neu">رفتارهای اقتصادی موثر</h4>
+            <ul id="riskBehavioral"></ul>
+            <h4 class="tag-sug">پیشنهادها</h4>
+            <ul id="riskSuggestions"></ul>
+            <p class="summary-text" id="riskSummary"></p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script type="module" src="risk-page.js"></script>
+</body>
+</html>

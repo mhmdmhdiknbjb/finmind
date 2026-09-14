@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ورود | فین‌مایند</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="brand-icon">◈</div>
+      <div><h1 style="margin:0;font-size:17px;">فین‌مایند</h1></div>
+    </div>
+
+    <h2 id="authTitle">ورود به حساب کاربری</h2>
+    <p class="auth-sub" id="authSub">برای دسترسی به پنل مالی‌ات وارد شو</p>
+
+    <div class="auth-error hidden" id="authError"></div>
+
+    <form class="auth-form" id="authForm">
+      <label class="hidden" id="nameField">نام
+        <input type="text" id="authName" placeholder="مثلاً مهدی شکوهی" autocomplete="name" />
+      </label>
+      <label>ایمیل
+        <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" required />
+      </label>
+      <label>رمز عبور
+        <input type="password" id="authPassword" placeholder="حداقل ۶ کاراکتر" autocomplete="current-password" required />
+      </label>
+      <button class="btn btn-primary" type="submit" id="authSubmitBtn">ورود</button>
+    </form>
+
+    <div class="auth-switch">
+      <span id="authSwitchText">حساب کاربری نداری؟</span>
+      <a href="#" id="authSwitchLink">همین الان ثبت‌نام کن</a>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="login.js"></script>
+</body>
+</html>
