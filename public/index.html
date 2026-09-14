@@ -212,38 +212,6 @@
       </div>
     </section>
 
-    <!-- Forecast Widget -->
-    <section class="card span-12" id="forecastCard">
-      <div class="card-head">
-        <h2><span class="ico">📈</span> پیش‌بینی روند <span class="engine-tag">Holt's Linear Trend</span></h2>
-        <div class="forecast-controls">
-          <select id="forecastAsset">
-            <option value="gold">طلا</option>
-            <option value="currency">ارز</option>
-            <option value="stock">سهام (بورس)</option>
-          </select>
-          <button class="btn btn-ghost btn-small" id="refreshForecastBtn">پیش‌بینی کن</button>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="banner banner-warn hidden" id="forecastSyntheticBanner">
-          ⚠ این نمودار روی داده‌ی نمایشی (Synthetic) تولیدشده از فرضیات بازده/نوسان محاسبه شده، نه داده‌ی واقعی بازار. برای دقت واقعی، نقاط داده‌ی واقعی را پایین اضافه کنید.
-        </div>
-        <div class="loading" id="forecastLoading">در حال محاسبه پیش‌بینی...</div>
-        <div id="forecastContent" class="hidden">
-          <div class="chart-wrap"><canvas id="forecastChart"></canvas></div>
-          <p class="summary-text" id="forecastExplanation"></p>
-          <p class="summary-text recommend" id="forecastRelevance"></p>
-        </div>
-        <h4 class="sub-title">افزودن نقطه‌ی داده‌ی واقعی</h4>
-        <div class="forecast-add-form">
-          <input id="forecastPeriod" placeholder="دوره، مثلاً 2026-09" />
-          <input id="forecastValue" type="number" placeholder="مقدار (تومان برای طلا/ارز، شاخص برای بورس)" />
-          <button class="btn btn-ghost btn-small" id="addForecastPointBtn">افزودن</button>
-        </div>
-      </div>
-    </section>
-
     <!-- Decision Assistant Widget -->
     <section class="card span-12" id="decisionCard">
       <div class="card-head">

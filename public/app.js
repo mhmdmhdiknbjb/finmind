@@ -113,6 +113,26 @@ function populateProfileForm() {
   renderGoalsList();
 }
 
+// Gold and currency are entered by quantity (grams / units), never a toman
+// amount the user would have to compute themselves — the server converts
+// using the live rate. This cache just avoids re-fetching on every keystroke.
+let liveRatesCache = null;
+async function getLiveRatesCached() {
+  if (liveRatesCache) return liveRatesCache;
+  try {
+    const res = await fetch("/api/live-rates");
+    if (!res.ok) return null;
+    liveRatesCache = await res.json();
+    return liveRatesCache;
+  } catch {
+    return null;
+  }
+}
+
+function isQuantityCategory(cat) {
+  return cat === "gold" || cat === "currency";
+}
+
 function renderAssetRows(assets) {
   const wrap = $("assetRows");
   wrap.innerHTML = "";
@@ -138,11 +158,55 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
   labelInput.placeholder = "توضیح (اختیاری) مثلاً سپرده بانک ملت";
   labelInput.value = asset.label || "";
 
-  const amountInput = document.createElement("input");
-  amountInput.type = "number";
-  amountInput.step = "0.1";
-  amountInput.placeholder = "مبلغ (میلیون تومان)";
-  amountInput.value = tomanToMillionInput(asset.amount);
+  const valueInput = document.createElement("input");
+  valueInput.type = "number";
+
+  const hint = document.createElement("div");
+  hint.className = "asset-row-hint hidden";
+
+  function setPlaceholderFor(cat) {
+    if (cat === "gold") {
+      valueInput.step = "0.001";
+      valueInput.placeholder = "مقدار (گرم)";
+    } else if (cat === "currency") {
+      valueInput.step = "0.01";
+      valueInput.placeholder = "تعداد (دلار)";
+    } else {
+      valueInput.step = "0.1";
+      valueInput.placeholder = "مبلغ (میلیون تومان)";
+    }
+  }
+
+  async function updateHint() {
+    const cat = select.value;
+    if (!isQuantityCategory(cat) || !valueInput.value) {
+      hint.classList.add("hidden");
+      return;
+    }
+    const rates = await getLiveRatesCached();
+    if (!rates) {
+      hint.classList.add("hidden");
+      return;
+    }
+    const price = cat === "gold" ? rates.goldTomanPerGram : rates.usdToman;
+    hint.textContent = `≈ ${formatToman(Number(valueInput.value) * price)} (نرخ آنی)`;
+    hint.classList.remove("hidden");
+  }
+
+  setPlaceholderFor(asset.category);
+  if (isQuantityCategory(asset.category)) {
+    valueInput.value = asset.quantity ?? "";
+  } else {
+    valueInput.value = tomanToMillionInput(asset.amount);
+  }
+  updateHint();
+
+  select.onchange = () => {
+    setPlaceholderFor(select.value);
+    valueInput.value = "";
+    hint.classList.add("hidden");
+  };
+  valueInput.oninput = updateHint;
 
   const delBtn = document.createElement("button");
   delBtn.className = "btn-del";
@@ -150,17 +214,25 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
   delBtn.type = "button";
   delBtn.onclick = () => row.remove();
 
-  row.append(select, labelInput, amountInput, delBtn);
+  const valueWrap = document.createElement("div");
+  valueWrap.className = "asset-value-wrap";
+  valueWrap.append(valueInput, hint);
+
+  row.append(select, labelInput, valueWrap, delBtn);
   wrap.appendChild(row);
 }
 
 function collectProfileFromForm() {
   const assets = [];
   $("assetRows").querySelectorAll(".asset-row").forEach((row) => {
-    const [select, labelInput, amountInput] = row.querySelectorAll("select, input");
-    const amount = millionInputToToman(amountInput.value);
-    if (amount > 0) {
-      assets.push({ category: select.value, label: labelInput.value.trim(), amount });
+    const [select, labelInput, valueInput] = row.querySelectorAll("select, input");
+    const category = select.value;
+    if (isQuantityCategory(category)) {
+      const quantity = Number(valueInput.value) || 0;
+      if (quantity > 0) assets.push({ category, label: labelInput.value.trim(), quantity });
+    } else {
+      const amount = millionInputToToman(valueInput.value);
+      if (amount > 0) assets.push({ category, label: labelInput.value.trim(), amount });
     }
   });
 
@@ -579,111 +651,6 @@ function renderScenarioResult(data) {
   $("scenarioRecommendation").textContent = data.recommendation || "";
 }
 
-/* ---------------- Forecast Widget ---------------- */
-
-function renderForecastSourceBanner(meta) {
-  const el = $("forecastSyntheticBanner");
-  if (!meta || meta.source === "synthetic") {
-    el.textContent = "⚠ این نمودار روی داده‌ی نمایشی (Synthetic) تولیدشده از فرضیات بازده/نوسان محاسبه شده، نه داده‌ی واقعی بازار. برای دقت واقعی، نقاط داده‌ی واقعی را پایین اضافه کنید.";
-    el.className = "banner banner-warn";
-  } else if (meta.source === "live") {
-    el.textContent = `✓ آخرین نقطه از یک فید داده‌ی زنده‌ی واقعی گرفته شده (به‌روزرسانی: ${meta.feedDate || "—"})؛ مسیر تاریخی پیش از آن هنوز تخمینی است.`;
-    el.className = "banner banner-live";
-  } else if (meta.source === "manual") {
-    el.textContent = "✓ این سری روی داده‌ای که خودت وارد کردی محاسبه شده است.";
-    el.className = "banner banner-live";
-  }
-  el.classList.remove("hidden");
-}
-
-async function loadForecastWidget() {
-  const asset = $("forecastAsset").value;
-  $("forecastLoading").classList.remove("hidden");
-  $("forecastContent").classList.add("hidden");
-  try {
-    const res = await fetch("/api/widgets/forecast", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ asset }),
-    });
-    const data = await res.json();
-    $("forecastLoading").classList.add("hidden");
-    renderForecastSourceBanner(data.meta);
-    if (data.error) {
-      $("forecastExplanation").textContent = data.error;
-      $("forecastRelevance").textContent = "";
-      destroyChart("forecast");
-      $("forecastContent").classList.remove("hidden");
-      return;
-    }
-    $("forecastContent").classList.remove("hidden");
-    renderForecastChart(data);
-    $("forecastExplanation").textContent = data.explanation || "";
-    $("forecastRelevance").textContent = data.portfolioRelevance || "";
-  } catch (e) {
-    console.error(e);
-    $("forecastLoading").classList.add("hidden");
-  }
-}
-
-function renderForecastChart(data) {
-  destroyChart("forecast");
-  const histLabels = data.series.map((p) => p.period);
-  const histValues = data.series.map((p) => p.value);
-  const futureLabels = data.forecast.points.map((p) => `+${p.h}`);
-  const labels = [...histLabels, ...futureLabels];
-
-  const historyDataset = [...histValues, ...futureLabels.map(() => null)];
-  const forecastMid = [...histValues.map(() => null)];
-  forecastMid[histValues.length - 1] = histValues[histValues.length - 1];
-  data.forecast.points.forEach((p) => forecastMid.push(p.p50));
-  const forecastLow = [...histValues.map(() => null)];
-  forecastLow[histValues.length - 1] = histValues[histValues.length - 1];
-  data.forecast.points.forEach((p) => forecastLow.push(p.p15));
-  const forecastHigh = [...histValues.map(() => null)];
-  forecastHigh[histValues.length - 1] = histValues[histValues.length - 1];
-  data.forecast.points.forEach((p) => forecastHigh.push(p.p85));
-
-  const ctx = $("forecastChart").getContext("2d");
-  charts.forecast = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        { label: "بازه ۷۰٪ اطمینان (بالا)", data: forecastHigh, borderColor: "transparent", backgroundColor: "rgba(79,209,197,0.12)", fill: "+1", pointRadius: 0, tension: 0.3 },
-        { label: "پیش‌بینی (میانه)", data: forecastMid, borderColor: "#4fd1c5", borderDash: [6, 4], backgroundColor: "transparent", pointRadius: 2, tension: 0.3 },
-        { label: "بازه ۷۰٪ اطمینان (پایین)", data: forecastLow, borderColor: "transparent", backgroundColor: "rgba(79,209,197,0.12)", fill: false, pointRadius: 0, tension: 0.3 },
-        { label: "داده تاریخی", data: historyDataset, borderColor: "#7c6bf2", backgroundColor: "transparent", pointRadius: 1.5, tension: 0.3 },
-      ],
-    },
-    options: {
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: "bottom", labels: { color: cssVar("--text-dim"), font: { family: "Vazirmatn" }, filter: (item) => !item.text.includes("بالا") && !item.text.includes("پایین") } },
-      },
-      scales: {
-        x: { ticks: { color: cssVar("--text-dim"), font: { family: "Vazirmatn" }, maxRotation: 0, autoSkip: true }, grid: { display: false } },
-        y: { ticks: { color: cssVar("--text-dim") }, grid: { color: cssVar("--border") } },
-      },
-    },
-  });
-}
-
-async function addForecastPoint() {
-  const asset = $("forecastAsset").value;
-  const period = $("forecastPeriod").value.trim();
-  const value = Number($("forecastValue").value);
-  if (!period || !value) return;
-  await fetch("/api/market-history", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ asset, period, value }),
-  });
-  $("forecastPeriod").value = "";
-  $("forecastValue").value = "";
-  loadForecastWidget();
-}
-
 /* ---------------- Decision Widget ---------------- */
 
 async function runDecision() {
@@ -835,10 +802,6 @@ function wireEvents() {
 
   $("runDecisionBtn").onclick = runDecision;
 
-  $("refreshForecastBtn").onclick = loadForecastWidget;
-  $("forecastAsset").onchange = loadForecastWidget;
-  $("addForecastPointBtn").onclick = addForecastPoint;
-
   $("clearEmotionalBtn").onclick = () => {
     $("emotionalList").innerHTML = "";
     $("emotionalCard").classList.add("hidden");
@@ -861,7 +824,6 @@ async function init() {
   renderScenarioPresets();
   await fetchProfile();
   refreshCoreWidgets();
-  loadForecastWidget();
 }
 
 init();

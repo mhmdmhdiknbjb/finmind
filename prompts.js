@@ -18,25 +18,35 @@ const SYSTEM_PREAMBLE = `تو "فین‌مایند" هستی؛ یک دستیار
 همیشه تحلیل خودت را بر مبنای اطلاعات دقیق پروفایل کاربر (سن، وضعیت خانوادگی، ریسک‌پذیری، افق زمانی، درآمد و هزینه، دارایی‌ها و اهداف مالی) که در ادامه آمده انجام بده.
 اصول تحلیل: تنوع دارایی، کفایت نقدینگی متناسب با نیازهای کاربر، تناسب ریسک با سن/افق زمانی/تحمل ریسک کاربر، و در نظر گرفتن شرایط اقتصاد ایران (تورم بالا، نوسان نرخ ارز و طلا، محدودیت دسترسی به بازارهای جهانی، ریسک نقدشوندگی ملک).
 لحن پاسخ‌ها: حرفه‌ای، صادقانه، مشاوره‌محور، بدون اغراق و بدون وعده سود قطعی. اعداد پولی همیشه به تومان و به‌صورت عدد خام (بدون کاما یا واحد در متن JSON) بیان شوند مگر خلاف آن خواسته شده باشد.
-تمام رشته‌های متنی خروجی (توضیحات، دلایل، پیشنهادها، خلاصه‌ها) باید به زبان فارسی روان و طبیعی نوشته شوند. فیلد "category" همیشه باید دقیقاً یکی از این مقادیر انگلیسی باشد: cash, gold, currency, stock, fund, realestate, crypto, other.`;
+تمام رشته‌های متنی خروجی (توضیحات، دلایل، پیشنهادها، خلاصه‌ها) باید به زبان فارسی روان و طبیعی نوشته شوند. فیلد "category" همیشه باید دقیقاً یکی از این مقادیر انگلیسی باشد: cash, gold, currency, stock, fund, realestate, crypto, other.
+
+قانون کیفیت پیشنهادها (خیلی مهم): هر پیشنهاد باید مشخص، عددی و قابل‌اجرا باشد — دقیقاً بگو کدام دارایی، چه مبلغ یا درصدی، و چرا (با ارجاع مستقیم به عدد واقعی از پروفایل همین کاربر: سنش، هدفش، مهلت هدفش، نیاز نقدینگی‌اش، ریسک‌پذیری‌اش). هرگز از جمله‌های کلی و قابل‌کپی‌برای‌هرکسی مثل «سبد خود را متنوع کنید»، «پس‌انداز کنید»، یا «با یک مشاور مالی صحبت کنید» بدون هیچ عدد یا ارجاع مشخص به داده‌های همین کاربر استفاده نکن. اگر یک پیشنهاد را بدون تغییر می‌شد به هر کاربر دیگری هم داد، یعنی به‌اندازه کافی شخصی‌سازی نشده — دوباره بنویسش.`;
 
 function fmtNum(n) {
   if (n === null || n === undefined || n === "") return "نامشخص";
   return Number(n).toLocaleString("en-US");
 }
 
+function assetLine(a, i) {
+  const label = a.label ? a.label + " — " : "";
+  if (a.category === "gold") {
+    return `${i + 1}. ${label}طلا — ${fmtNum(a.quantity)} گرم — معادل ${fmtNum(a.amount)} تومان به قیمت آنی`;
+  }
+  if (a.category === "currency") {
+    return `${i + 1}. ${label}ارز — ${fmtNum(a.quantity)} دلار — معادل ${fmtNum(a.amount)} تومان به نرخ آنی`;
+  }
+  return `${i + 1}. ${label}${categoryLabel(a.category)} — ${fmtNum(a.amount)} تومان`;
+}
+
 export function buildProfileContext(profile) {
   const p = profile.personal || {};
   const totalAssets = (profile.assets || []).reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
-  const assetLines = (profile.assets || []).length
-    ? profile.assets
-        .map(
-          (a, i) =>
-            `${i + 1}. ${a.label ? a.label + " — " : ""}${categoryLabel(a.category)} — ${fmtNum(a.amount)} تومان`
-        )
-        .join("\n")
-    : "کاربر هنوز هیچ دارایی‌ای ثبت نکرده است.";
+  const assetLines = (profile.assets || []).length ? profile.assets.map(assetLine).join("\n") : "کاربر هنوز هیچ دارایی‌ای ثبت نکرده است.";
+
+  const liveRatesLine = profile._liveRates
+    ? `\n(نرخ‌های آنی استفاده‌شده برای تبدیل طلا/ارز به تومان: هر گرم طلا ${fmtNum(profile._liveRates.goldTomanPerGram)} تومان، هر دلار ${fmtNum(profile._liveRates.usdToman)} تومان — منبع: ${profile._liveRates.source})`
+    : "";
 
   const goalLines = (profile.goals || []).length
     ? profile.goals
@@ -59,7 +69,7 @@ export function buildProfileContext(profile) {
 یادداشت نیاز به نقدینگی: ${profile.liquidityNeedNote || "ندارد"}
 
 ### دارایی‌های کاربر (مجموع: ${fmtNum(totalAssets)} تومان)
-${assetLines}
+${assetLines}${liveRatesLine}
 
 ### اهداف مالی ثبت‌شده
 ${goalLines}`;
@@ -288,39 +298,3 @@ ${message}
 }`)}`;
 }
 
-/**
- * `computed` comes from forecast.js (Holt's linear trend method fit on
- * historical data, not an LLM guess). The model only explains the numbers.
- */
-export function promptForecast(profile, assetKey, computed, meta) {
-  const label = categoryLabel(assetKey);
-  const pointsText = computed.points
-    .map((p) => `دوره ${p.h}: میانه ${Math.round(p.p50 * 100) / 100} (بازه ۷۰٪: ${Math.round(p.p15 * 100) / 100} تا ${Math.round(p.p85 * 100) / 100})`)
-    .join("\n");
-
-  let dataNote;
-  if (meta?.source === "live") {
-    dataNote = `آخرین نقطه از یک فید داده‌ی زنده‌ی واقعی گرفته شده (${meta.note || "منبع خارجی"}؛ تاریخ به‌روزرسانی: ${meta.feedDate || "نامشخص"})، اما مسیر تاریخی پیش از آن تخمینی است تا زمانی که سری تاریخی واقعی وصل شود. این محدودیت را صادقانه به کاربر بگو.`;
-  } else if (meta?.source === "manual") {
-    dataNote = "این پیش‌بینی روی داده‌ای که خود کاربر وارد کرده محاسبه شده است.";
-  } else {
-    dataNote = "توجه: این پیش‌بینی روی داده‌ی نمایشی (Synthetic) تولیدشده از فرضیات بازده/نوسان است، نه داده‌ی واقعی بازار — این محدودیت را صریح به کاربر بگو.";
-  }
-
-  return `${SYSTEM_PREAMBLE}
-
-${buildProfileContext(profile)}
-
-### خروجی مدل پیش‌بینی روند برای «${label}» (روش Holt's Linear Trend روی ${computed.points.length ? "داده تاریخی" : "—"}، محاسبه‌شده — نه حدس)
-${dataNote}
-مقدار آخرین نقطه شناخته‌شده: ${computed.lastValue}
-روند هر دوره: ${computed.trendPerPeriod > 0 ? "+" : ""}${Math.round(computed.trendPerPeriod * 100) / 100}
-تغییر کل پیش‌بینی‌شده تا افق نهایی: ${computed.totalChangePercent > 0 ? "+" : ""}${computed.totalChangePercent}٪
-${pointsText}
-
-### وظیفه
-فقط بر اساس همین اعداد محاسبه‌شده، به زبان ساده توضیح بده روند این دارایی به کدام سمت است و عدم‌قطعیت (بازه ۷۰٪ اطمینان) چقدر است. اگر کاربر مقداری از این دارایی را در سبد خود دارد، توضیح بده این روند چه معنایی برای دارایی‌های او دارد. محدودیت منبع داده (بالا) را حتماً صادقانه یادآوری کن.${jsonInstruction(`{
-  "explanation": string,
-  "portfolioRelevance": string
-}`)}`;
-}

@@ -14,14 +14,12 @@ import {
   promptGoal,
   promptDecision,
   promptChat,
-  promptForecast,
   categoryLabel,
 } from "./prompts.js";
 import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 import { simulateShock } from "./monteCarlo.js";
-import { forecastSeries } from "./forecast.js";
-import { loadMarketHistory, ensureFreshMarketHistory, addHistoryPoint, FORECASTABLE_ASSETS } from "./marketStore.js";
+import { resolveProfileAssets, getLiveRates } from "./assetPricing.js";
 import { logEvent, effectiveRiskTolerance, getBehaviorState } from "./behaviorStore.js";
 import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./dataAsset.js";
 
@@ -86,6 +84,13 @@ app.post(
   })
 );
 
+app.get(
+  "/api/live-rates",
+  handleAsync(async (req, res) => {
+    res.json(await getLiveRates());
+  })
+);
+
 app.post(
   "/api/goals",
   handleAsync(async (req, res) => {
@@ -115,7 +120,7 @@ app.delete(
 app.post(
   "/api/widgets/assets",
   handleAsync(async (req, res) => {
-    const profile = loadProfile();
+    const profile = await resolveProfileAssets(loadProfile());
     const { profile: profileForOpt } = profileWithEffectiveRisk(profile);
     const computed = optimizePortfolio(profileForOpt);
     const explanation = await callLLMJSON(promptAssets(profile, computed), { effort: "medium" });
@@ -146,7 +151,7 @@ app.post(
 app.post(
   "/api/widgets/risk",
   handleAsync(async (req, res) => {
-    const profile = loadProfile();
+    const profile = await resolveProfileAssets(loadProfile());
     const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(profile);
     const computed = optimizePortfolio(profileForOpt);
     const explanation = await callLLMJSON(promptRisk(profile, computed), { effort: "medium" });
@@ -167,7 +172,7 @@ app.post(
 app.post(
   "/api/widgets/liquidity",
   handleAsync(async (req, res) => {
-    const profile = loadProfile();
+    const profile = await resolveProfileAssets(loadProfile());
     const computed = computeLiquidity(profile);
     const explanation = await callLLMJSON(promptLiquidity(profile, computed), { effort: "medium" });
     res.json({
@@ -185,7 +190,7 @@ app.post(
 app.post(
   "/api/widgets/goal",
   handleAsync(async (req, res) => {
-    const profile = loadProfile();
+    const profile = await resolveProfileAssets(loadProfile());
     const goal = req.body.goal;
     const result = await callLLMJSON(promptGoal(profile, goal), { effort: "medium" });
     res.json(result);
@@ -195,7 +200,7 @@ app.post(
 app.post(
   "/api/widgets/scenario",
   handleAsync(async (req, res) => {
-    const profile = loadProfile();
+    const profile = await resolveProfileAssets(loadProfile());
     const scenario = req.body.scenario || {};
     let shocks = scenario.id && PRESET_SHOCKS[scenario.id] ? PRESET_SHOCKS[scenario.id] : null;
     let scenarioTitle = scenario.title;
@@ -247,7 +252,7 @@ app.post(
 app.post(
   "/api/widgets/decision",
   handleAsync(async (req, res) => {
-    const profile = loadProfile();
+    const profile = await resolveProfileAssets(loadProfile());
     const decision = req.body.decision;
     const result = await callLLMJSON(promptDecision(profile, decision), { effort: "medium" });
     res.json(result);
@@ -280,56 +285,13 @@ app.get(
 app.post(
   "/api/chat",
   handleAsync(async (req, res) => {
-    const profile = loadProfile();
+    const profile = await resolveProfileAssets(loadProfile());
     const { message, history } = req.body;
     const result = await callLLMJSON(promptChat(profile, message, history), { effort: "medium" });
     if (result.emotional && result.emotional.flag) {
       logEvent("chat_emotional", "emotionalFlag", { reason: result.emotional.reason });
     }
     res.json(result);
-  })
-);
-
-app.get(
-  "/api/market-history",
-  handleAsync(async (req, res) => {
-    res.json(loadMarketHistory());
-  })
-);
-
-app.post(
-  "/api/market-history",
-  handleAsync(async (req, res) => {
-    const { asset, period, value } = req.body;
-    const store = addHistoryPoint(asset, period, value);
-    res.json(store);
-  })
-);
-
-app.post(
-  "/api/widgets/forecast",
-  handleAsync(async (req, res) => {
-    const profile = loadProfile();
-    const asset = FORECASTABLE_ASSETS.includes(req.body.asset) ? req.body.asset : "gold";
-    const market = await ensureFreshMarketHistory();
-    const series = market.series[asset] || [];
-    const meta = market.meta[asset] || { source: "synthetic", liveAnchor: false };
-    const computed = forecastSeries(series, 6);
-    if (computed.error) {
-      res.json({ asset, label: categoryLabel(asset), error: computed.error, meta, series });
-      return;
-    }
-    const explanation = await callLLMJSON(promptForecast(profile, asset, computed, meta), { effort: "medium" });
-    logInteraction("forecast_run", { asset, source: meta.source, totalChangePercent: computed.totalChangePercent });
-    res.json({
-      asset,
-      label: categoryLabel(asset),
-      meta,
-      series,
-      forecast: computed,
-      explanation: explanation.explanation,
-      portfolioRelevance: explanation.portfolioRelevance,
-    });
   })
 );
 
