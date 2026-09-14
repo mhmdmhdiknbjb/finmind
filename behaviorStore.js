@@ -31,7 +31,15 @@ const FILE = path.join(DATA_DIR, "behavior.json");
  */
 
 const MAX_DELTA = 3;
-const NUDGE = { decisionFollowedRisky: 0.6, decisionAbandonedSafe: -0.6, emotionalFlag: -0.3 };
+const NUDGE = {
+  decisionFollowedRisky: 0.6,
+  decisionAbandonedSafe: -0.6,
+  emotionalFlag: -0.3,
+  // One-time seed from the onboarding question "how would you react to a
+  // 20% drop?" — a self-reported behavioral signal, applied once.
+  onboardingSellsImmediately: -1.5,
+  onboardingStaysCalm: 1.5,
+};
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });

@@ -148,6 +148,26 @@ textarea { resize: vertical; }
 .card-body .profile-form { max-width: 100%; }
 #profileBody.collapsed { display: none; }
 
+.profile-head-right { display: flex; align-items: center; gap: 14px; }
+.profile-summary { font-size: 12.5px; color: var(--text-dim); }
+
+.onb-welcome { text-align: center; padding: 20px 10px 30px; }
+.onb-welcome h3 { margin: 0 0 10px; font-size: 18px; }
+.onb-welcome p { color: var(--text-dim); font-size: 13.5px; line-height: 1.9; max-width: 520px; margin: 0 auto 20px; }
+
+.onb-progress { margin-bottom: 20px; display: none; }
+.onb-progress span { font-size: 12px; color: var(--text-faint); display: block; margin-bottom: 6px; }
+.onb-progress-bar { height: 6px; background: var(--bg-soft); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+.onb-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 4px; transition: width .3s ease; }
+
+.onb-nav { display: none; justify-content: space-between; margin-top: 20px; }
+
+.profile-form.onboarding-mode .onb-step { display: none; }
+.profile-form.onboarding-mode .onb-step.active { display: block; }
+.profile-form.onboarding-mode #onbProgress { display: block; }
+.profile-form.onboarding-mode #onbNav { display: flex; }
+.profile-form.onboarding-mode #normalFormActions { display: none; }
+
 .loading { color: var(--text-faint); font-size: 13px; padding: 30px 0; text-align: center; }
 .hidden { display: none !important; }
 

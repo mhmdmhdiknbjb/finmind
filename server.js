@@ -80,6 +80,15 @@ app.post(
     const updated = { ...current, ...req.body };
     saveProfile(updated);
     logProfileSnapshot(updated);
+
+    // Onboarding just completed for the first time: seed the behavioral
+    // risk model once from the self-reported "how would you react to a
+    // 20% drop?" question (Phase 4 — see behaviorStore.js).
+    if (!current.onboarded && updated.onboarded) {
+      if (updated.emotionalRiskReaction === "می‌فروشم") logEvent("onboarding_seed", "onboardingSellsImmediately", {});
+      else if (updated.emotionalRiskReaction === "بی‌تفاوتم یا بیشتر می‌خرم") logEvent("onboarding_seed", "onboardingStaysCalm", {});
+    }
+
     res.json(updated);
   })
 );

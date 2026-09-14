@@ -65,11 +65,17 @@ export function buildProfileContext(profile) {
 جنسیت: ${p.gender ?? "نامشخص"}
 وضعیت تاهل: ${p.maritalStatus ?? "نامشخص"}
 تعداد فرزند: ${p.childrenCount ?? "نامشخص"}
+نوع شغل/درآمد: ${p.employmentType || "نامشخص"}
+وضعیت مسکن: ${p.housingStatus || "نامشخص"}
+سطح تجربه سرمایه‌گذاری: ${profile.investmentExperience || "نامشخص"}
+واکنش احتمالی به افت ۲۰٪ ارزش دارایی‌ها (خوداظهاری): ${profile.emotionalRiskReaction || "نامشخص"}
 میزان ریسک‌پذیری اعلامی کاربر (مقیاس ۱ تا ۱۰): ${profile.riskTolerance ?? 5}
 درآمد ماهانه: ${fmtNum(profile.monthlyIncome)} تومان
 هزینه ماهانه: ${fmtNum(profile.monthlyExpenses)} تومان
+بدهی/اقساط وام فعلی: ${fmtNum(profile.existingDebt)} تومان
 یادداشت افق زمانی سرمایه‌گذاری: ${profile.timeHorizonNote || "ندارد"}
 یادداشت نیاز به نقدینگی: ${profile.liquidityNeedNote || "ندارد"}
+مهم‌ترین هدف مالی زندگی (خوداظهاری آزاد): ${profile.mainGoalDescription || "ندارد"}
 
 ### دارایی‌های کاربر (مجموع: ${fmtNum(totalAssets)} تومان)
 ${assetLines}${liveRatesLine}

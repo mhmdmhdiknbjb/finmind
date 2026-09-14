@@ -7,17 +7,24 @@ const DATA_DIR = path.join(__dirname, "data");
 const PROFILE_FILE = path.join(DATA_DIR, "profile.json");
 
 const DEFAULT_PROFILE = {
+  onboarded: false,
   personal: {
     age: null,
     gender: null,
     maritalStatus: null,
     childrenCount: null,
+    employmentType: null,
+    housingStatus: null,
   },
   riskTolerance: 5,
+  investmentExperience: null,
+  emotionalRiskReaction: null,
   monthlyIncome: null,
   monthlyExpenses: null,
+  existingDebt: null,
   timeHorizonNote: "",
   liquidityNeedNote: "",
+  mainGoalDescription: "",
   assets: [],
   goals: [],
 };

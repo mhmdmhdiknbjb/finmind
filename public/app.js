@@ -115,14 +115,38 @@ function populateProfileForm() {
   $("fGender").value = p.gender ?? "مرد";
   $("fMarital").value = p.maritalStatus ?? "مجرد";
   $("fChildren").value = p.childrenCount ?? "";
+  $("fEmployment").value = p.employmentType || "کارمند بخش خصوصی";
+  $("fHousing").value = p.housingStatus || "مستاجر";
   $("fIncome").value = tomanToMillionInput(profile.monthlyIncome);
   $("fExpenses").value = tomanToMillionInput(profile.monthlyExpenses);
+  $("fDebt").value = tomanToMillionInput(profile.existingDebt);
   $("fRisk").value = profile.riskTolerance ?? 5;
   $("riskSliderVal").textContent = profile.riskTolerance ?? 5;
+  $("fExperience").value = profile.investmentExperience || "مبتدی (کمتر از ۱ سال)";
+  $("fEmotionalReaction").value = profile.emotionalRiskReaction || "صبر می‌کنم";
   $("fHorizon").value = profile.timeHorizonNote ?? "";
   $("fLiquidityNote").value = profile.liquidityNeedNote ?? "";
+  $("fMainGoal").value = profile.mainGoalDescription ?? "";
   renderAssetRows(profile.assets || []);
   renderGoalsList();
+  renderProfileSummary();
+}
+
+function renderProfileSummary() {
+  const p = profile.personal || {};
+  const el = $("profileSummary");
+  if (!profile.onboarded) {
+    el.classList.add("hidden");
+    return;
+  }
+  const assetCount = (profile.assets || []).length;
+  const parts = [];
+  if (p.age) parts.push(`${p.age} ساله`);
+  if (p.gender) parts.push(p.gender);
+  parts.push(`ریسک‌پذیری ${profile.riskTolerance ?? 5}/۱۰`);
+  parts.push(`${assetCount} دارایی ثبت‌شده`);
+  el.textContent = parts.join(" — ");
+  el.classList.remove("hidden");
 }
 
 // Gold, currency and crypto are entered by quantity (grams / units of a
@@ -306,12 +330,18 @@ function collectProfileFromForm() {
       gender: $("fGender").value,
       maritalStatus: $("fMarital").value,
       childrenCount: $("fChildren").value ? Number($("fChildren").value) : null,
+      employmentType: $("fEmployment").value,
+      housingStatus: $("fHousing").value,
     },
     riskTolerance: Number($("fRisk").value),
+    investmentExperience: $("fExperience").value,
+    emotionalRiskReaction: $("fEmotionalReaction").value,
     monthlyIncome: $("fIncome").value ? millionInputToToman($("fIncome").value) : null,
     monthlyExpenses: $("fExpenses").value ? millionInputToToman($("fExpenses").value) : null,
+    existingDebt: $("fDebt").value ? millionInputToToman($("fDebt").value) : null,
     timeHorizonNote: $("fHorizon").value.trim(),
     liquidityNeedNote: $("fLiquidityNote").value.trim(),
+    mainGoalDescription: $("fMainGoal").value.trim(),
     assets,
     goals: profile.goals || [],
   };
@@ -328,6 +358,88 @@ async function saveProfileAndRefresh() {
   profile = await res.json();
   $("saveStatus").textContent = "ذخیره شد ✓";
   setTimeout(() => ($("saveStatus").textContent = ""), 2500);
+  refreshCoreWidgets();
+}
+
+/* ---------------- Onboarding Wizard ---------------- */
+
+const ONB_TOTAL_STEPS = 5;
+let onbCurrentStep = 1;
+
+function startOnboarding() {
+  // Hide every other dashboard widget so the wizard is the only thing to
+  // deal with; only sections that weren't already hidden get marked and
+  // restored later (e.g. the emotional-alert card should stay hidden).
+  document.querySelectorAll("main.grid > section").forEach((sec) => {
+    if (sec.id === "profileCard") return;
+    if (!sec.classList.contains("hidden")) {
+      sec.classList.add("hidden");
+      sec.dataset.onbHidden = "true";
+    }
+  });
+  $("chatFab").classList.add("hidden");
+
+  $("profileBody").classList.remove("collapsed");
+  $("toggleProfileBtn").classList.add("hidden");
+  $("profileSummary").classList.add("hidden");
+  $("onbWelcome").classList.remove("hidden");
+  $("profileFormWrap").classList.add("hidden");
+}
+
+function beginWizardSteps() {
+  $("onbWelcome").classList.add("hidden");
+  $("profileFormWrap").classList.remove("hidden");
+  $("profileFormWrap").classList.add("onboarding-mode");
+  showOnbStep(1);
+}
+
+function showOnbStep(n) {
+  onbCurrentStep = n;
+  document.querySelectorAll(".onb-step").forEach((el) => {
+    el.classList.toggle("active", Number(el.dataset.step) === n);
+  });
+  $("onbProgressText").textContent = `مرحله ${n} از ${ONB_TOTAL_STEPS}`;
+  $("onbProgressFill").style.width = `${(n / ONB_TOTAL_STEPS) * 100}%`;
+  $("onbBackBtn").disabled = n === 1;
+  $("onbNextBtn").textContent = n === ONB_TOTAL_STEPS ? "پایان و شروع" : "بعدی";
+}
+
+function onbNext() {
+  if (onbCurrentStep < ONB_TOTAL_STEPS) {
+    showOnbStep(onbCurrentStep + 1);
+  } else {
+    finishOnboarding();
+  }
+}
+
+function onbBack() {
+  if (onbCurrentStep > 1) showOnbStep(onbCurrentStep - 1);
+}
+
+async function finishOnboarding() {
+  const data = collectProfileFromForm();
+  data.onboarded = true;
+  $("onbNextBtn").disabled = true;
+  $("onbNextBtn").textContent = "در حال ذخیره...";
+  const res = await fetch("/api/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  profile = await res.json();
+
+  $("profileFormWrap").classList.remove("onboarding-mode");
+  $("toggleProfileBtn").classList.remove("hidden");
+  $("profileBody").classList.add("collapsed");
+  $("onbNextBtn").disabled = false;
+  renderProfileSummary();
+
+  document.querySelectorAll('main.grid > section[data-onb-hidden="true"]').forEach((sec) => {
+    sec.classList.remove("hidden");
+    delete sec.dataset.onbHidden;
+  });
+  $("chatFab").classList.remove("hidden");
+
   refreshCoreWidgets();
 }
 
@@ -881,13 +993,23 @@ function wireEvents() {
     input.value = "";
     sendChatMessage(msg);
   };
+
+  $("onbStartBtn").onclick = beginWizardSteps;
+  $("onbNextBtn").onclick = onbNext;
+  $("onbBackBtn").onclick = onbBack;
 }
 
 async function init() {
   wireEvents();
   renderScenarioPresets();
   await fetchProfile();
-  refreshCoreWidgets();
+
+  if (!profile.onboarded) {
+    startOnboarding();
+  } else {
+    $("profileBody").classList.add("collapsed");
+    refreshCoreWidgets();
+  }
 }
 
 init();
