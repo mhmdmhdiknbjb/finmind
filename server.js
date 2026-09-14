@@ -14,14 +14,16 @@ import {
   promptGoal,
   promptDecision,
   promptChat,
+  promptVoiceExtract,
   categoryLabel,
 } from "./prompts.js";
 import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 import { simulateShock } from "./monteCarlo.js";
-import { resolveProfileAssets, getLiveRates, applyAssetChanges } from "./assetPricing.js";
+import { resolveProfileAssets, getLiveRates, applyAssetChanges, normalizeExtractedAssets } from "./assetPricing.js";
 import { logEvent, effectiveRiskTolerance, getBehaviorState } from "./behaviorStore.js";
 import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./dataAsset.js";
+import { transcribeAudio } from "./transcribe.js";
 
 /** Blends the profile's self-reported riskTolerance with the behaviorally-learned one (Phase 4) before it reaches the optimizer. */
 function profileWithEffectiveRisk(profile) {
@@ -97,6 +99,39 @@ app.get(
   "/api/live-rates",
   handleAsync(async (req, res) => {
     res.json(await getLiveRates());
+  })
+);
+
+// Voice-assistant onboarding: the browser records audio and posts the raw
+// bytes here; a real transcription model (gpt-4o-transcribe, same provider/
+// key as the chat LLM) converts it to Persian text, then promptVoiceExtract
+// pulls structure out of what was actually said — it never invents a value
+// for something the user didn't mention.
+app.post(
+  "/api/voice/transcribe",
+  express.raw({ type: "*/*", limit: "25mb" }),
+  handleAsync(async (req, res) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: "فایل صوتی دریافت نشد" });
+      return;
+    }
+    const mimeType = req.headers["content-type"] || "audio/webm";
+    const text = await transcribeAudio(req.body, mimeType);
+    res.json({ text });
+  })
+);
+
+app.post(
+  "/api/voice/extract",
+  handleAsync(async (req, res) => {
+    const transcript = (req.body.transcript || "").trim();
+    if (!transcript) {
+      res.json({ personal: {}, assets: [], foundKeys: [] });
+      return;
+    }
+    const extracted = await callLLMJSON(promptVoiceExtract(transcript), { effort: "medium" });
+    extracted.assets = await normalizeExtractedAssets(extracted.assets);
+    res.json(extracted);
   })
 );
 

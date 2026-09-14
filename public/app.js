@@ -443,6 +443,165 @@ async function finishOnboarding() {
   refreshCoreWidgets();
 }
 
+/* ---------------- Voice Assistant ---------------- */
+
+const VOICE_CHECKLIST = [
+  { key: "age", label: "سن" },
+  { key: "gender", label: "جنسیت" },
+  { key: "maritalStatus", label: "وضعیت تاهل" },
+  { key: "childrenCount", label: "تعداد فرزند" },
+  { key: "employmentType", label: "نوع شغل/درآمد" },
+  { key: "housingStatus", label: "وضعیت مسکن" },
+  { key: "riskTolerance", label: "میزان ریسک‌پذیری" },
+  { key: "investmentExperience", label: "تجربه سرمایه‌گذاری" },
+  { key: "emotionalRiskReaction", label: "واکنش به افت بازار" },
+  { key: "monthlyIncome", label: "درآمد ماهانه" },
+  { key: "monthlyExpenses", label: "هزینه ماهانه" },
+  { key: "existingDebt", label: "بدهی/اقساط فعلی" },
+  { key: "assets", label: "دارایی‌ها" },
+  { key: "mainGoalDescription", label: "هدف اصلی مالی" },
+];
+
+let voiceFoundKeys = new Set();
+let voiceTranscriptAccum = "";
+let voiceMediaRecorder = null;
+let voiceAudioChunks = [];
+let voiceIsRecording = false;
+
+function renderVoiceChecklist() {
+  const ul = $("voiceChecklist");
+  ul.innerHTML = "";
+  VOICE_CHECKLIST.forEach((item) => {
+    const li = document.createElement("li");
+    const done = voiceFoundKeys.has(item.key);
+    li.className = done ? "done" : "";
+    li.innerHTML = `<span class="vc-mark">${done ? "✓" : ""}</span><span>${item.label}</span>`;
+    ul.appendChild(li);
+  });
+}
+
+function startVoiceAssistant() {
+  $("onbWelcome").classList.add("hidden");
+  $("voicePanel").classList.remove("hidden");
+  voiceFoundKeys = new Set();
+  voiceTranscriptAccum = "";
+  $("voiceTranscript").textContent = "";
+  $("voiceStatus").textContent = "برای شروع، دکمه رو بزن";
+  renderVoiceChecklist();
+}
+
+function backFromVoiceAssistant() {
+  if (voiceIsRecording && voiceMediaRecorder) voiceMediaRecorder.stop();
+  $("voicePanel").classList.add("hidden");
+  $("onbWelcome").classList.remove("hidden");
+}
+
+async function toggleVoiceRecording() {
+  if (voiceIsRecording) {
+    voiceMediaRecorder.stop();
+    return;
+  }
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    $("voiceStatus").textContent = "مرورگرت از ضبط صدا پشتیبانی نمی‌کنه. لطفاً دستی وارد کن.";
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    voiceAudioChunks = [];
+    voiceMediaRecorder = new MediaRecorder(stream);
+    voiceMediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) voiceAudioChunks.push(e.data);
+    };
+    voiceMediaRecorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      $("voiceRecordBtn").classList.remove("recording");
+      $("voiceRecordIcon").textContent = "🎙️";
+      voiceIsRecording = false;
+      const blob = new Blob(voiceAudioChunks, { type: voiceMediaRecorder.mimeType || "audio/webm" });
+      await processVoiceRecording(blob);
+    };
+    voiceMediaRecorder.start();
+    voiceIsRecording = true;
+    $("voiceRecordBtn").classList.add("recording");
+    $("voiceRecordIcon").textContent = "⏹️";
+    $("voiceStatus").textContent = "در حال ضبط... دوباره دکمه رو بزن تا تموم بشه";
+  } catch (e) {
+    console.error(e);
+    $("voiceStatus").textContent = "دسترسی به میکروفون ممکن نشد. لطفاً اجازه بده یا دستی وارد کن.";
+  }
+}
+
+async function processVoiceRecording(blob) {
+  $("voiceStatus").textContent = "در حال تبدیل صدا به متن...";
+  try {
+    const transRes = await fetch("/api/voice/transcribe", {
+      method: "POST",
+      headers: { "Content-Type": blob.type || "audio/webm" },
+      body: blob,
+    });
+    const transData = await transRes.json();
+    const text = (transData.text || "").trim();
+    if (!text) {
+      $("voiceStatus").textContent = "چیزی شنیده نشد. دوباره امتحان کن.";
+      return;
+    }
+    voiceTranscriptAccum += (voiceTranscriptAccum ? " " : "") + text;
+    $("voiceTranscript").textContent = voiceTranscriptAccum;
+    $("voiceStatus").textContent = "در حال استخراج اطلاعات...";
+
+    const extractRes = await fetch("/api/voice/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcript: voiceTranscriptAccum }),
+    });
+    const extracted = await extractRes.json();
+    applyVoiceExtraction(extracted);
+    $("voiceStatus").textContent = "برای گفتن موارد باقی‌مونده دوباره ضبط کن، یا ادامه بده";
+  } catch (e) {
+    console.error(e);
+    $("voiceStatus").textContent = "خطا در پردازش صدا. دوباره امتحان کن.";
+  }
+}
+
+function applyVoiceExtraction(extracted) {
+  const p = extracted.personal || {};
+  if (p.age) $("fAge").value = p.age;
+  if (p.gender) $("fGender").value = p.gender;
+  if (p.maritalStatus) $("fMarital").value = p.maritalStatus;
+  if (p.childrenCount !== null && p.childrenCount !== undefined) $("fChildren").value = p.childrenCount;
+  if (p.employmentType) $("fEmployment").value = p.employmentType;
+  if (p.housingStatus) $("fHousing").value = p.housingStatus;
+  if (extracted.riskTolerance) {
+    $("fRisk").value = extracted.riskTolerance;
+    $("riskSliderVal").textContent = extracted.riskTolerance;
+  }
+  if (extracted.investmentExperience) $("fExperience").value = extracted.investmentExperience;
+  if (extracted.emotionalRiskReaction) $("fEmotionalReaction").value = extracted.emotionalRiskReaction;
+  if (extracted.monthlyIncome) $("fIncome").value = tomanToMillionInput(extracted.monthlyIncome);
+  if (extracted.monthlyExpenses) $("fExpenses").value = tomanToMillionInput(extracted.monthlyExpenses);
+  if (extracted.existingDebt) $("fDebt").value = tomanToMillionInput(extracted.existingDebt);
+  if (extracted.timeHorizonNote) $("fHorizon").value = extracted.timeHorizonNote;
+  if (extracted.liquidityNeedNote) $("fLiquidityNote").value = extracted.liquidityNeedNote;
+  if (extracted.mainGoalDescription) $("fMainGoal").value = extracted.mainGoalDescription;
+
+  if (extracted.assets && extracted.assets.length) {
+    const existingRows = $("assetRows").querySelectorAll(".asset-row");
+    if (existingRows.length === 1) {
+      const [, secondField, valueInput] = existingRows[0].querySelectorAll("select, input");
+      if (!valueInput.value && !secondField.value) existingRows[0].remove();
+    }
+    extracted.assets.forEach((a) => addAssetRow(a));
+  }
+
+  (extracted.foundKeys || []).forEach((k) => voiceFoundKeys.add(k));
+  renderVoiceChecklist();
+}
+
+function continueFromVoiceAssistant() {
+  $("voicePanel").classList.add("hidden");
+  beginWizardSteps();
+}
+
 /* ---------------- Assets Widget ---------------- */
 
 async function loadAssetsWidget() {
@@ -1004,6 +1163,10 @@ function wireEvents() {
   };
 
   $("onbStartBtn").onclick = beginWizardSteps;
+  $("onbVoiceBtn").onclick = startVoiceAssistant;
+  $("voiceRecordBtn").onclick = toggleVoiceRecording;
+  $("voiceBackBtn").onclick = backFromVoiceAssistant;
+  $("voiceContinueBtn").onclick = continueFromVoiceAssistant;
   $("onbNextBtn").onclick = onbNext;
   $("onbBackBtn").onclick = onbBack;
 }

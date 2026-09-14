@@ -310,3 +310,50 @@ ${message}
 }`)}`;
 }
 
+/**
+ * Voice-assistant onboarding: the user talks freely (speech-to-text runs in
+ * the browser via the Web Speech API — no separate transcription service),
+ * and this extracts whatever profile fields/assets/goal they actually
+ * mentioned from the raw transcript. This is the same "LLM as structured-
+ * data extractor" pattern as promptScenarioExtract — it pulls out what was
+ * said, it does not decide anything or invent values for what wasn't said.
+ */
+export function promptVoiceExtract(transcript) {
+  return `تو یک مبدل گفتار-به-داده هستی. متن زیر نتیجه‌ی تشخیص گفتار فارسی از صحبت آزاد یک کاربر است (ممکن است ناقص، محاوره‌ای یا دارای غلط تایپی گفتاری باشد). فقط اطلاعاتی را که کاربر واقعاً و صریحاً گفته استخراج کن؛ هر چیزی که نگفته را null یا خالی بگذار — هرگز حدس یا داده‌ی جدید نساز.
+
+متن پیاده‌شده از گفتار کاربر:
+"""
+${transcript}
+"""
+
+فیلدهایی که باید استخراج کنی (در صورت ذکر شدن):
+- سن، جنسیت (مرد/زن)، وضعیت تاهل (مجرد/متاهل)، تعداد فرزند
+- نوع شغل/درآمد (مثلاً «کارمند بخش دولتی»، «کارمند بخش خصوصی»، «کسب‌وکار آزاد/فریلنسر»، «کارفرما و صاحب کسب‌وکار»، «بازنشسته»، «دانشجو»، «بیکار» — نزدیک‌ترین مقدار به آنچه گفته را انتخاب کن)
+- وضعیت مسکن («مالک مسکن»، «مستاجر»، «زندگی با خانواده»)
+- میزان ریسک‌پذیری (اگر عددی بین ۱ تا ۱۰ گفته، یا اگر توصیف کیفی کرده مثل «خیلی محافظه‌کارم» یا «ریسک‌پذیرم» یک عدد منطقی بین ۱ تا ۱۰ استنباط کن)
+- سطح تجربه سرمایه‌گذاری («مبتدی (کمتر از ۱ سال)»، «متوسط (۱ تا ۵ سال)»، «حرفه‌ای (بیش از ۵ سال)»)
+- واکنش به افت ۲۰٪ ارزش دارایی («می‌فروشم»، «صبر می‌کنم»، یا «بی‌تفاوتم یا بیشتر می‌خرم» — نزدیک‌ترین مقدار)
+- درآمد ماهانه، هزینه ماهانه، بدهی/اقساط فعلی (همه به تومان؛ اگر کاربر «میلیون» گفته در عدد ضرب در ۱,۰۰۰,۰۰۰ کن)
+- یادداشت افق زمانی سرمایه‌گذاری، یادداشت نیاز به نقدینگی (متن آزاد خلاصه‌شده از حرف کاربر)
+- مهم‌ترین هدف مالی زندگی (متن آزاد)
+- دارایی‌ها: هر دارایی که نام برده با دسته (cash, gold, currency, stock, fund, realestate, crypto, other). برای gold: اگر مقدار به گرم گفته در quantity بگذار؛ اگر فقط ارزش تومانی گفته (مثلاً «۲۰۰ میلیون طلا دارم») در amount بگذار. برای currency/crypto: اگر تعداد واحد و نوع ارز/کوین گفته (مثلاً «۵۰۰ دلار» یا «۰.۰۵ بیت‌کوین») quantity و symbol (مثل USD یا BTC) را پر کن؛ اگر فقط ارزش تومانی گفته amount را پر کن. برای بقیه دسته‌ها همیشه amount (تومان) را پر کن.
+
+### دستور خروجی
+فقط JSON زیر را برگردان:
+{
+  "personal": {"age": number or null, "gender": "مرد" or "زن" or null, "maritalStatus": "مجرد" or "متاهل" or null, "childrenCount": number or null, "employmentType": string or null, "housingStatus": string or null},
+  "riskTolerance": number or null,
+  "investmentExperience": string or null,
+  "emotionalRiskReaction": string or null,
+  "monthlyIncome": number or null,
+  "monthlyExpenses": number or null,
+  "existingDebt": number or null,
+  "timeHorizonNote": string or null,
+  "liquidityNeedNote": string or null,
+  "mainGoalDescription": string or null,
+  "assets": [{"category": string, "amount": number or null, "quantity": number or null, "symbol": string or null, "label": string or null}],
+  "foundKeys": [string]
+}
+foundKeys باید فقط شامل کلیدهایی از این لیست باشد که واقعاً مقداری برایشان پیدا کردی: age, gender, maritalStatus, childrenCount, employmentType, housingStatus, riskTolerance, investmentExperience, emotionalRiskReaction, monthlyIncome, monthlyExpenses, existingDebt, assets, mainGoalDescription`;
+}
+

@@ -40,6 +40,41 @@ function unitPriceToman(asset, rates) {
 }
 
 /**
+ * Normalizes a batch of freshly-extracted assets (e.g. from the voice
+ * assistant) so gold/currency/crypto rows always end up with a `quantity`:
+ * if only a toman `amount` was captured ("۲۰۰ میلیون طلا دارم"), convert it
+ * to a quantity at the current live rate; if a quantity was already given,
+ * leave it as-is. Non-live-priced categories pass through unchanged.
+ */
+export async function normalizeExtractedAssets(assets) {
+  if (!assets || !assets.length) return [];
+  let rates = null;
+  try {
+    rates = await getLiveRates();
+  } catch {
+    /* fall through — live-priced categories without a quantity get dropped below */
+  }
+
+  const out = [];
+  for (const a of assets) {
+    if (!a || !a.category) continue;
+    if (a.category === "gold" || a.category === "currency" || a.category === "crypto") {
+      const symbol = a.symbol || (a.category === "crypto" ? "BTC" : "USD");
+      let quantity = Number(a.quantity) || 0;
+      if (quantity <= 0 && a.amount && rates) {
+        const price = unitPriceToman({ category: a.category, symbol }, rates);
+        if (price) quantity = Number(a.amount) / price;
+      }
+      if (quantity > 0) out.push({ category: a.category, symbol, quantity, label: a.label || "" });
+    } else {
+      const amount = Number(a.amount) || 0;
+      if (amount > 0) out.push({ category: a.category, amount, label: a.label || "" });
+    }
+  }
+  return out;
+}
+
+/**
  * Returns a copy of the profile whose gold/currency/crypto assets have a
  * real, live-priced `amount` (quantity * current rate) alongside their
  * original `quantity`/`symbol`. Every other asset category passes through
