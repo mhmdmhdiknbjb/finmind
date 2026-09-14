@@ -158,21 +158,73 @@ ${buildProfileContext(profile)}
 }`)}`;
 }
 
-export function promptScenario(profile, scenario) {
+/**
+ * Non-market scenarios (personal income/expense changes, or free text that
+ * doesn't map to a tradable asset shock) have no statistical model to run —
+ * there is no "covariance of your salary". For these, the LLM does the full
+ * qualitative reasoning, same as the original MVP design.
+ */
+export function promptScenarioQualitative(profile, scenario) {
   return `${SYSTEM_PREAMBLE}
 
 ${buildProfileContext(profile)}
 
-### سناریوی مورد بررسی
+### سناریوی مورد بررسی (سناریوی غیربازاری — بدون مدل آماری قابل‌اجرا)
 ${scenario.title}
 ${scenario.description || ""}
 
 ### وظیفه
-اثر این سناریو را روی تک‌تک دارایی‌های کاربر شبیه‌سازی کن (بر اساس نوع دارایی و همبستگی معمول آن با این سناریو در اقتصاد ایران) و درصد و مبلغ تغییر هر دارایی و کل سبد را محاسبه کن. توضیح بده چرا و چگونه این اتفاق روی هر بخش اثر می‌گذارد.${jsonInstruction(`{
+این سناریو یک اتفاق بازاری با قیمت قابل‌شبیه‌سازی نیست (مثلاً تغییر درآمد/هزینه شخصی)، بنابراین اثر آن را با استدلال کیفی بر دارایی‌ها، نقدینگی و اهداف مالی کاربر تحلیل کن. اگر بخشی از اثر قابل محاسبه عددی است (مثلاً کاهش توان پس‌انداز ماهانه) آن را محاسبه کن.${jsonInstruction(`{
   "scenarioTitle": string,
   "impactByAsset": [{"category": string, "label": string, "changePercent": number, "changeAmount": number}],
   "totalPortfolioChangePercent": number,
   "totalPortfolioChangeAmount": number,
+  "explanation": string,
+  "recommendation": string
+}`)}`;
+}
+
+/**
+ * Lightweight extraction call: translate a free-text scenario into a
+ * structured asset-shock vector the Monte Carlo engine can simulate — the
+ * LLM's job here is strictly natural-language-to-structured-data, not
+ * computing any financial outcome itself.
+ */
+export function promptScenarioExtract(customText) {
+  return `تو یک مبدل متن آزاد به داده ساخت‌یافته هستی. کاربر یک سناریوی اقتصادی فرضی نوشته است. اگر این سناریو مستقیماً معادل یک تغییر قیمت (شوک) روی یک یا چند مورد از این دسته‌های دارایی باشد: cash, gold, currency, stock, fund, realestate, crypto — آن را استخراج کن. اگر سناریو یک رویداد بازاری با شوک قیمتی مشخص نیست (مثلاً تغییر درآمد شخصی، هزینه، یا موضوعی نامرتبط با قیمت دارایی)، shocks را null بگذار.
+
+متن کاربر: "${customText}"
+
+فقط JSON زیر را برگردان، بدون هیچ توضیح اضافه:
+{
+  "shocks": {"category": number} or null,
+  "scenarioTitle": string
+}
+مثال: اگر کاربر بنویسد "اگر دلار ۴۰٪ رشد کند چه می‌شود؟" خروجی باید {"shocks": {"currency": 0.4}, "scenarioTitle": "رشد ۴۰ درصدی دلار"} باشد. مقدار شوک باید عدد اعشاری بین -1 و 3 باشد (مثلاً ۴۰٪ رشد یعنی 0.4، ۲۰٪ کاهش یعنی -0.2).`;
+}
+
+/**
+ * `computed` is the output of monteCarlo.simulateShock — real percentiles
+ * from a conditional multivariate-normal simulation, not an LLM guess. The
+ * model only explains these numbers in Persian.
+ */
+export function promptScenarioExplain(profile, scenarioTitle, computed) {
+  const assetLines = computed.impactByAsset
+    .map((a) => `${categoryLabel(a.category)}: میانه ${a.changePercent}٪ (بازه ۷۰٪ اطمینان: ${Math.round(a.p15 * 1000) / 10}٪ تا ${Math.round(a.p85 * 1000) / 10}٪)`)
+    .join("\n");
+
+  return `${SYSTEM_PREAMBLE}
+
+${buildProfileContext(profile)}
+
+### نتیجه شبیه‌سازی مونت‌کارلو برای سناریوی «${scenarioTitle}» (محاسبه‌شده با ${computed.trials} تکرار روی توزیع نرمال چندمتغیره شرطی، نه حدس — این اعداد را عیناً به‌کار ببر)
+اثر روی هر دارایی کاربر:
+${assetLines}
+
+اثر کل روی پرتفوی: میانه ${computed.portfolio.p50Percent}٪ (${fmtNum(computed.portfolio.p50Amount)} تومان) — بازه ۷۰٪ اطمینان: از ${computed.portfolio.p15Percent}٪ تا ${computed.portfolio.p85Percent}٪ (${fmtNum(computed.portfolio.p15Amount)} تا ${fmtNum(computed.portfolio.p85Amount)} تومان)
+
+### وظیفه
+فقط بر اساس همین اعداد محاسبه‌شده (عدد جدید نساز)، توضیح بده چرا این اتفاق روی هر دارایی این‌طور اثر می‌گذارد (با توجه به همبستگی معمول آن دارایی با این سناریو در اقتصاد ایران)، بازه عدم‌قطعیت را به زبان ساده توضیح بده، و یک توصیه عملی بده.${jsonInstruction(`{
   "explanation": string,
   "recommendation": string
 }`)}`;

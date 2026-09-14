@@ -8,13 +8,29 @@ import {
   promptAssets,
   promptRisk,
   promptLiquidity,
+  promptScenarioQualitative,
+  promptScenarioExtract,
+  promptScenarioExplain,
   promptGoal,
-  promptScenario,
   promptDecision,
   promptChat,
   categoryLabel,
 } from "./prompts.js";
 import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
+import { simulateShock } from "./monteCarlo.js";
+
+// Preset scenario -> deterministic asset-return shock, simulated with real
+// statistics (monteCarlo.js) instead of asked to the LLM. Scenarios with no
+// tradable-asset shock (e.g. a personal income change) are not listed here
+// and fall back to qualitative LLM reasoning.
+const PRESET_SHOCKS = {
+  usd_up_30: { currency: 0.3 },
+  gold_down_20: { gold: -0.2 },
+  inflation_spike: { currency: 0.25, gold: 0.2 },
+  stock_crash_25: { stock: -0.25 },
+  stock_rally_25: { stock: 0.25 },
+  rate_hike: { cash: 0.05, stock: -0.05, gold: -0.03 },
+};
 
 function allocationArray(weights, total) {
   return ASSET_ORDER.filter((k) => (weights[k] || 0) > 0.0001).map((k) => ({
@@ -154,9 +170,49 @@ app.post(
   "/api/widgets/scenario",
   handleAsync(async (req, res) => {
     const profile = loadProfile();
-    const scenario = req.body.scenario;
-    const result = await callLLMJSON(promptScenario(profile, scenario), { effort: "medium" });
-    res.json(result);
+    const scenario = req.body.scenario || {};
+    let shocks = scenario.id && PRESET_SHOCKS[scenario.id] ? PRESET_SHOCKS[scenario.id] : null;
+    let scenarioTitle = scenario.title;
+
+    if (!shocks && !scenario.id) {
+      const extraction = await callLLMJSON(promptScenarioExtract(scenario.description || scenario.title || ""), {
+        effort: "low",
+      });
+      if (extraction.shocks && Object.keys(extraction.shocks).length) {
+        shocks = extraction.shocks;
+        scenarioTitle = extraction.scenarioTitle || scenarioTitle;
+      }
+    }
+
+    if (shocks) {
+      const mc = simulateShock(profile, shocks, 8000);
+      const explanation = await callLLMJSON(promptScenarioExplain(profile, scenarioTitle, mc), { effort: "medium" });
+      res.json({
+        scenarioTitle,
+        impactByAsset: mc.impactByAsset.map((a) => ({
+          category: a.category,
+          label: categoryLabel(a.category),
+          changePercent: a.changePercent,
+          changeAmount: a.changeAmount,
+          p15Percent: Math.round(a.p15 * 1000) / 10,
+          p85Percent: Math.round(a.p85 * 1000) / 10,
+        })),
+        totalPortfolioChangePercent: mc.portfolio.p50Percent,
+        totalPortfolioChangeAmount: mc.portfolio.p50Amount,
+        confidenceRange: {
+          p15Percent: mc.portfolio.p15Percent,
+          p85Percent: mc.portfolio.p85Percent,
+          p15Amount: mc.portfolio.p15Amount,
+          p85Amount: mc.portfolio.p85Amount,
+        },
+        trials: mc.trials,
+        explanation: explanation.explanation,
+        recommendation: explanation.recommendation,
+      });
+    } else {
+      const result = await callLLMJSON(promptScenarioQualitative(profile, scenario), { effort: "medium" });
+      res.json(result);
+    }
   })
 );
 

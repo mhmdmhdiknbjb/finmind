@@ -64,7 +64,7 @@ function buildCovariance() {
   return sigma;
 }
 
-const COVARIANCE = buildCovariance();
+export const COVARIANCE = buildCovariance();
 
 function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));

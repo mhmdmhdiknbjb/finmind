@@ -192,7 +192,7 @@
     <!-- Scenario Simulator Widget -->
     <section class="card span-6" id="scenarioCard">
       <div class="card-head">
-        <h2><span class="ico">🌪️</span> شبیه‌ساز سناریو</h2>
+        <h2><span class="ico">🌪️</span> شبیه‌ساز سناریو <span class="engine-tag" id="scenarioEngineTag">مونت‌کارلو</span></h2>
       </div>
       <div class="card-body">
         <div class="scenario-presets" id="scenarioPresets"></div>
@@ -204,6 +204,7 @@
         <div id="scenarioContent" class="hidden">
           <div class="chart-wrap chart-wrap-sm"><canvas id="scenarioChart"></canvas></div>
           <div class="scenario-total" id="scenarioTotal"></div>
+          <div class="scenario-range hidden" id="scenarioRange"></div>
           <p class="summary-text" id="scenarioExplanation"></p>
           <p class="summary-text recommend" id="scenarioRecommendation"></p>
         </div>

@@ -1,5 +1,10 @@
 import { API_BASE_URL, API_KEY, MODEL } from "./config.js";
 
+// Only reasoning-family models (o-series, gpt-5-*) accept the `reasoning`
+// param; sending it to a non-reasoning model like gpt-4o-mini breaks the
+// upstream call.
+const SUPPORTS_REASONING = /^openai\/(o\d|gpt-5)/.test(MODEL);
+
 function extractOutputText(data) {
   if (typeof data.output_text === "string" && data.output_text.length) return data.output_text;
   if (Array.isArray(data.output)) {
@@ -24,7 +29,7 @@ export async function callLLM(input, { effort = "medium" } = {}) {
     body: JSON.stringify({
       model: MODEL,
       input,
-      reasoning: { effort },
+      ...(SUPPORTS_REASONING ? { reasoning: { effort } } : {}),
     }),
   });
   if (!res.ok) {

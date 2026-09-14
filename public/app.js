@@ -542,6 +542,17 @@ function renderScenarioResult(data) {
   totalEl.textContent = `اثر کلی بر سبد دارایی: ${pct > 0 ? "+" : ""}${pct}٪ (${formatToman(data.totalPortfolioChangeAmount)})`;
   totalEl.className = "scenario-total " + (pct >= 0 ? "pos" : "neg");
 
+  const rangeEl = $("scenarioRange");
+  if (data.confidenceRange) {
+    const r = data.confidenceRange;
+    rangeEl.textContent = `بازه ۷۰٪ اطمینان (شبیه‌سازی مونت‌کارلو، ${data.trials || ""} تکرار): بین ${r.p15Percent > 0 ? "+" : ""}${r.p15Percent}٪ و ${r.p85Percent > 0 ? "+" : ""}${r.p85Percent}٪`;
+    rangeEl.classList.remove("hidden");
+  } else {
+    rangeEl.classList.add("hidden");
+  }
+  const engineTag = $("scenarioEngineTag");
+  if (engineTag) engineTag.textContent = data.confidenceRange ? "مونت‌کارلو" : "تحلیل کیفی";
+
   $("scenarioExplanation").textContent = data.explanation || "";
   $("scenarioRecommendation").textContent = data.recommendation || "";
 }
