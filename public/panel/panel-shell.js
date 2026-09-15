@@ -51,11 +51,129 @@ function renderTopbar(activeKey, user) {
   el.innerHTML = `
     <h2>${PAGE_TITLES[activeKey] || ""}</h2>
     <div class="panel-user">
+      <div class="notif-bell-wrap" id="notifBellWrap">
+        <button class="notif-bell" id="notifBellBtn" type="button" aria-label="اعلان‌ها">
+          🔔<span class="notif-badge hidden" id="notifBadge"></span>
+        </button>
+        <div class="notif-dropdown hidden" id="notifDropdown">
+          <div class="notif-dropdown-head">اعلان‌ها</div>
+          <div class="notif-list" id="notifList"></div>
+        </div>
+      </div>
       <span class="panel-user-name">${user.name}</span>
       <button class="btn btn-ghost btn-small" id="panelLogoutBtn">خروج</button>
     </div>
   `;
   document.getElementById("panelLogoutBtn").onclick = logout;
+}
+
+/* ---------------- Notifications ---------------- */
+
+function relativeTime(iso) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "همین الان";
+  if (min < 60) return `${min} دقیقه پیش`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} ساعت پیش`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day} روز پیش`;
+  return new Date(iso).toLocaleDateString("fa-IR");
+}
+
+const NOTIF_ICON = { risk: "🎯", emotional_alert: "⚠️" };
+
+function renderNotifList(notifications) {
+  const list = document.getElementById("notifList");
+  if (!list) return;
+  if (!notifications.length) {
+    list.innerHTML = '<div class="notif-empty">اعلانی نداری</div>';
+    return;
+  }
+  list.innerHTML = notifications
+    .map(
+      (n) => `
+      <div class="notif-item${n.read ? "" : " unread"}">
+        <div class="notif-item-ico">${NOTIF_ICON[n.type] || "🔔"}</div>
+        <div>
+          <div class="notif-item-title">${n.title || ""}</div>
+          <div class="notif-item-msg">${n.message || ""}</div>
+          <div class="notif-item-time">${relativeTime(n.at)}</div>
+        </div>
+      </div>`
+    )
+    .join("");
+}
+
+function updateBadge(count) {
+  const badge = document.getElementById("notifBadge");
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 9 ? "9+" : count;
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+}
+
+async function initNotificationBell() {
+  const wrap = document.getElementById("notifBellWrap");
+  const btn = document.getElementById("notifBellBtn");
+  const dropdown = document.getElementById("notifDropdown");
+  if (!wrap || !btn || !dropdown) return;
+
+  async function fetchNotifications() {
+    try {
+      const res = await fetch("/api/notifications");
+      if (res.ok) return (await res.json()).notifications || [];
+    } catch {
+      /* non-critical */
+    }
+    return null;
+  }
+
+  // Initial badge on load.
+  const initial = await fetchNotifications();
+  if (initial) updateBadge(initial.filter((n) => !n.read).length);
+
+  // A widget computed on THIS same page load (e.g. the risk score) can
+  // create a notification seconds after this initial fetch already ran —
+  // an LLM call is slow enough that it easily outlasts it — so re-fetch
+  // fresh every time the bell is actually opened rather than trusting a
+  // stale snapshot from page-load time. A light poll also keeps the badge
+  // itself current while the tab just sits open.
+  const poll = setInterval(async () => {
+    if (!dropdown.classList.contains("hidden")) return; // don't fight an open dropdown
+    const fresh = await fetchNotifications();
+    if (fresh) updateBadge(fresh.filter((n) => !n.read).length);
+  }, 30000);
+  window.addEventListener("beforeunload", () => clearInterval(poll));
+
+  btn.onclick = async (e) => {
+    e.stopPropagation();
+    const opening = dropdown.classList.contains("hidden");
+    if (!opening) {
+      dropdown.classList.add("hidden");
+      return;
+    }
+    const fresh = (await fetchNotifications()) || [];
+    renderNotifList(fresh);
+    dropdown.classList.remove("hidden");
+    if (fresh.some((n) => !n.read)) {
+      updateBadge(0);
+      try {
+        await fetch("/api/notifications/read-all", { method: "POST" });
+      } catch {
+        /* non-critical */
+      }
+    } else {
+      updateBadge(0);
+    }
+  };
+
+  document.addEventListener("click", (e) => {
+    if (!wrap.contains(e.target)) dropdown.classList.add("hidden");
+  });
 }
 
 async function renderAlertBadge() {
@@ -81,5 +199,6 @@ export async function initPanelShell(activeKey) {
   renderSidebar(activeKey);
   renderTopbar(activeKey, user);
   renderAlertBadge();
+  initNotificationBell();
   return user;
 }

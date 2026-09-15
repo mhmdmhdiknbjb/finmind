@@ -3,11 +3,18 @@ import { initPanelShell } from "./panel-shell.js";
 
 const charts = {};
 
-async function loadLiquidityWidget() {
+// `force` recomputes even if nothing the user controls has changed; a
+// normal page load leaves it false so the numbers stay stable instead of
+// drifting with live market rates — see snapshotStore.js.
+async function loadLiquidityWidget(force = false) {
   $("liquidityLoading").classList.remove("hidden");
   $("liquidityContent").classList.add("hidden");
   try {
-    const res = await fetch("/api/widgets/liquidity", { method: "POST" });
+    const res = await fetch("/api/widgets/liquidity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force }),
+    });
     const data = await res.json();
     $("liquidityLoading").classList.add("hidden");
     $("liquidityContent").classList.remove("hidden");
@@ -75,7 +82,7 @@ function renderLiquidityWidget(data) {
 async function init() {
   const user = await initPanelShell("liquidity");
   if (!user) return;
-  $("refreshLiquidityBtn").onclick = loadLiquidityWidget;
+  $("refreshLiquidityBtn").onclick = () => loadLiquidityWidget(true);
   loadLiquidityWidget();
 }
 

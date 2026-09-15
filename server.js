@@ -28,6 +28,8 @@ import { logEvent, effectiveRiskTolerance, getBehaviorState, getEmotionalEvents 
 import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./dataAsset.js";
 import { transcribeAudio } from "./transcribe.js";
 import { loadChatHistory, appendChatMessages } from "./chatStore.js";
+import { computeFingerprint, loadSnapshot, saveSnapshot } from "./snapshotStore.js";
+import { getNotifications, addNotification, markAllRead } from "./notificationStore.js";
 import {
   registerUser,
   verifyLogin,
@@ -41,6 +43,36 @@ import {
 function profileWithEffectiveRisk(userId, profile) {
   const info = effectiveRiskTolerance(userId, profile.riskTolerance);
   return { profile: { ...profile, riskTolerance: info.effective }, riskInfo: info };
+}
+
+/**
+ * Wraps a "current portfolio state" widget (دارایی‌ها/ریسک/نقدینگی) with a
+ * fingerprint-based cache (see snapshotStore.js): if nothing the user
+ * actually controls changed since the last computation, the same stored
+ * result is served — live market-rate drift alone never silently changes
+ * what's shown. `describeChange(prevResult, nextResult)` may return a
+ * {title, message} to record as a notification when a real recomputation
+ * produces a different number; return null/undefined to stay silent.
+ */
+async function withSnapshot(userId, key, force, computeFn, describeChange) {
+  const rawProfile = loadProfile(userId);
+  const behaviorState = getBehaviorState(userId);
+  const fingerprint = computeFingerprint(rawProfile, behaviorState);
+
+  const cached = loadSnapshot(userId, key);
+  if (!force && cached && cached.fingerprint === fingerprint) {
+    return cached.result;
+  }
+
+  const result = await computeFn();
+
+  if (cached && describeChange) {
+    const notif = describeChange(cached.result, result);
+    if (notif) addNotification(userId, { type: key, ...notif });
+  }
+
+  saveSnapshot(userId, key, { fingerprint, result, computedAt: new Date().toISOString() });
+  return result;
 }
 
 // Preset scenario -> deterministic asset-return shock, simulated with real
@@ -218,33 +250,40 @@ app.post(
   "/api/widgets/assets",
   requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile(req.userId));
-    const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
-    const computed = optimizePortfolio(profileForOpt);
-    const explanation = await callLLMJSON(promptAssets(profile, computed), { effort: "medium" });
-
-    res.json({
-      totalAssets: computed.current.total,
-      allocation: allocationArray(computed.current.weights, computed.current.total),
-      optimal: allocationArray(computed.optimal.weights, computed.current.total),
-      currentStats: {
-        expectedReturn: computed.current.expectedReturn,
-        volatility: computed.current.volatility,
-        liquidityPercent: computed.current.liquidityPercent,
-        riskScore: computed.current.riskScore,
-      },
-      optimalStats: {
-        expectedReturn: computed.optimal.expectedReturn,
-        volatility: computed.optimal.volatility,
-        liquidityPercent: computed.optimal.liquidityPercent,
-        riskScore: computed.optimal.riskScore,
-      },
-      concentrationWarning: explanation.concentrationWarning,
-      strengths: explanation.strengths,
-      weaknesses: explanation.weaknesses,
-      suggestions: explanation.suggestions,
-      summary: explanation.summary,
-    });
+    const result = await withSnapshot(
+      req.userId,
+      "assets",
+      !!req.body?.force,
+      async () => {
+        const profile = await resolveProfileAssets(loadProfile(req.userId));
+        const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
+        const computed = optimizePortfolio(profileForOpt);
+        const explanation = await callLLMJSON(promptAssets(profile, computed), { effort: "medium" });
+        return {
+          totalAssets: computed.current.total,
+          allocation: allocationArray(computed.current.weights, computed.current.total),
+          optimal: allocationArray(computed.optimal.weights, computed.current.total),
+          currentStats: {
+            expectedReturn: computed.current.expectedReturn,
+            volatility: computed.current.volatility,
+            liquidityPercent: computed.current.liquidityPercent,
+            riskScore: computed.current.riskScore,
+          },
+          optimalStats: {
+            expectedReturn: computed.optimal.expectedReturn,
+            volatility: computed.optimal.volatility,
+            liquidityPercent: computed.optimal.liquidityPercent,
+            riskScore: computed.optimal.riskScore,
+          },
+          concentrationWarning: explanation.concentrationWarning,
+          strengths: explanation.strengths,
+          weaknesses: explanation.weaknesses,
+          suggestions: explanation.suggestions,
+          summary: explanation.summary,
+        };
+      }
+    );
+    res.json(result);
   })
 );
 
@@ -252,21 +291,37 @@ app.post(
   "/api/widgets/risk",
   requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile(req.userId));
-    const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(req.userId, profile);
-    const computed = optimizePortfolio(profileForOpt);
-    const explanation = await callLLMJSON(promptRisk(profile, computed), { effort: "medium" });
-    res.json({
-      currentRiskScore: computed.current.riskScore,
-      suggestedRiskScore: computed.optimal.riskScore,
-      difference: computed.optimal.riskScore - computed.current.riskScore,
-      riskLevel: computed.current.riskLevel,
-      riskToleranceInfo: riskInfo,
-      reasons: explanation.reasons,
-      behavioralFactors: explanation.behavioralFactors,
-      suggestions: explanation.suggestions,
-      summary: explanation.summary,
-    });
+    const result = await withSnapshot(
+      req.userId,
+      "risk",
+      !!req.body?.force,
+      async () => {
+        const profile = await resolveProfileAssets(loadProfile(req.userId));
+        const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(req.userId, profile);
+        const computed = optimizePortfolio(profileForOpt);
+        const explanation = await callLLMJSON(promptRisk(profile, computed), { effort: "medium" });
+        return {
+          currentRiskScore: computed.current.riskScore,
+          suggestedRiskScore: computed.optimal.riskScore,
+          difference: computed.optimal.riskScore - computed.current.riskScore,
+          riskLevel: computed.current.riskLevel,
+          riskToleranceInfo: riskInfo,
+          reasons: explanation.reasons,
+          behavioralFactors: explanation.behavioralFactors,
+          suggestions: explanation.suggestions,
+          summary: explanation.summary,
+        };
+      },
+      (prev, next) => {
+        if (prev.currentRiskScore === next.currentRiskScore) return null;
+        const dir = next.currentRiskScore > prev.currentRiskScore ? "افزایش" : "کاهش";
+        return {
+          title: "تغییر ریسک سبد دارایی",
+          message: `ریسک فعلی سبد شما از ${prev.currentRiskScore} به ${next.currentRiskScore} از ۱۰۰ ${dir} یافت.`,
+        };
+      }
+    );
+    res.json(result);
   })
 );
 
@@ -274,18 +329,21 @@ app.post(
   "/api/widgets/liquidity",
   requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile(req.userId));
-    const computed = computeLiquidity(profile);
-    const explanation = await callLLMJSON(promptLiquidity(profile, computed), { effort: "medium" });
-    res.json({
-      liquidPercent: computed.liquidPercent,
-      semiLiquidPercent: computed.semiLiquidPercent,
-      illiquidPercent: computed.illiquidPercent,
-      availableByPeriod: computed.availableByPeriod,
-      breakdown: computed.breakdown,
-      warnings: explanation.warnings,
-      summary: explanation.summary,
+    const result = await withSnapshot(req.userId, "liquidity", !!req.body?.force, async () => {
+      const profile = await resolveProfileAssets(loadProfile(req.userId));
+      const computed = computeLiquidity(profile);
+      const explanation = await callLLMJSON(promptLiquidity(profile, computed), { effort: "medium" });
+      return {
+        liquidPercent: computed.liquidPercent,
+        semiLiquidPercent: computed.semiLiquidPercent,
+        illiquidPercent: computed.illiquidPercent,
+        availableByPeriod: computed.availableByPeriod,
+        breakdown: computed.breakdown,
+        warnings: explanation.warnings,
+        summary: explanation.summary,
+      };
     });
+    res.json(result);
   })
 );
 
@@ -439,6 +497,22 @@ app.get(
 );
 
 app.get(
+  "/api/notifications",
+  requireAuth,
+  handleAsync(async (req, res) => {
+    res.json({ notifications: getNotifications(req.userId) });
+  })
+);
+
+app.post(
+  "/api/notifications/read-all",
+  requireAuth,
+  handleAsync(async (req, res) => {
+    res.json({ notifications: markAllRead(req.userId) });
+  })
+);
+
+app.get(
   "/api/insights",
   requireAuth,
   handleAsync(async (req, res) => {
@@ -492,6 +566,11 @@ app.post("/api/chat", requireAuth, (req, res) => {
     const emotional = await emotionalPromise;
     if (emotional && emotional.flag) {
       logEvent(userId, "chat_emotional", "emotionalFlag", { reason: emotional.reason, message: emotional.message });
+      addNotification(userId, {
+        type: "emotional_alert",
+        title: "هشدار تصمیم هیجانی",
+        message: emotional.message || emotional.reason || "یک پیام شما نشانه‌ی واکنش هیجانی به بازار داشت.",
+      });
     }
     res.write(`data: ${JSON.stringify({ type: "emotional", ...emotional })}\n\n`);
     res.write("data: [DONE]\n\n");

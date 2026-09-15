@@ -1,11 +1,19 @@
 import { $, fillListLive, typeWordsInto } from "../common.js";
 import { initPanelShell } from "./panel-shell.js";
 
-async function loadRiskWidget() {
+// `force` recomputes even if nothing the user controls has changed; a
+// normal page load leaves it false so this stays the same number shown
+// everywhere else in the app instead of drifting with live market rates —
+// see snapshotStore.js.
+async function loadRiskWidget(force = false) {
   $("riskLoading").classList.remove("hidden");
   $("riskContent").classList.add("hidden");
   try {
-    const res = await fetch("/api/widgets/risk", { method: "POST" });
+    const res = await fetch("/api/widgets/risk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force }),
+    });
     const data = await res.json();
     renderRiskWidget(data);
   } catch (e) {
@@ -43,7 +51,7 @@ function renderRiskWidget(data) {
 async function init() {
   const user = await initPanelShell("risk");
   if (!user) return;
-  $("refreshRiskBtn").onclick = loadRiskWidget;
+  $("refreshRiskBtn").onclick = () => loadRiskWidget(true);
   loadRiskWidget();
 }
 

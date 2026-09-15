@@ -3,11 +3,19 @@ import { initPanelShell } from "./panel-shell.js";
 
 const charts = {};
 
-async function loadAssetsWidget() {
+// `force` recomputes even if nothing the user controls has changed
+// (explicit "تحلیل مجدد" click); a normal page load leaves it false so the
+// widget serves its last stored numbers instead of drifting with every
+// live gold/dollar rate tick — see snapshotStore.js.
+async function loadAssetsWidget(force = false) {
   $("assetsLoading").classList.remove("hidden");
   $("assetsContent").classList.add("hidden");
   try {
-    const res = await fetch("/api/widgets/assets", { method: "POST" });
+    const res = await fetch("/api/widgets/assets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force }),
+    });
     const data = await res.json();
     $("assetsLoading").classList.add("hidden");
     $("assetsContent").classList.remove("hidden");
@@ -116,7 +124,7 @@ function renderOptimalComparisonChart(current, optimal) {
 async function init() {
   const user = await initPanelShell("assets");
   if (!user) return;
-  $("refreshAssetsBtn").onclick = loadAssetsWidget;
+  $("refreshAssetsBtn").onclick = () => loadAssetsWidget(true);
   loadAssetsWidget();
 }
 
