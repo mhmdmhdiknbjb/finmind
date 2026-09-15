@@ -5,18 +5,19 @@
 // there's no active session.
 
 import { requireUserOrRedirect, logout } from "../common.js";
+import { iconBadge, ICONS } from "../icons.js";
 
 const NAV_ITEMS = [
-  { key: "dashboard", href: "/panel/dashboard.html", icon: "🏠", label: "داشبورد" },
-  { key: "profile", href: "/panel/profile.html", icon: "👤", label: "اطلاعات من" },
-  { key: "assets", href: "/panel/assets.html", icon: "📊", label: "تحلیل دارایی‌ها" },
-  { key: "risk", href: "/panel/risk.html", icon: "🎯", label: "ریسک‌سنجی" },
-  { key: "liquidity", href: "/panel/liquidity.html", icon: "💧", label: "نقدینگی" },
-  { key: "goals", href: "/panel/goals.html", icon: "🏁", label: "اهداف مالی" },
-  { key: "scenario", href: "/panel/scenario.html", icon: "🌪️", label: "شبیه‌ساز سناریو" },
-  { key: "decision", href: "/panel/decision.html", icon: "🧭", label: "دستیار قبل از تصمیم" },
-  { key: "alerts", href: "/panel/alerts.html", icon: "⚠️", label: "هشدارهای رفتاری", badgeId: "navAlertBadge" },
-  { key: "chat", href: "/panel/chat.html", icon: "💬", label: "گفتگو با دستیار" },
+  { key: "dashboard", href: "/panel/dashboard.html", icon: "dashboard", tone: "indigo", label: "داشبورد" },
+  { key: "profile", href: "/panel/profile.html", icon: "user", tone: "violet", label: "اطلاعات من" },
+  { key: "assets", href: "/panel/assets.html", icon: "chartBar", tone: "indigo", label: "تحلیل دارایی‌ها" },
+  { key: "risk", href: "/panel/risk.html", icon: "target", tone: "rose", label: "ریسک‌سنجی" },
+  { key: "liquidity", href: "/panel/liquidity.html", icon: "droplet", tone: "sky", label: "نقدینگی" },
+  { key: "goals", href: "/panel/goals.html", icon: "flag", tone: "teal", label: "اهداف مالی" },
+  { key: "scenario", href: "/panel/scenario.html", icon: "wind", tone: "violet", label: "شبیه‌ساز سناریو" },
+  { key: "decision", href: "/panel/decision.html", icon: "compass", tone: "amber", label: "دستیار قبل از تصمیم" },
+  { key: "alerts", href: "/panel/alerts.html", icon: "alertTriangle", tone: "rose", label: "هشدارهای رفتاری", badgeId: "navAlertBadge" },
+  { key: "chat", href: "/panel/chat.html", icon: "chat", tone: "teal", label: "گفتگو با دستیار" },
 ];
 
 const PAGE_TITLES = Object.fromEntries(NAV_ITEMS.map((i) => [i.key, i.label]));
@@ -33,14 +34,14 @@ function renderSidebar(activeKey) {
       ${NAV_ITEMS.map(
         (item) => `
         <a class="panel-nav-link${item.key === activeKey ? " active" : ""}" href="${item.href}">
-          <span class="nav-ico">${item.icon}</span>
+          <span class="nav-ico">${iconBadge(item.icon, item.tone, "sm")}</span>
           <span>${item.label}</span>
           ${item.badgeId ? `<span class="panel-nav-badge hidden" id="${item.badgeId}"></span>` : ""}
         </a>`
       ).join("")}
     </nav>
     <div class="panel-sidebar-footer">
-      <a class="panel-nav-link" href="/" id="panelHomeLink"><span class="nav-ico">↩</span><span>بازگشت به سایت</span></a>
+      <a class="panel-nav-link" href="/" id="panelHomeLink"><span class="nav-ico">${iconBadge("arrowLeft", "indigo", "sm")}</span><span>بازگشت به سایت</span></a>
     </div>
   `;
 }
@@ -53,7 +54,7 @@ function renderTopbar(activeKey, user) {
     <div class="panel-user">
       <div class="notif-bell-wrap" id="notifBellWrap">
         <button class="notif-bell" id="notifBellBtn" type="button" aria-label="اعلان‌ها">
-          🔔<span class="notif-badge hidden" id="notifBadge"></span>
+          ${ICONS.bell}<span class="notif-badge hidden" id="notifBadge"></span>
         </button>
         <div class="notif-dropdown hidden" id="notifDropdown">
           <div class="notif-dropdown-head">اعلان‌ها</div>
@@ -81,7 +82,7 @@ function relativeTime(iso) {
   return new Date(iso).toLocaleDateString("fa-IR");
 }
 
-const NOTIF_ICON = { risk: "🎯", emotional_alert: "⚠️" };
+const NOTIF_ICON = { risk: ["target", "rose"], emotional_alert: ["alertTriangle", "rose"] };
 
 function renderNotifList(notifications) {
   const list = document.getElementById("notifList");
@@ -91,17 +92,18 @@ function renderNotifList(notifications) {
     return;
   }
   list.innerHTML = notifications
-    .map(
-      (n) => `
+    .map((n) => {
+      const [icon, tone] = NOTIF_ICON[n.type] || ["bell", "indigo"];
+      return `
       <div class="notif-item${n.read ? "" : " unread"}">
-        <div class="notif-item-ico">${NOTIF_ICON[n.type] || "🔔"}</div>
+        <div class="notif-item-ico">${iconBadge(icon, tone, "sm")}</div>
         <div>
           <div class="notif-item-title">${n.title || ""}</div>
           <div class="notif-item-msg">${n.message || ""}</div>
           <div class="notif-item-time">${relativeTime(n.at)}</div>
         </div>
-      </div>`
-    )
+      </div>`;
+    })
     .join("");
 }
 

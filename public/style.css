@@ -80,8 +80,28 @@ html, body {
   border-bottom: 1px solid var(--border);
 }
 .card-head h2 { margin: 0; font-size: 15.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-.ico { font-size: 16px; }
+.ico { display: inline-flex; }
 .card-body { padding: 18px 20px 20px; }
+
+/* Icon badges: a tinted circle holding an inline SVG glyph, used everywhere
+   an emoji "sticker" used to sit (nav, card headers, feature/engine/
+   security cards) — inspired by ecotrust.ir's colored circular icons. */
+.icon-badge {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 44px; height: 44px; border-radius: 50%;
+}
+.icon-badge svg { width: 22px; height: 22px; }
+.icon-badge-sm { width: 30px; height: 30px; }
+.icon-badge-sm svg { width: 16px; height: 16px; }
+.icon-badge-lg { width: 52px; height: 52px; }
+.icon-badge-lg svg { width: 27px; height: 27px; }
+
+.icon-tone-indigo { background: rgba(108,92,231,0.15); color: #9082f0; }
+.icon-tone-teal   { background: rgba(55,172,134,0.15); color: #4cc9a0; }
+.icon-tone-amber  { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.icon-tone-rose   { background: rgba(248,113,113,0.15); color: #f87171; }
+.icon-tone-sky    { background: rgba(56,189,248,0.15); color: #38bdf8; }
+.icon-tone-violet { background: rgba(167,139,250,0.15); color: #a78bfa; }
 
 .engine-tag {
   font-size: 10.5px; font-weight: 700; color: var(--accent);
@@ -349,7 +369,7 @@ li::marker { color: var(--text-faint); }
 @media (max-width: 900px) { .home-features { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { .home-features { grid-template-columns: 1fr; } }
 .feature-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
-.feature-card .f-ico { font-size: 26px; margin-bottom: 10px; }
+.feature-card .f-ico { margin-bottom: 14px; }
 .feature-card h3 { margin: 0 0 8px; font-size: 14px; }
 .feature-card p { margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.85; }
 
@@ -403,7 +423,7 @@ li::marker { color: var(--text-faint); }
 @media (max-width: 960px) { .engine-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { .engine-grid { grid-template-columns: 1fr; } }
 .engine-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
-.engine-card .e-ico { font-size: 24px; margin-bottom: 10px; }
+.engine-card .e-ico { margin-bottom: 14px; }
 .engine-card .e-tag {
   display: inline-block; font-size: 10px; font-weight: 700; color: var(--accent);
   background: rgba(108,92,231,0.12); border: 1px solid rgba(108,92,231,0.35);
@@ -417,7 +437,7 @@ li::marker { color: var(--text-faint); }
 .security-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 @media (max-width: 800px) { .security-grid { grid-template-columns: 1fr; } }
 .security-card { text-align: center; padding: 20px; }
-.security-card .s-ico { font-size: 22px; margin-bottom: 10px; }
+.security-card .s-ico { margin: 0 auto 14px; }
 .security-card h4 { margin: 0 0 8px; font-size: 13px; }
 .security-card p { margin: 0; font-size: 12px; color: var(--text-dim); line-height: 1.8; }
 
@@ -489,7 +509,7 @@ li::marker { color: var(--text-faint); }
   background: linear-gradient(135deg, rgba(108,92,231,0.16), rgba(55,172,134,0.16));
   color: var(--text); border: 1px solid var(--border);
 }
-.panel-nav-link .nav-ico { font-size: 15px; width: 18px; text-align: center; }
+.panel-nav-link .nav-ico { display: inline-flex; }
 .panel-nav-badge {
   margin-right: auto; background: var(--neg); color: #fff; font-size: 10px; font-weight: 700;
   border-radius: 999px; padding: 1px 7px; min-width: 16px; text-align: center;
@@ -512,7 +532,7 @@ li::marker { color: var(--text-faint); }
   transition: transform .12s ease, border-color .12s ease;
 }
 .dash-nav-card:hover { transform: translateY(-2px); border-color: var(--accent); }
-.dash-nav-card .dnc-ico { font-size: 24px; margin-bottom: 8px; }
+.dash-nav-card .dnc-ico { margin-bottom: 12px; }
 .dash-nav-card h3 { margin: 0 0 4px; font-size: 13.5px; }
 .dash-nav-card p { margin: 0; font-size: 12px; color: var(--text-dim); line-height: 1.7; }
 @media (max-width: 960px) { .dash-nav-card { grid-column: span 6; } }
@@ -522,8 +542,10 @@ li::marker { color: var(--text-faint); }
 .notif-bell-wrap { position: relative; }
 .notif-bell {
   position: relative; background: var(--card-2); border: 1px solid var(--border); border-radius: 10px;
-  width: 34px; height: 34px; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim);
 }
+.notif-bell svg { width: 17px; height: 17px; }
 .notif-badge {
   position: absolute; top: -5px; left: -5px; background: var(--neg); color: #fff; font-size: 10px; font-weight: 700;
   border-radius: 999px; min-width: 16px; height: 16px; padding: 0 4px; display: flex; align-items: center; justify-content: center;
