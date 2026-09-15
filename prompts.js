@@ -1,3 +1,6 @@
+import { optimizePortfolio } from "./optimizer.js";
+import { computeLiquidity } from "./liquidityEngine.js";
+
 const CATEGORY_LABELS = {
   cash: "نقد و سپرده بانکی",
   gold: "طلا",
@@ -60,6 +63,21 @@ export function buildProfileContext(profile) {
         .join("\n")
     : "هدف مالی ثبت‌شده‌ای وجود ندارد.";
 
+  // Computed ONCE here with the exact same deterministic engines used by the
+  // dedicated ریسک/نقدینگی pages (optimizer.js, liquidityEngine.js), and
+  // injected into every prompt that includes this context — chat included.
+  // This is what keeps "ریسک فعلی" or "نقدینگی سریع" from ever being stated
+  // as a different number on one page/response than another: every prompt
+  // sees the same canonical figures and is told to reuse them verbatim,
+  // never re-derive or guess its own.
+  const riskComputed = optimizePortfolio(profile).current;
+  const liquidityComputed = computeLiquidity(profile);
+  const canonicalNumbers = `
+
+### اعداد رسمی و ثابت وضعیت فعلی سبد دارایی (محاسبه‌شده با موتور بهینه‌سازی پرتفوی و موتور نقدشوندگی — دقیقاً همین اعداد در همه‌ی صفحات و پاسخ‌های برنامه استفاده می‌شود؛ اگر جایی درباره‌ی ریسک یا نقدینگی فعلی کاربر صحبت می‌کنی، همیشه عیناً همین اعداد را بگو، هرگز عدد دیگری نساز یا دوباره حدس نزن)
+ریسک فعلی سبد: ${riskComputed.riskScore} از ۱۰۰ (سطح: ${riskComputed.riskLevel})
+نقدینگی سریع: ${liquidityComputed.liquidPercent}٪ | نیمه‌نقد: ${liquidityComputed.semiLiquidPercent}٪ | غیرنقد: ${liquidityComputed.illiquidPercent}٪`;
+
   return `### پروفایل کاربر
 سن: ${p.age ?? "نامشخص"}
 جنسیت: ${p.gender ?? "نامشخص"}
@@ -81,7 +99,7 @@ export function buildProfileContext(profile) {
 ${assetLines}${liveRatesLine}
 
 ### اهداف مالی ثبت‌شده
-${goalLines}`;
+${goalLines}${canonicalNumbers}`;
 }
 
 function jsonInstruction(schemaDescription) {
@@ -281,7 +299,17 @@ ${assetLines}
 }`)}`;
 }
 
-export function promptDecision(profile, decision) {
+/**
+ * Step 1 of 2 for the decision-assistant widget: pure NL-understanding —
+ * turn the user's free-text decision into structured per-category asset
+ * deltas. This is the one part of this widget an LLM genuinely has to do
+ * (interpreting "نیمی از طلا" or "۲۰۰ میلیون از سپرده‌ام" needs language
+ * understanding); everything downstream (the real before/after risk score
+ * and liquidity %) is then computed deterministically by the same engines
+ * used on the ریسک‌سنجی/نقدینگی pages — see promptDecisionExplain below and
+ * the /api/widgets/decision route in server.js.
+ */
+export function promptDecisionExtract(profile, decision) {
   return `${SYSTEM_PREAMBLE}
 
 ${buildProfileContext(profile)}
@@ -291,16 +319,40 @@ ${decision.description}
 ${decision.amount ? `مبلغ مرتبط: ${fmtNum(decision.amount)} تومان` : ""}
 
 ### وظیفه
-وضعیت مالی کاربر را قبل و بعد از این تصمیم فرضی مقایسه کن (کل دارایی، امتیاز ریسک از ۱۰۰، درصد نقدینگی). اثر این تصمیم روی اهداف مالی ثبت‌شده کاربر را توضیح بده و در نهایت یک توصیه شفاف بده.
+این تصمیم را به یک لیست تغییرات ساخت‌یافته روی دسته‌های دارایی تبدیل کن — دقیقاً کار یک متخصص استخراج داده، نه تصمیم‌گیری مالی: هر آیتم شامل category (یکی از cash, gold, currency, stock, fund, realestate, crypto, other) و amountDelta (عدد تومان، مثبت یعنی افزایش آن دسته، منفی یعنی کاهش) است. مجموع مقادیر مثبت و منفی باید تقریباً برابر باشند (چون این جابه‌جایی پول بین دسته‌هاست، نه خلق پول از هیچ). اگر تصمیم فقط یک دسته را کم می‌کند بدون مقصد مشخص (مثلاً «خرج کردن» برای مصرف، نه سرمایه‌گذاری مجدد)، فقط همان یک آیتم منفی را بگذار. اگر مبلغ دقیق در متن یا فیلد «مبلغ مرتبط» داده شده، از همان استفاده کن؛ اگر مبهم است (مثلاً «نیمی از طلا»)، با توجه به دارایی‌های فعلی کاربر (بالا) عدد دقیق را خودت محاسبه کن. اگر تصمیم اصلاً به دارایی‌های سرمایه‌گذاری مربوط نیست (مثلاً فقط یک سوال است)، assetChanges را آرایه‌ی خالی بگذار.${jsonInstruction(`{
+  "assetChanges": [{"category": "cash|gold|currency|stock|fund|realestate|crypto|other", "amountDelta": number}]
+}`)}`;
+}
 
-همچنین این تصمیم را به یک لیست تغییرات ساخت‌یافته روی دسته‌های دارایی تبدیل کن (فیلد assetChanges) — دقیقاً همان کاری که یک متخصص داده انجام می‌دهد، نه تصمیم‌گیری مالی: هر آیتم شامل category (یکی از cash, gold, currency, stock, fund, realestate, crypto, other) و amountDelta (عدد تومان، مثبت یعنی افزایش آن دسته، منفی یعنی کاهش) است. مجموع مقادیر مثبت و منفی باید تقریباً برابر باشند (چون این جابه‌جایی پول بین دسته‌هاست، نه خلق پول از هیچ). اگر تصمیم فقط یک دسته را کم می‌کند بدون مقصد مشخص (مثلاً «خرج کردن» برای مصرف، نه سرمایه‌گذاری مجدد)، فقط همان یک آیتم منفی را بگذار. اگر مبلغ دقیق در متن یا فیلد «مبلغ مرتبط» داده شده، از همان استفاده کن؛ اگر مبهم است (مثلاً «نیمی از طلا»)، با توجه به دارایی‌های فعلی کاربر (بالا) عدد دقیق را خودت محاسبه کن. اگر تصمیم اصلاً به دارایی‌های سرمایه‌گذاری مربوط نیست (مثلاً فقط یک سوال است)، assetChanges را آرایه‌ی خالی بگذار.${jsonInstruction(`{
+/**
+ * Step 2 of 2: `computed.before`/`computed.after` come from applying the
+ * extracted assetChanges to a copy of the profile and running BOTH through
+ * optimizer.js + liquidityEngine.js — the exact same functions the
+ * ریسک‌سنجی/نقدینگی pages call. The LLM only narrates and recommends based
+ * on these numbers; it never states its own risk score or liquidity %, so
+ * this widget can no longer disagree with the dedicated pages.
+ */
+export function promptDecisionExplain(profile, decision, computed) {
+  const b = computed.before;
+  const a = computed.after;
+  return `${SYSTEM_PREAMBLE}
+
+${buildProfileContext(profile)}
+
+### تصمیم فرضی مورد بررسی کاربر
+${decision.description}
+${decision.amount ? `مبلغ مرتبط: ${fmtNum(decision.amount)} تومان` : ""}
+
+### وضعیت قبل و بعد از این تصمیم (محاسبه‌شده با همان موتور بهینه‌سازی پرتفوی و موتور نقدشوندگی که در صفحات ریسک‌سنجی و نقدینگی استفاده می‌شوند — دقیقاً همین اعداد را در پاسخت بیاور، عدد جدیدی نساز)
+قبل: کل دارایی ${fmtNum(b.totalAssets)} تومان | ریسک ${b.riskScore} از ۱۰۰ | نقدینگی سریع ${b.liquidPercent}٪
+بعد: کل دارایی ${fmtNum(a.totalAssets)} تومان | ریسک ${a.riskScore} از ۱۰۰ | نقدینگی سریع ${a.liquidPercent}٪
+
+### وظیفه
+یک خلاصه‌ی روان از این تصمیم بنویس، اثرش را روی اهداف مالی ثبت‌شده‌ی کاربر (در صورت وجود) توضیح بده، و صرفاً بر اساس همین تغییر در ریسک و نقدینگی که بالا آمده (نه حدس خودت) یک توصیه‌ی نهایی بده: اگر ریسک بعد از تصمیم به‌طور نگران‌کننده‌ای افزایش یافته یا نقدینگی سریع به سطح خطرناکی افت کرده، «پیشنهاد نمی‌شود» یا «با احتیاط» بده؛ در غیر این صورت و اگر تصمیم با اهداف کاربر همسو است، «پیشنهاد می‌شود» بده.${jsonInstruction(`{
   "decisionSummary": string,
-  "before": {"totalAssets": number, "riskScore": number, "liquidPercent": number},
-  "after": {"totalAssets": number, "riskScore": number, "liquidPercent": number},
   "goalImpact": string,
   "recommendation": "پیشنهاد می‌شود" or "با احتیاط" or "پیشنهاد نمی‌شود",
-  "reasoning": [string],
-  "assetChanges": [{"category": "cash|gold|currency|stock|fund|realestate|crypto|other", "amountDelta": number}]
+  "reasoning": [string]
 }`)}`;
 }
 

@@ -69,7 +69,10 @@ function renderStatChips(elId, stats) {
   wrap.innerHTML = "";
   if (!stats) return;
   wrap.appendChild(statChip("بازده مورد انتظار سالانه", formatPercent(stats.expectedReturn * 100)));
-  wrap.appendChild(statChip("نوسان سالانه (ریسک)", formatPercent(stats.volatility * 100)));
+  wrap.appendChild(statChip("نوسان سالانه", formatPercent(stats.volatility * 100)));
+  // Same 0-100 score shown on صفحه‌ی ریسک‌سنجی (identical formula, identical
+  // number) so the two pages never look like they disagree about risk.
+  wrap.appendChild(statChip("امتیاز ریسک (از ۱۰۰)", stats.riskScore));
   wrap.appendChild(statChip("نقدینگی", formatPercent(stats.liquidityPercent)));
 }
 

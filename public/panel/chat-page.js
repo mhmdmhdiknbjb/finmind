@@ -1,8 +1,6 @@
 import { $ } from "../common.js";
 import { initPanelShell } from "./panel-shell.js";
 
-let chatHistory = [];
-
 function appendChatMessage(role, text, thinking = false) {
   const wrap = $("chatMessages");
   const div = document.createElement("div");
@@ -30,7 +28,7 @@ async function streamChatReplyInto(botEl, message) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history: chatHistory }),
+    body: JSON.stringify({ message }),
   });
   if (!res.ok || !res.body) throw new Error("پاسخ سرور نامعتبر بود.");
 
@@ -82,7 +80,6 @@ async function streamChatReplyInto(botEl, message) {
 
 async function sendChatMessage(message) {
   appendChatMessage("user", message);
-  chatHistory.push({ role: "user", content: message });
   const botEl = appendChatMessage("bot", "در حال فکر کردن...", true);
 
   try {
@@ -91,7 +88,6 @@ async function sendChatMessage(message) {
       botEl.classList.remove("thinking");
       botEl.textContent = "متاسفانه پاسخی دریافت نشد.";
     }
-    chatHistory.push({ role: "assistant", content: fullReply || "" });
     if (emotional && emotional.flag) {
       appendEmotionalBanner(emotional);
     }
@@ -99,6 +95,23 @@ async function sendChatMessage(message) {
     console.error(e);
     botEl.classList.remove("thinking");
     botEl.textContent = "خطا در ارتباط با سرور.";
+  }
+}
+
+// Loads the persisted conversation (server-side, per user) so the chat has
+// real memory — it survives a reload, a closed tab, or coming back later —
+// instead of resetting to just the greeting every time the page opens.
+async function loadHistory() {
+  try {
+    const res = await fetch("/api/chat/history");
+    if (!res.ok) return;
+    const data = await res.json();
+    const messages = data.messages || [];
+    if (!messages.length) return;
+    $("chatMessages").innerHTML = "";
+    messages.forEach((m) => appendChatMessage(m.role === "user" ? "user" : "bot", m.content));
+  } catch (e) {
+    console.error(e);
   }
 }
 
@@ -113,6 +126,7 @@ async function init() {
     input.value = "";
     sendChatMessage(msg);
   };
+  loadHistory();
 }
 
 init();

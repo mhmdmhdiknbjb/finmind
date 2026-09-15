@@ -12,7 +12,8 @@ import {
   promptScenarioExtract,
   promptScenarioExplain,
   promptGoal,
-  promptDecision,
+  promptDecisionExtract,
+  promptDecisionExplain,
   promptChatReply,
   promptChatEmotionalCheck,
   promptVoiceExtract,
@@ -26,6 +27,7 @@ import { resolveProfileAssets, getLiveRates, applyAssetChanges, normalizeExtract
 import { logEvent, effectiveRiskTolerance, getBehaviorState, getEmotionalEvents } from "./behaviorStore.js";
 import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./dataAsset.js";
 import { transcribeAudio } from "./transcribe.js";
+import { loadChatHistory, appendChatMessages } from "./chatStore.js";
 import {
   registerUser,
   verifyLogin,
@@ -229,11 +231,13 @@ app.post(
         expectedReturn: computed.current.expectedReturn,
         volatility: computed.current.volatility,
         liquidityPercent: computed.current.liquidityPercent,
+        riskScore: computed.current.riskScore,
       },
       optimalStats: {
         expectedReturn: computed.optimal.expectedReturn,
         volatility: computed.optimal.volatility,
         liquidityPercent: computed.optimal.liquidityPercent,
+        riskScore: computed.optimal.riskScore,
       },
       concentrationWarning: explanation.concentrationWarning,
       strengths: explanation.strengths,
@@ -357,8 +361,44 @@ app.post(
   handleAsync(async (req, res) => {
     const profile = await resolveProfileAssets(loadProfile(req.userId));
     const decision = req.body.decision;
-    const result = await callLLMJSON(promptDecision(profile, decision), { effort: "medium" });
-    res.json(result);
+
+    // Step 1: LLM turns the free-text decision into structured per-category
+    // asset deltas (the one part of this widget that genuinely needs
+    // language understanding).
+    const extraction = await callLLMJSON(promptDecisionExtract(profile, decision), { effort: "medium" });
+    const assetChanges = Array.isArray(extraction.assetChanges) ? extraction.assetChanges : [];
+
+    // Step 2: apply those deltas to a hypothetical copy of the portfolio and
+    // run BOTH the before and after states through the exact same
+    // optimizer.js / liquidityEngine.js functions the ریسک‌سنجی and نقدینگی
+    // pages use — so this widget can never disagree with them.
+    const { profile: beforeForOpt } = profileWithEffectiveRisk(req.userId, profile);
+    const beforeOptimized = optimizePortfolio(beforeForOpt);
+    const beforeLiquidity = computeLiquidity(profile);
+
+    const afterAssets = await applyAssetChanges(profile, assetChanges);
+    const afterProfile = await resolveProfileAssets({ ...profile, assets: afterAssets });
+    const { profile: afterForOpt } = profileWithEffectiveRisk(req.userId, afterProfile);
+    const afterOptimized = optimizePortfolio(afterForOpt);
+    const afterLiquidity = computeLiquidity(afterProfile);
+
+    const computed = {
+      before: { totalAssets: beforeOptimized.current.total, riskScore: beforeOptimized.current.riskScore, liquidPercent: beforeLiquidity.liquidPercent },
+      after: { totalAssets: afterOptimized.current.total, riskScore: afterOptimized.current.riskScore, liquidPercent: afterLiquidity.liquidPercent },
+    };
+
+    // Step 3: LLM only narrates/recommends based on the numbers computed above.
+    const explanation = await callLLMJSON(promptDecisionExplain(profile, decision, computed), { effort: "medium" });
+
+    res.json({
+      decisionSummary: explanation.decisionSummary,
+      before: computed.before,
+      after: computed.after,
+      goalImpact: explanation.goalImpact,
+      recommendation: explanation.recommendation,
+      reasoning: explanation.reasoning,
+      assetChanges,
+    });
   })
 );
 
@@ -406,6 +446,14 @@ app.get(
   })
 );
 
+app.get(
+  "/api/chat/history",
+  requireAuth,
+  handleAsync(async (req, res) => {
+    res.json({ messages: loadChatHistory(req.userId) });
+  })
+);
+
 // Streams the chat reply live (word-by-word) as Server-Sent Events instead
 // of waiting for the full LLM response. Each event is a JSON line:
 //   {"type":"delta","text":"..."}      — one more chunk of the reply
@@ -417,20 +465,29 @@ app.post("/api/chat", requireAuth, (req, res) => {
   (async () => {
     const userId = req.userId;
     const profile = await resolveProfileAssets(loadProfile(userId));
-    const { message, history } = req.body;
+    const { message } = req.body;
+
+    // The server's own persisted history is the source of truth for context
+    // (not whatever the client happened to have in memory) — this is what
+    // gives the chat real memory across page reloads and later visits, and
+    // keeps a lost/cleared client-side state from silently truncating what
+    // the assistant remembers.
+    const priorHistory = loadChatHistory(userId);
+    appendChatMessages(userId, [{ role: "user", content: message, at: new Date().toISOString() }]);
 
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders?.();
 
-    const emotionalPromise = callLLMJSON(promptChatEmotionalCheck(message, history), { effort: "low" }).catch(
+    const emotionalPromise = callLLMJSON(promptChatEmotionalCheck(message, priorHistory), { effort: "low" }).catch(
       () => ({ flag: false, reason: null, message: null })
     );
 
-    await streamLLM(promptChatReply(profile, message, history), { effort: "medium" }, (delta) => {
+    const fullReply = await streamLLM(promptChatReply(profile, message, priorHistory), { effort: "medium" }, (delta) => {
       res.write(`data: ${JSON.stringify({ type: "delta", text: delta })}\n\n`);
     });
+    appendChatMessages(userId, [{ role: "assistant", content: fullReply, at: new Date().toISOString() }]);
 
     const emotional = await emotionalPromise;
     if (emotional && emotional.flag) {
