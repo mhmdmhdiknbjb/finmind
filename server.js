@@ -19,6 +19,7 @@ import {
   categoryLabel,
 } from "./prompts.js";
 import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
+import { evaluateGoal } from "./goalEngine.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 import { simulateShock } from "./monteCarlo.js";
 import { resolveProfileAssets, getLiveRates, applyAssetChanges, normalizeExtractedAssets } from "./assetPricing.js";
@@ -289,9 +290,11 @@ app.post(
   requireAuth,
   handleAsync(async (req, res) => {
     const profile = await resolveProfileAssets(loadProfile(req.userId));
+    const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
     const goal = req.body.goal;
-    const result = await callLLMJSON(promptGoal(profile, goal), { effort: "medium" });
-    res.json(result);
+    const computed = evaluateGoal(profileForOpt, goal);
+    const explanation = await callLLMJSON(promptGoal(profile, goal, computed), { effort: "medium" });
+    res.json({ ...computed, suggestedPath: explanation.suggestedPath, risks: explanation.risks, summary: explanation.summary });
   })
 );
 

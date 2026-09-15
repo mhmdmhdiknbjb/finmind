@@ -36,7 +36,7 @@ function renderGoalsList() {
       btn.disabled = true;
       btn.textContent = "در حال تحلیل...";
       box.classList.remove("hidden");
-      box.textContent = "در حال بررسی توسط هوش مصنوعی...";
+      box.textContent = "در حال محاسبه و بررسی...";
       try {
         const res = await fetch("/api/widgets/goal", {
           method: "POST",
@@ -44,10 +44,17 @@ function renderGoalsList() {
           body: JSON.stringify({ goal: g }),
         });
         const d = await res.json();
+        const paceLine =
+          d.monthsNeededAtCurrentPace !== null
+            ? `<div>با توان پس‌انداز فعلی، رسیدن به این هدف واقعاً حدود <b>${d.monthsNeededAtCurrentPace} ماه</b> طول می‌کشد (به‌جای ${d.targetMonths} ماه خواسته‌شده)</div>`
+            : "";
         box.innerHTML = `
           <div>امکان‌پذیری: <span class="${d.feasible ? "feasible-yes" : "feasible-no"}">${d.feasible ? "قابل دستیابی است" : "با شرایط فعلی دشوار است"}</span></div>
           <div>پس‌انداز ماهانه لازم: <b>${formatToman(d.requiredMonthlySaving)}</b></div>
           <div>توان پس‌انداز فعلی: <b>${formatToman(d.currentMonthlySavingCapacity)}</b></div>
+          <div>مازاد/کسری ماهانه: <b class="${d.monthlySurplus >= 0 ? "feasible-yes" : "feasible-no"}">${d.monthlySurplus >= 0 ? "+" : ""}${formatToman(d.monthlySurplus)}</b></div>
+          ${paceLine}
+          <div style="color:var(--text-faint);font-size:11.5px;">${d.horizonTier} — نرخ رشد فرض‌شده برای پول این هدف: ${d.assumedAnnualReturnPercent}٪ سالانه</div>
           <ul id="goalPathList_${g.id}"></ul>
           <p id="goalSummary_${g.id}"></p>
         `;

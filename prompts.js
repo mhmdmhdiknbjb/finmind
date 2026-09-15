@@ -169,7 +169,13 @@ ${breakdownText}
 }`)}`;
 }
 
-export function promptGoal(profile, goal) {
+/**
+ * `computed` comes from goalEngine.js (a real time-value-of-money annuity
+ * calculation, the same "engine computes / LLM only narrates" split used
+ * for every other widget) — the LLM never computes feasibility or the
+ * required monthly saving itself, only explains numbers it's handed.
+ */
+export function promptGoal(profile, goal, computed) {
   return `${SYSTEM_PREAMBLE}
 
 ${buildProfileContext(profile)}
@@ -179,12 +185,20 @@ ${buildProfileContext(profile)}
 مبلغ هدف: ${fmtNum(goal.targetAmount)} تومان
 مهلت: ${goal.targetMonths} ماه دیگر
 
+### اعداد محاسبه‌شده توسط موتور مالی (عیناً استفاده کن، عدد جدیدی نساز)
+افق زمانی: ${computed.horizonTier}
+نرخ رشد سالانه فرض‌شده برای پول این هدف: ${computed.assumedAnnualReturnPercent}٪
+پس‌انداز ماهانه لازم برای رسیدن دقیق به هدف در مهلت تعیین‌شده: ${fmtNum(computed.requiredMonthlySaving)} تومان
+توان پس‌انداز ماهانه فعلی کاربر (درآمد منهای هزینه و اقساط بدهی): ${fmtNum(computed.currentMonthlySavingCapacity)} تومان
+مازاد یا کسری ماهانه نسبت به نیاز: ${computed.monthlySurplus >= 0 ? "+" : ""}${fmtNum(computed.monthlySurplus)} تومان
+آیا با پس‌انداز فعلی امکان‌پذیر است: ${computed.feasible ? "بله" : "خیر"}
+${computed.monthsNeededAtCurrentPace !== null ? `با همین توان پس‌انداز فعلی، رسیدن به مبلغ هدف واقعاً حدود ${computed.monthsNeededAtCurrentPace} ماه طول می‌کشد (نه ${goal.targetMonths} ماه خواسته‌شده).` : "توان پس‌انداز فعلی کاربر صفر یا نامشخص است (درآمد/هزینه ثبت نشده)."}
+با پس‌انداز فعلی، تا مهلت ${goal.targetMonths} ماهه حدود ${fmtNum(computed.projectedAmountAtDeadline)} تومان جمع می‌شود.
+
 ### وظیفه
-بررسی کن با توجه به وضعیت فعلی دارایی، درآمد و هزینه کاربر، رسیدن به این هدف در این بازه زمانی چقدر واقع‌بینانه است. مقدار پس‌انداز ماهانه لازم برای رسیدن به هدف را محاسبه کن و آن را با توان پس‌انداز فعلی کاربر (درآمد منهای هزینه) مقایسه کن. یک مسیر پیشنهادی (ترکیب پس‌انداز و سرمایه‌گذاری) ارائه بده.${jsonInstruction(`{
-  "feasible": boolean,
-  "requiredMonthlySaving": number,
-  "currentMonthlySavingCapacity": number,
-  "gap": number,
+این اعداد را در یک خلاصه‌ی روان فارسی توضیح بده و یک مسیر عملی پیشنهاد بده.
+قانون سخت‌گیرانه: هیچ عدد ماه، مبلغ، یا درصد جدیدی که دقیقاً در بالا نیامده حساب، حدس، یا تخمین نزن — نه "ماه‌های باقیمانده پس از یک بازه‌ی خاص"، نه "مبلغ تفکیک‌شده برای هر بخش از هدف"، نه هیچ محاسبه‌ی میان‌راهی دیگر. فقط از همین چند عدد داده‌شده (پس‌انداز ماهانه لازم، توان پس‌انداز فعلی، مازاد/کسری ماهانه، تعداد ماه واقعی، مبلغ جمع‌شده تا مهلت) استفاده کن. اگر لازم شد چیزی فراتر از این اعداد بگویی، فقط توصیف کیفی بده (مثلاً «بعد از رسیدن به سقف پس‌انداز فعلی باید یا مدت را تمدید کرد یا مبلغ پس‌انداز ماهانه را افزایش داد»)، بدون آنکه رقم جدیدی برایش بسازی.
+اگر feasible=false است، پیشنهادها را دقیقاً روی همین اعداد داده‌شده بنا کن (مثلاً افزایش پس‌انداز ماهانه تا سطح "پس‌انداز ماهانه لازم"، یا تمدید مهلت به همان "تعداد ماه واقعی" که داده شده). اگر با توجه به دارایی‌های نقد/نیمه‌نقد فعلی کاربر بخشی از هدف از محل دارایی موجود قابل تامین است، آن را هم به‌صورت کیفی (بدون مبلغ دقیق ساختگی) در مسیر پیشنهادی بیاور.${jsonInstruction(`{
   "suggestedPath": [string],
   "risks": [string],
   "summary": string
