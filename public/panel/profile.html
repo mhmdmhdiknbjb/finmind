@@ -83,15 +83,16 @@
                 </label>
                 <label>تعداد فرزند<input type="number" id="fChildren" min="0" max="20" /></label>
                 <label>نوع شغل/درآمد
-                  <select id="fEmployment">
-                    <option value="کارمند بخش دولتی">کارمند بخش دولتی</option>
-                    <option value="کارمند بخش خصوصی">کارمند بخش خصوصی</option>
-                    <option value="کسب‌وکار آزاد/فریلنسر">کسب‌وکار آزاد/فریلنسر</option>
-                    <option value="کارفرما و صاحب کسب‌وکار">کارفرما و صاحب کسب‌وکار</option>
-                    <option value="بازنشسته">بازنشسته</option>
-                    <option value="دانشجو">دانشجو</option>
-                    <option value="بیکار">بیکار</option>
-                  </select>
+                  <input type="text" id="fEmployment" list="employmentOptions" placeholder="مثلاً مهندس نرم‌افزار، پزشک، راننده تاکسی..." autocomplete="off" />
+                  <datalist id="employmentOptions">
+                    <option value="کارمند بخش دولتی"></option>
+                    <option value="کارمند بخش خصوصی"></option>
+                    <option value="کسب‌وکار آزاد/فریلنسر"></option>
+                    <option value="کارفرما و صاحب کسب‌وکار"></option>
+                    <option value="بازنشسته"></option>
+                    <option value="دانشجو"></option>
+                    <option value="بیکار"></option>
+                  </datalist>
                 </label>
                 <label>وضعیت مسکن
                   <select id="fHousing">
