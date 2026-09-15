@@ -361,7 +361,92 @@ li::marker { color: var(--text-faint); }
 .home-how-step h4 { margin: 0 0 6px; font-size: 13.5px; }
 .home-how-step p { margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.8; }
 
-.home-footer { text-align: center; padding: 24px; color: var(--text-faint); font-size: 12px; border-top: 1px solid var(--border); }
+.home-section-label { display: block; text-align: center; font-size: 11.5px; font-weight: 700; color: var(--accent); letter-spacing: .3px; margin-bottom: 8px; }
+.home-section-title { text-align: center; font-size: 22px; margin: 0 0 12px; }
+.home-section-sub { text-align: center; color: var(--text-dim); font-size: 13.5px; line-height: 1.9; max-width: 640px; margin: 0 auto 36px; }
+
+/* Stats strip */
+.home-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  max-width: 1100px; margin: 0 auto; padding: 0 24px 60px;
+}
+@media (max-width: 800px) { .home-stats { grid-template-columns: repeat(2, 1fr); } }
+.home-stat { text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 12px; }
+.home-stat .stat-num { font-size: 24px; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.home-stat .stat-desc { font-size: 12px; color: var(--text-dim); margin-top: 6px; line-height: 1.7; }
+
+/* Problem -> solution */
+.home-shift { max-width: 1000px; margin: 0 auto; padding: 20px 24px 70px; }
+.shift-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: stretch; }
+@media (max-width: 800px) { .shift-grid { grid-template-columns: 1fr; } }
+.shift-arrow { display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--text-faint); }
+@media (max-width: 800px) { .shift-arrow { transform: rotate(90deg); margin: -6px 0; } }
+.shift-card { border-radius: var(--radius); padding: 22px; border: 1px solid var(--border); }
+.shift-card.bad { background: rgba(248,113,113,0.06); }
+.shift-card.good { background: rgba(52,211,153,0.06); border-color: rgba(52,211,153,0.35); }
+.shift-card h4 { margin: 0 0 14px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+.shift-card.bad h4 { color: var(--neg); }
+.shift-card.good h4 { color: var(--pos); }
+.shift-card ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.shift-card li { font-size: 12.5px; color: var(--text-dim); line-height: 1.8; padding-right: 20px; position: relative; }
+.shift-card.bad li::before { content: "✕"; position: absolute; right: 0; color: var(--neg); font-size: 11px; }
+.shift-card.good li::before { content: "✓"; position: absolute; right: 0; color: var(--pos); font-size: 11px; }
+
+/* Engines */
+.home-engines { max-width: 1200px; margin: 0 auto; padding: 20px 24px 70px; }
+.engine-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+@media (max-width: 960px) { .engine-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .engine-grid { grid-template-columns: 1fr; } }
+.engine-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.engine-card .e-ico { font-size: 24px; margin-bottom: 10px; }
+.engine-card .e-tag {
+  display: inline-block; font-size: 10px; font-weight: 700; color: var(--accent);
+  background: rgba(79,209,197,0.12); border: 1px solid rgba(79,209,197,0.35);
+  border-radius: 999px; padding: 2px 9px; margin-bottom: 10px;
+}
+.engine-card h3 { margin: 0 0 8px; font-size: 13.5px; }
+.engine-card p { margin: 0; font-size: 12px; color: var(--text-dim); line-height: 1.85; }
+
+/* Security */
+.home-security { max-width: 1000px; margin: 0 auto; padding: 20px 24px 70px; }
+.security-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 800px) { .security-grid { grid-template-columns: 1fr; } }
+.security-card { text-align: center; padding: 20px; }
+.security-card .s-ico { font-size: 22px; margin-bottom: 10px; }
+.security-card h4 { margin: 0 0 8px; font-size: 13px; }
+.security-card p { margin: 0; font-size: 12px; color: var(--text-dim); line-height: 1.8; }
+
+/* FAQ */
+.home-faq { max-width: 780px; margin: 0 auto; padding: 20px 24px 80px; }
+.faq-item { background: var(--card); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 10px; overflow: hidden; }
+.faq-item summary {
+  cursor: pointer; padding: 16px 20px; font-size: 13.5px; font-weight: 600; list-style: none;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after { content: "+"; font-size: 18px; color: var(--text-faint); flex-shrink: 0; transition: transform .2s ease; }
+.faq-item[open] summary::after { transform: rotate(45deg); }
+.faq-item p { margin: 0; padding: 0 20px 18px; font-size: 12.5px; color: var(--text-dim); line-height: 1.9; }
+
+/* Final CTA banner */
+.home-cta-banner {
+  max-width: 1000px; margin: 0 auto 70px; padding: 40px 32px; text-align: center;
+  border-radius: var(--radius); border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(124,107,242,0.14), rgba(79,209,197,0.10));
+}
+.home-cta-banner h2 { margin: 0 0 10px; font-size: 20px; }
+.home-cta-banner p { margin: 0 0 22px; color: var(--text-dim); font-size: 13px; }
+
+.home-footer {
+  max-width: 1200px; margin: 0 auto; padding: 40px 24px 24px; border-top: 1px solid var(--border);
+}
+.footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 24px; padding-bottom: 24px; }
+@media (max-width: 700px) { .footer-grid { grid-template-columns: 1fr; } }
+.footer-grid p { font-size: 12px; color: var(--text-dim); line-height: 1.9; max-width: 320px; margin: 10px 0 0; }
+.footer-col h5 { margin: 0 0 12px; font-size: 12px; color: var(--text-faint); }
+.footer-col a { display: block; font-size: 12.5px; color: var(--text-dim); text-decoration: none; padding: 4px 0; }
+.footer-col a:hover { color: var(--accent); }
+.footer-bottom { text-align: center; color: var(--text-faint); font-size: 11.5px; padding-top: 20px; border-top: 1px solid var(--border); }
 
 /* ================= Auth (login/register) ================= */
 
