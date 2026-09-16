@@ -140,8 +140,8 @@ a { text-decoration: none; color: inherit; }
 .btn:active { transform: scale(0.97); }
 .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #061019; box-shadow: var(--shadow-glow); }
 .btn-primary:hover { box-shadow: var(--shadow-glow-cyan); }
-.btn-ghost { background: var(--card-2); color: var(--text-dim); border: 1px solid var(--border-strong); backdrop-filter: blur(10px); }
-.btn-ghost:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+.btn-ghost { background: var(--card-2); color: var(--text); border: 1px solid var(--border-strong); backdrop-filter: blur(10px); }
+.btn-ghost:hover { background: rgba(255,255,255,0.1); }
 .btn-small { padding: 6px 12px; font-size: 12px; }
 
 .form-grid {
