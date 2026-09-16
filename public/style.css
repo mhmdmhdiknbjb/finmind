@@ -38,7 +38,7 @@ html, body {
 a { text-decoration: none; color: inherit; }
 
 /* Every "glass" surface in the app shares this frosted-blur treatment. */
-.card, .feature-card, .engine-card, .security-card, .home-stat, .faq-item,
+.card, .home-stat,
 .dash-nav-card, .auth-card, .panel-sidebar, .panel-topbar, .notif-dropdown,
 .stat-chip, .shift-card, .chat-page-wrap {
   backdrop-filter: blur(20px);
@@ -507,20 +507,6 @@ li::marker { color: var(--text-faint); }
 .features-cta-ico svg { width: 20px; height: 20px; }
 .features-cta-panel p { margin: 0; max-width: 280px; font-size: 13px; color: var(--text-dim); line-height: 1.9; }
 
-.home-how { max-width: 900px; margin: 0 auto; padding: 20px 24px 80px; }
-.home-how h2 { text-align: center; font-size: 20px; margin-bottom: 30px; }
-.home-how-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-@media (max-width: 700px) { .home-how-steps { grid-template-columns: 1fr; } }
-.home-how-step { text-align: center; }
-.home-how-step .step-num {
-  width: 34px; height: 34px; border-radius: 50%; margin: 0 auto 12px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #061019;
-  font-weight: 800; display: flex; align-items: center; justify-content: center;
-  box-shadow: var(--shadow-glow);
-}
-.home-how-step h4 { margin: 0 0 6px; font-size: 13.5px; }
-.home-how-step p { margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.8; }
-
 .home-section-label { display: block; text-align: center; font-size: 11.5px; font-weight: 700; color: var(--accent); letter-spacing: .3px; margin-bottom: 8px; }
 .home-section-title { text-align: center; font-size: 22px; margin: 0 0 12px; }
 .home-section-sub { text-align: center; color: var(--text-dim); font-size: 13.5px; line-height: 1.9; max-width: 640px; margin: 0 auto 36px; }
@@ -596,44 +582,6 @@ li::marker { color: var(--text-faint); }
 .techbrain-node-ico { margin: 0 auto 16px; }
 .techbrain-node-card h3 { margin: 0 0 8px; font-size: 14px; }
 .techbrain-node-card p { margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.9; }
-
-/* Engines */
-.home-engines { max-width: 1200px; margin: 0 auto; padding: 20px 24px 70px; }
-.engine-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-@media (max-width: 960px) { .engine-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { .engine-grid { grid-template-columns: 1fr; } }
-.engine-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; transition: transform .35s cubic-bezier(.16,1,.3,1), box-shadow .35s cubic-bezier(.16,1,.3,1), border-color .35s cubic-bezier(.16,1,.3,1); }
-.engine-card:hover { transform: translateY(-4px); box-shadow: 0 20px 45px -20px rgba(0,212,170,0.35); border-color: var(--border-strong); }
-.engine-card .e-ico { margin-bottom: 14px; }
-.engine-card .e-tag {
-  display: inline-block; font-size: 10px; font-weight: 700; color: var(--accent);
-  background: rgba(0,240,255,0.1); border: 1px solid rgba(0,240,255,0.3);
-  border-radius: 999px; padding: 2px 9px; margin-bottom: 10px;
-}
-.engine-card h3 { margin: 0 0 8px; font-size: 13.5px; }
-.engine-card p { margin: 0; font-size: 12px; color: var(--text-dim); line-height: 1.85; }
-
-/* Security */
-.home-security { max-width: 1000px; margin: 0 auto; padding: 20px 24px 70px; }
-.security-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-@media (max-width: 800px) { .security-grid { grid-template-columns: 1fr; } }
-.security-card { text-align: center; padding: 20px; transition: transform .35s cubic-bezier(.16,1,.3,1), box-shadow .35s cubic-bezier(.16,1,.3,1), border-color .35s cubic-bezier(.16,1,.3,1); }
-.security-card:hover { transform: translateY(-4px); box-shadow: 0 20px 45px -20px rgba(0,212,170,0.35); border-color: var(--border-strong); }
-.security-card .s-ico { margin: 0 auto 14px; }
-.security-card h4 { margin: 0 0 8px; font-size: 13px; }
-.security-card p { margin: 0; font-size: 12px; color: var(--text-dim); line-height: 1.8; }
-
-/* FAQ */
-.home-faq { max-width: 780px; margin: 0 auto; padding: 20px 24px 80px; }
-.faq-item { background: var(--card); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 10px; overflow: hidden; }
-.faq-item summary {
-  cursor: pointer; padding: 16px 20px; font-size: 13.5px; font-weight: 600; list-style: none;
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-}
-.faq-item summary::-webkit-details-marker { display: none; }
-.faq-item summary::after { content: "+"; font-size: 18px; color: var(--text-faint); flex-shrink: 0; transition: transform .2s ease; }
-.faq-item[open] summary::after { transform: rotate(45deg); }
-.faq-item p { margin: 0; padding: 0 20px 18px; font-size: 12.5px; color: var(--text-dim); line-height: 1.9; }
 
 /* Final CTA banner — mountain-scene background fading into the page bg */
 .home-cta-banner {
