@@ -25,17 +25,42 @@
         <div class="card-body">
           <div class="loading" id="riskLoading">در حال محاسبه ریسک...</div>
           <div id="riskContent" class="hidden">
-            <div class="meter-row">
-              <div class="meter-label">ریسک فعلی <b id="riskCurrentVal">0</b></div>
-              <div class="meter-track"><div class="meter-fill meter-current" id="riskCurrentBar"></div></div>
-            </div>
-            <div class="meter-row">
-              <div class="meter-label">ریسک پیشنهادی <b id="riskSuggestedVal">0</b></div>
-              <div class="meter-track"><div class="meter-fill meter-suggested" id="riskSuggestedBar"></div></div>
-            </div>
-            <div class="risk-badges">
-              <span class="badge" id="riskLevelBadge">—</span>
-              <span class="badge badge-outline" id="riskDiffBadge">—</span>
+            <div class="risk-top-row">
+              <div class="risk-gauge-wrap">
+                <div class="risk-gauge">
+                  <svg viewBox="0 0 180 180">
+                    <circle cx="90" cy="90" r="70" fill="transparent" stroke="#1c2438" stroke-width="14" />
+                    <circle id="riskGaugeArc" cx="90" cy="90" r="70" fill="transparent" stroke="url(#riskGaugeGrad)" stroke-width="14" stroke-linecap="round" style="transition: stroke-dashoffset 1s ease-out;" />
+                    <defs>
+                      <linearGradient id="riskGaugeGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#00F0FF" />
+                        <stop offset="50%" stop-color="#00D4AA" />
+                        <stop offset="100%" stop-color="#fb923c" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div class="risk-gauge-value">
+                    <span class="risk-gauge-num" id="riskGaugeNum">۰</span>
+                    <span class="risk-gauge-label" id="riskGaugeLevel">—</span>
+                  </div>
+                </div>
+                <div class="risk-gauge-title">ریسک فعلی سبد دارایی</div>
+              </div>
+
+              <div class="risk-meters">
+                <div class="meter-row">
+                  <div class="meter-label">ریسک فعلی <b id="riskCurrentVal">0</b></div>
+                  <div class="meter-track"><div class="meter-fill meter-current" id="riskCurrentBar"></div></div>
+                </div>
+                <div class="meter-row">
+                  <div class="meter-label">ریسک پیشنهادی <b id="riskSuggestedVal">0</b></div>
+                  <div class="meter-track"><div class="meter-fill meter-suggested" id="riskSuggestedBar"></div></div>
+                </div>
+                <div class="risk-badges">
+                  <span class="badge" id="riskLevelBadge">—</span>
+                  <span class="badge badge-outline" id="riskDiffBadge">—</span>
+                </div>
+              </div>
             </div>
             <div class="banner banner-adjust hidden" id="behaviorBanner"></div>
             <h4 class="tag-neu">دلایل</h4>

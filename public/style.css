@@ -59,12 +59,13 @@ a { text-decoration: none; color: inherit; }
 .stat-chip {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 8px 16px;
-  display: flex; flex-direction: column; gap: 2px; min-width: 110px;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 110px;
+  text-align: center;
 }
-.stat-label { font-size: 11px; color: var(--text-faint); }
-.stat-value { font-size: 16px; font-weight: 700; color: var(--accent); }
+.stat-value { font-size: 20px; font-weight: 800; color: var(--text); order: 1; }
+.stat-label { font-size: 11px; color: var(--text-dim); order: 2; }
 
 .grid {
   display: grid;
@@ -124,8 +125,8 @@ a { text-decoration: none; color: inherit; }
 }
 
 .stat-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-.stat-row .stat-chip { min-width: 0; padding: 6px 12px; }
-.stat-row .stat-chip .stat-value { font-size: 13px; }
+.stat-row .stat-chip { min-width: 0; flex: 1; padding: 10px 10px; }
+.stat-row .stat-chip .stat-value { font-size: 15px; }
 
 .btn {
   border: none; cursor: pointer; font-family: inherit;
@@ -271,6 +272,19 @@ li::marker { color: var(--text-faint); }
 .banner-live { background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.4); color: var(--pos); }
 .banner-adjust { background: rgba(0,240,255,0.1); border: 1px solid rgba(0,240,255,0.35); color: #7de8f5; }
 .banner-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+
+/* Circular risk gauge, shown alongside the current/suggested meters on
+   the risk page — matches the reference site's RiskGauge widget. */
+.risk-top-row { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+.risk-gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.risk-gauge { position: relative; width: 168px; height: 168px; flex-shrink: 0; }
+.risk-gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.risk-gauge-value { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.risk-gauge-num { font-size: 28px; font-weight: 800; color: var(--text); }
+.risk-gauge-label { font-size: 11.5px; font-weight: 700; color: var(--warn); background: rgba(251,191,36,0.12); border-radius: 999px; padding: 2px 12px; }
+.risk-gauge-title { font-size: 12.5px; font-weight: 700; color: var(--text-dim); }
+.risk-meters { flex: 1; min-width: 220px; }
+@media (max-width: 700px) { .risk-top-row { flex-direction: column; } }
 
 .meter-row { margin-bottom: 14px; }
 .meter-label { font-size: 12.5px; color: var(--text-dim); margin-bottom: 6px; display: flex; justify-content: space-between; }

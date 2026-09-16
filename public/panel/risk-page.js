@@ -24,12 +24,25 @@ async function loadRiskWidget(force = false) {
   }
 }
 
+const GAUGE_RADIUS = 70;
+const GAUGE_CIRC = 2 * Math.PI * GAUGE_RADIUS;
+
+function setRiskGauge(value) {
+  const v = Math.min(100, Math.max(0, value || 0));
+  const arc = $("riskGaugeArc");
+  arc.style.strokeDasharray = GAUGE_CIRC;
+  arc.style.strokeDashoffset = GAUGE_CIRC * (1 - v / 100);
+  $("riskGaugeNum").textContent = Math.round(v).toLocaleString("fa-IR");
+}
+
 function renderRiskWidget(data) {
   $("riskCurrentVal").textContent = Math.round(data.currentRiskScore);
   $("riskSuggestedVal").textContent = Math.round(data.suggestedRiskScore);
   $("riskCurrentBar").style.width = Math.min(100, Math.max(0, data.currentRiskScore)) + "%";
   $("riskSuggestedBar").style.width = Math.min(100, Math.max(0, data.suggestedRiskScore)) + "%";
   $("riskLevelBadge").textContent = "ریسک " + (data.riskLevel || "—");
+  $("riskGaugeLevel").textContent = data.riskLevel || "—";
+  setRiskGauge(data.currentRiskScore);
   const diff = data.difference ?? (data.currentRiskScore - data.suggestedRiskScore);
   $("riskDiffBadge").textContent = `اختلاف: ${diff > 0 ? "+" : ""}${Math.round(diff)}`;
 
