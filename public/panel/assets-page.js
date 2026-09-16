@@ -98,8 +98,8 @@ function renderOptimalComparisonChart(current, optimal) {
   const optimalVals = entries.map(([, v]) => v.optimal);
 
   const datasets = [
-    { label: "فعلی", data: currentVals, backgroundColor: "#7c6bf2", borderRadius: 5 },
-    { label: "پیشنهادی موتور", data: optimalVals, backgroundColor: "#4fd1c5", borderRadius: 5 },
+    { label: "فعلی", data: currentVals, backgroundColor: "#c084fc", borderRadius: 5 },
+    { label: "پیشنهادی موتور", data: optimalVals, backgroundColor: "#00D4AA", borderRadius: 5 },
   ];
 
   const ctx = $("optimalChart").getContext("2d");

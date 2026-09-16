@@ -14,7 +14,7 @@
 
 <nav class="home-nav">
   <div class="brand">
-    <div class="brand-icon">◈</div>
+    <div class="brand-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg></div>
     <div>
       <h1>فین‌مایند</h1>
       <p>تصمیم‌یار مالی هوشمند خانوار</p>
@@ -26,18 +26,100 @@
   </div>
 </nav>
 
-<header class="home-hero">
-  <h1>با <span>عدد</span> تصمیم بگیر، نه با حدس</h1>
-  <p>
-    فین‌مایند وضعیت دارایی، ریسک، نقدینگی و اهداف مالی‌ات را با موتورهای واقعی مالی تحلیل می‌کند —
-    بهینه‌سازی پرتفوی به روش Quadratic Programming و شبیه‌سازی مونت‌کارلو با هزاران تکرار — و بعد هوش مصنوعی
-    نتیجه را دقیقاً بر اساس عددهای خودت، نه یک توصیه‌ی کلی که به همه گفته می‌شود، برایت توضیح می‌دهد.
-  </p>
-  <div class="home-cta">
-    <a class="btn btn-primary" href="/login.html?mode=register">شروع رایگان</a>
-    <a class="btn btn-ghost" href="/login.html">وارد حساب کاربری‌ام می‌شوم</a>
+<div class="home-hero-wrap">
+  <div class="home-hero-glow"></div>
+  <div class="home-hero-grid">
+    <header class="home-hero">
+      <h1>با <span>عدد</span> تصمیم بگیر، نه با حدس</h1>
+      <p>
+        فین‌مایند وضعیت دارایی، ریسک، نقدینگی و اهداف مالی‌ات را با موتورهای واقعی مالی تحلیل می‌کند —
+        بهینه‌سازی پرتفوی به روش Quadratic Programming و شبیه‌سازی مونت‌کارلو با هزاران تکرار — و بعد هوش مصنوعی
+        نتیجه را دقیقاً بر اساس عددهای خودت، نه یک توصیه‌ی کلی که به همه گفته می‌شود، برایت توضیح می‌دهد.
+      </p>
+      <div class="home-cta">
+        <a class="btn btn-primary" href="/login.html?mode=register">شروع رایگان</a>
+        <a class="btn btn-ghost" href="/login.html">وارد حساب کاربری‌ام می‌شوم</a>
+      </div>
+    </header>
+
+    <div class="hero-scene">
+      <svg class="mountain-scene" viewBox="0 0 1200 500" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <defs>
+          <radialGradient id="skyGlow" cx="50%" cy="0%" r="80%">
+            <stop offset="0%" stop-color="#1B5C6E" stop-opacity="1" />
+            <stop offset="45%" stop-color="#153F52" stop-opacity="0.75" />
+            <stop offset="100%" stop-color="#0A0E17" stop-opacity="0" />
+          </radialGradient>
+          <linearGradient id="mtBack" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7C9CD6" /><stop offset="100%" stop-color="#3C5486" />
+          </linearGradient>
+          <linearGradient id="mtMid" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4A5F92" /><stop offset="100%" stop-color="#232F52" />
+          </linearGradient>
+          <linearGradient id="mtFront" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1C2440" /><stop offset="100%" stop-color="#0A0E19" />
+          </linearGradient>
+          <linearGradient id="pathGlow" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#00F0FF" /><stop offset="100%" stop-color="#00D4AA" />
+          </linearGradient>
+          <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#BFEFE8" stop-opacity="0.9" />
+            <stop offset="55%" stop-color="#7FD8CF" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="#7FD8CF" stop-opacity="0" />
+          </radialGradient>
+          <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="6" /></filter>
+        </defs>
+        <rect x="0" y="0" width="1200" height="500" fill="url(#skyGlow)" />
+        <circle cx="920" cy="80" r="70" fill="url(#moonGlow)" />
+        <circle cx="920" cy="80" r="26" fill="#EAF9F6" opacity="0.95" />
+        <circle cx="200" cy="60" r="45" fill="url(#moonGlow)" />
+        <circle cx="200" cy="60" r="14" fill="#EAF9F6" opacity="0.7" />
+        <circle cx="20" cy="10" r="2.2" fill="#fff" opacity="0.35"/><circle cx="157" cy="93" r="1.2" fill="#fff" opacity="0.47"/><circle cx="294" cy="176" r="1.2" fill="#fff" opacity="0.59"/><circle cx="431" cy="259" r="1.2" fill="#fff" opacity="0.71"/><circle cx="568" cy="82" r="1.2" fill="#fff" opacity="0.83"/><circle cx="705" cy="165" r="1.2" fill="#fff" opacity="0.35"/><circle cx="842" cy="248" r="2.2" fill="#fff" opacity="0.47"/><circle cx="979" cy="71" r="1.2" fill="#fff" opacity="0.59"/><circle cx="1116" cy="154" r="1.2" fill="#fff" opacity="0.71"/><circle cx="53" cy="237" r="1.2" fill="#fff" opacity="0.83"/><circle cx="190" cy="60" r="1.2" fill="#fff" opacity="0.35"/><circle cx="327" cy="143" r="1.2" fill="#fff" opacity="0.47"/><circle cx="464" cy="226" r="2.2" fill="#fff" opacity="0.59"/><circle cx="601" cy="49" r="1.2" fill="#fff" opacity="0.71"/><circle cx="738" cy="132" r="1.2" fill="#fff" opacity="0.83"/><circle cx="875" cy="215" r="1.2" fill="#fff" opacity="0.35"/><circle cx="1012" cy="38" r="1.2" fill="#fff" opacity="0.47"/><circle cx="1149" cy="121" r="1.2" fill="#fff" opacity="0.59"/><circle cx="86" cy="204" r="2.2" fill="#fff" opacity="0.71"/><circle cx="223" cy="27" r="1.2" fill="#fff" opacity="0.83"/><circle cx="360" cy="110" r="1.2" fill="#fff" opacity="0.35"/><circle cx="497" cy="193" r="1.2" fill="#fff" opacity="0.47"/><circle cx="634" cy="16" r="1.2" fill="#fff" opacity="0.59"/><circle cx="771" cy="99" r="1.2" fill="#fff" opacity="0.71"/><circle cx="908" cy="182" r="2.2" fill="#fff" opacity="0.83"/><circle cx="1045" cy="5" r="1.2" fill="#fff" opacity="0.35"/><circle cx="1182" cy="88" r="1.2" fill="#fff" opacity="0.47"/><circle cx="119" cy="171" r="1.2" fill="#fff" opacity="0.59"/><circle cx="256" cy="254" r="1.2" fill="#fff" opacity="0.71"/><circle cx="393" cy="77" r="1.2" fill="#fff" opacity="0.83"/><circle cx="530" cy="160" r="2.2" fill="#fff" opacity="0.35"/><circle cx="667" cy="243" r="1.2" fill="#fff" opacity="0.47"/><circle cx="804" cy="66" r="1.2" fill="#fff" opacity="0.59"/><circle cx="941" cy="149" r="1.2" fill="#fff" opacity="0.71"/><circle cx="1078" cy="232" r="1.2" fill="#fff" opacity="0.83"/><circle cx="15" cy="55" r="1.2" fill="#fff" opacity="0.35"/><circle cx="152" cy="138" r="2.2" fill="#fff" opacity="0.47"/><circle cx="289" cy="221" r="1.2" fill="#fff" opacity="0.59"/><circle cx="426" cy="44" r="1.2" fill="#fff" opacity="0.71"/><circle cx="563" cy="127" r="1.2" fill="#fff" opacity="0.83"/><circle cx="700" cy="210" r="1.2" fill="#fff" opacity="0.35"/><circle cx="837" cy="33" r="1.2" fill="#fff" opacity="0.47"/><circle cx="974" cy="116" r="2.2" fill="#fff" opacity="0.59"/><circle cx="1111" cy="199" r="1.2" fill="#fff" opacity="0.71"/><circle cx="48" cy="22" r="1.2" fill="#fff" opacity="0.83"/><circle cx="185" cy="105" r="1.2" fill="#fff" opacity="0.35"/><circle cx="322" cy="188" r="1.2" fill="#fff" opacity="0.47"/><circle cx="459" cy="11" r="1.2" fill="#fff" opacity="0.59"/><circle cx="596" cy="94" r="2.2" fill="#fff" opacity="0.71"/><circle cx="733" cy="177" r="1.2" fill="#fff" opacity="0.83"/><circle cx="870" cy="0" r="1.2" fill="#fff" opacity="0.35"/><circle cx="1007" cy="83" r="1.2" fill="#fff" opacity="0.47"/><circle cx="1144" cy="166" r="1.2" fill="#fff" opacity="0.59"/><circle cx="81" cy="249" r="1.2" fill="#fff" opacity="0.71"/><circle cx="218" cy="72" r="2.2" fill="#fff" opacity="0.83"/>
+        <path d="M0 320 L120 250 L220 300 L340 210 L460 290 L580 230 L700 300 L820 240 L940 300 L1060 250 L1200 310 L1200 500 L0 500 Z" fill="url(#mtBack)" />
+        <path d="M0 380 L150 300 L280 360 L420 270 L560 350 L700 280 L840 360 L980 290 L1120 350 L1200 320 L1200 500 L0 500 Z" fill="url(#mtMid)" />
+        <path d="M600 500 C 560 430, 640 400, 600 340 C 560 290, 660 260, 620 200" fill="none" stroke="url(#pathGlow)" stroke-width="10" stroke-linecap="round" opacity="0.45" filter="url(#softBlur)" />
+        <path d="M600 500 C 560 430, 640 400, 600 340 C 560 290, 660 260, 620 200" fill="none" stroke="url(#pathGlow)" stroke-width="3" stroke-linecap="round" opacity="0.85" />
+        <path d="M0 440 L180 380 L320 430 L480 360 L620 430 L780 370 L940 435 L1100 380 L1200 420 L1200 500 L0 500 Z" fill="url(#mtFront)" />
+      </svg>
+
+      <div class="hero-float-card hero-float-1">
+        <div class="hero-float-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>رشد سرمایه</span><span class="hero-float-pct">+۲۴٪</span>
+        </div>
+        <svg viewBox="0 0 160 60" style="width:100%;">
+          <defs><linearGradient id="lineFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#00F0FF" stop-opacity="0.35" /><stop offset="100%" stop-color="#00F0FF" stop-opacity="0" /></linearGradient></defs>
+          <path d="M0 45 L25 35 L50 40 L75 20 L100 28 L125 10 L160 15 L160 60 L0 60 Z" fill="url(#lineFill)" />
+          <path d="M0 45 L25 35 L50 40 L75 20 L100 28 L125 10 L160 15" fill="none" stroke="#00F0FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </div>
+
+      <div class="hero-float-card hero-float-2">
+        <div class="hero-float-label">تخصیص دارایی</div>
+        <svg viewBox="0 0 42 42" style="width:56px;height:56px;transform:rotate(-90deg);">
+          <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#1c2438" stroke-width="6" />
+          <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#00D4AA" stroke-width="6" stroke-dasharray="45 55" stroke-linecap="round" />
+          <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#c084fc" stroke-width="6" stroke-dasharray="25 75" stroke-dashoffset="-45" stroke-linecap="round" />
+          <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#fb923c" stroke-width="6" stroke-dasharray="20 80" stroke-dashoffset="-70" stroke-linecap="round" />
+        </svg>
+        <div class="hero-float-legend">
+          <span><i style="background:#00D4AA;"></i>سهام</span>
+          <span><i style="background:#c084fc;"></i>طلا</span>
+          <span><i style="background:#fb923c;"></i>دلار</span>
+        </div>
+      </div>
+
+      <div class="hero-float-card hero-float-3">
+        <svg viewBox="0 0 42 42" style="width:64px;height:64px;transform:rotate(-90deg);">
+          <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#1c2438" stroke-width="4.5" />
+          <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00F0FF" /><stop offset="100%" stop-color="#00D4AA" /></linearGradient></defs>
+          <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="url(#ringGrad)" stroke-width="4.5" stroke-dasharray="70 30" stroke-linecap="round" />
+        </svg>
+        <p class="hero-float-ring-label">۷۰٪</p>
+        <div class="hero-float-label">پیشرفت هدف مالی</div>
+      </div>
+    </div>
   </div>
-</header>
+</div>
 
 <section class="home-stats">
   <div class="home-stat"><div class="stat-num">۸</div><div class="stat-desc">ماژول تحلیلی، هرکدام صفحه‌ی مخصوص خودش در پنل</div></div>
@@ -238,7 +320,7 @@
 <footer class="home-footer">
   <div class="footer-grid">
     <div>
-      <div class="brand"><div class="brand-icon">◈</div><div><h1 style="font-size:16px;">فین‌مایند</h1></div></div>
+      <div class="brand"><div class="brand-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg></div><div><h1 style="font-size:16px;">فین‌مایند</h1></div></div>
       <p>تصمیم‌یار مالی هوشمند خانوار ایرانی — تحلیل دارایی، ریسک، نقدینگی و اهداف مالی با موتورهای مالی واقعی و هوش مصنوعی.</p>
     </div>
     <div class="footer-col">

@@ -13,11 +13,11 @@ export const CATEGORY_LABELS = {
   other: "سایر",
 };
 export const CATEGORY_COLORS = {
-  cash: "#4fd1c5",
-  gold: "#fbbf24",
+  cash: "#2dd4bf",
+  gold: "#fb923c",
   currency: "#60a5fa",
-  stock: "#a78bfa",
-  fund: "#7c6bf2",
+  stock: "#c084fc",
+  fund: "#00D4AA",
   realestate: "#f472b6",
   crypto: "#f87171",
   other: "#94a3b8",

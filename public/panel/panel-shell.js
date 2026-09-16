@@ -5,7 +5,7 @@
 // there's no active session.
 
 import { requireUserOrRedirect, logout } from "../common.js";
-import { iconBadge, ICONS } from "../icons.js";
+import { ICONS, iconBadge } from "../icons.js";
 
 const NAV_ITEMS = [
   { key: "dashboard", href: "/panel/dashboard.html", icon: "dashboard", tone: "indigo", label: "داشبورد" },
@@ -27,7 +27,7 @@ function renderSidebar(activeKey) {
   if (!el) return;
   el.innerHTML = `
     <div class="brand">
-      <div class="brand-icon">◈</div>
+      <div class="brand-icon">${ICONS.zap}</div>
       <div><h1>فین‌مایند</h1><p>پنل کاربری</p></div>
     </div>
     <nav>
@@ -61,6 +61,7 @@ function renderTopbar(activeKey, user) {
           <div class="notif-list" id="notifList"></div>
         </div>
       </div>
+      <span class="panel-user-avatar">${(user.name || "?").trim().charAt(0)}</span>
       <span class="panel-user-name">${user.name}</span>
       <button class="btn btn-ghost btn-small" id="panelLogoutBtn">خروج</button>
     </div>

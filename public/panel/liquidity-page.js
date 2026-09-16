@@ -34,7 +34,7 @@ function renderLiquidityWidget(data) {
     type: "doughnut",
     data: {
       labels: ["نقد سریع", "نیمه‌نقد", "غیرنقد"],
-      datasets: [{ data: [data.liquidPercent, data.semiLiquidPercent, data.illiquidPercent], backgroundColor: ["#4fd1c5", "#7c6bf2", "#f87171"], borderColor: cssVar("--card"), borderWidth: 2 }],
+      datasets: [{ data: [data.liquidPercent, data.semiLiquidPercent, data.illiquidPercent], backgroundColor: ["#00D4AA", "#c084fc", "#f87171"], borderColor: cssVar("--card"), borderWidth: 2 }],
     },
     options: {
       maintainAspectRatio: false,
@@ -53,7 +53,7 @@ function renderLiquidityWidget(data) {
     type: "bar",
     data: {
       labels: ["فوری", "تا ۱ ماه", "تا ۳ ماه", "تا ۱ سال"],
-      datasets: [{ label: "مبلغ در دسترس", data: [p.immediate, p.oneMonth, p.threeMonths, p.oneYear], backgroundColor: "#4fd1c5", borderRadius: 6 }],
+      datasets: [{ label: "مبلغ در دسترس", data: [p.immediate, p.oneMonth, p.threeMonths, p.oneYear], backgroundColor: "#00D4AA", borderRadius: 6 }],
     },
     options: {
       maintainAspectRatio: false,
