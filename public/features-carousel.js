@@ -6,51 +6,67 @@ const AUTO_ADVANCE_MS = 4500;
 const FEATURES = [
   {
     hex: "#22d3ee",
-    title: "تحلیل ترکیب دارایی‌ها",
-    desc: "سبد فعلی‌ات با موتور بهینه‌سازی پرتفوی (QP) مقایسه می‌شود؛ نقاط قوت و ضعف، هشدار تمرکز بیش‌ازحد روی یک دارایی، و بازده و ریسک مورد انتظار هرکدام به‌طور دقیق نشانت داده می‌شود.",
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-6"/></svg>',
-  },
-  {
-    hex: "#f87171",
-    title: "ریسک‌سنجی واقعی",
-    desc: "ریسک سبدت روی مقیاس ۰ تا ۱۰۰ محاسبه و با سطح پیشنهادی مقایسه می‌شود؛ رفتار واقعی‌ات در تصمیم‌های قبلی هم روی این عدد اثر می‌گذارد.",
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none"/></svg>',
-  },
-  {
-    hex: "#60a5fa",
-    title: "نقدینگی من",
-    desc: "هر دارایی در یکی از سه دسته‌ی نقد سریع، نیمه‌نقد یا غیرنقد قرار می‌گیرد، و می‌بینی دقیقاً چقدر پول تا ۱ ماه، ۳ ماه و ۱ سال آینده در دسترست هست.",
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3c4 5 7 8.5 7 12a7 7 0 1 1-14 0c0-3.5 3-7 7-12Z"/></svg>',
-  },
-  {
-    hex: "#2dd4bf",
-    title: "اهداف مالی",
-    desc: "هر هدفی که ثبت کنی — خرید خانه، مهاجرت، ازدواج — پس‌انداز ماهانه‌ی لازم و توان پس‌انداز فعلی‌ات محاسبه می‌شود و مسیر رسیدن به آن روشن می‌شود.",
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M5 3v18"/><path d="M5 4h11l-2.5 3.5L16 11H5"/></svg>',
+    title: "بهینه‌سازی سبد سرمایه‌گذاری با الگوریتم‌های QP",
+    desc: "با روش‌های برنامه‌ریزی درجه دوم، بهترین ترکیب دارایی را برای ریسک و بازده هدف شما پیدا می‌کنیم.",
+    stat: "۹۹.۹٪",
+    statLabel: "دقت مدل بهینه‌سازی",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>',
   },
   {
     hex: "#c084fc",
-    title: "شبیه‌ساز سناریو",
-    desc: "با ۸۰۰۰ بار تکرار شبیه‌سازی مونت‌کارلو می‌بینی اگر دلار، طلا یا بورس نوسان کند، دقیقاً چقدر و با چه بازه‌ی اطمینانی روی دارایی‌هایت اثر می‌گذارد.",
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8h11a2.5 2.5 0 1 0-2.5-2.5"/><path d="M3 13h15a2.5 2.5 0 1 1-2.5 2.5"/><path d="M3 18h9a2.5 2.5 0 1 1-2.5 2.5"/></svg>',
+    title: "شبیه‌سازی سناریوها بر اساس داده‌های واقعی",
+    desc: "هزاران مسیر ممکن بازار را روی داده‌های واقعی شبیه‌سازی می‌کنیم تا تصمیم آگاهانه‌تری بگیری.",
+    stat: "+۱۰,۰۰۰",
+    statLabel: "سناریوی شبیه‌سازی‌شده",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
   },
   {
     hex: "#fb923c",
-    title: "دستیار قبل از تصمیم",
-    desc: "پیش از هر تصمیم مالی بزرگ، وضعیت دارایی، ریسک، نقدینگی و اهدافت را قبل و بعد از آن تصمیم کنار هم می‌بینی و یک توصیه‌ی روشن می‌گیری.",
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-4 6-2-4 6-2Z"/></svg>',
+    title: "تحلیل ریسک و مدیریت نوسانات",
+    desc: "نوسانات هر دارایی را می‌سنجیم و نقاط آسیب‌پذیر پرتفوی را پیش از وقوع نشان می‌دهیم.",
+    stat: "۲۴/۷",
+    statLabel: "پایش لحظه‌ای ریسک",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path d="M12 8v4"/><path d="M12 15h.01"/></svg>',
   },
   {
-    hex: "#f87171",
-    title: "هشدار تصمیم‌های هیجانی",
-    desc: "اگر پیامی به دستیار نشانه‌ی واکنش هیجانی یا آنی به یک نوسان کوتاه‌مدت باشد، به‌موقع هشدار می‌دهد و آن را در صفحه‌ی مخصوص خودش ثبت می‌کند.",
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2 20h20L12 4Z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>',
+    hex: "#f472b6",
+    title: "پیش‌بینی بازدهی با مدل‌های پیشرفته",
+    desc: "با مدل‌های آماری پیشرفته، بازدهی محتمل هر دارایی را برای افق زمانی‌ات تخمین می‌زنیم.",
+    stat: "±۲٪",
+    statLabel: "خطای میانگین پیش‌بینی",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6 13.5 15.5l-5-5L1 18"/><path d="M17 6h6v6"/></svg>',
   },
   {
     hex: "#2dd4bf",
-    title: "گفتگوی زنده با دستیار مالی",
-    desc: "هر سوالی درباره‌ی وضعیت مالی‌ات بپرسی، پاسخ دقیق و شخصی‌سازی‌شده را زنده و کلمه‌به‌کلمه می‌گیری، نه بعد از چند ثانیه انتظار یک‌جا.",
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4V5Z"/></svg>',
+    title: "یادگیری رفتار کاربر و بهبود تصمیم‌ها",
+    desc: "با هر تصمیم، فین‌مایند رفتار مالی‌ات را بهتر می‌شناسد و پیشنهادها را شخصی‌تر می‌کند.",
+    stat: "مستمر",
+    statLabel: "یادگیری از رفتار شما",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-1 5.8A3.5 3.5 0 0 0 8 18a2.5 2.5 0 0 0 4-2V6a2 2 0 0 0-3-2Z"/><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 1 5.8A3.5 3.5 0 0 1 16 18a2.5 2.5 0 0 1-4-2"/></svg>',
+  },
+  {
+    hex: "#60a5fa",
+    title: "گزارش‌های دوره‌ای پیشرفته و عملکرد",
+    desc: "عملکرد پرتفوی‌ات را در قالب گزارش‌های دوره‌ای شفاف و قابل‌فهم دنبال کن.",
+    stat: "ماهانه",
+    statLabel: "گزارش عملکرد پرتفوی",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 18v-3M12 18v-6M16 18v-2"/></svg>',
+  },
+  {
+    hex: "#fb923c",
+    title: "پیشنهادهای هوشمند بر اساس شرایط بازار",
+    desc: "با تغییر شرایط بازار، پیشنهادهای به‌روز و متناسب با موقعیت دریافت می‌کنی.",
+    stat: "لحظه‌ای",
+    statLabel: "به‌روزرسانی پیشنهادها",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-4 10.5c.7.6 1 1.4 1 2.5h6c0-1.1.3-1.9 1-2.5A6 6 0 0 0 12 2Z"/></svg>',
+  },
+  {
+    hex: "#34d399",
+    title: "مدیریت اهداف مالی کوتاه‌مدت و بلندمدت",
+    desc: "برای هر هدف، از خرید خودرو تا بازنشستگی، مسیر مالی مشخصی می‌سازیم.",
+    stat: "نامحدود",
+    statLabel: "تعداد اهداف مالی",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg>',
   },
 ];
 
@@ -96,6 +112,14 @@ export function initFeaturesCarousel() {
     document.getElementById("fpDots").innerHTML = FEATURES.map((ff, i) => `
       <span class="${i === active ? "active" : ""}" style="${i === active ? `background-color:${f.hex}` : ""}"></span>
     `).join("");
+
+    document.getElementById("fpStat").innerHTML = `
+      <div class="features-stat-box" style="background:${f.hex}1a;color:${f.hex};">${f.stat}</div>
+      <div>
+        <h4>${f.statLabel}</h4>
+        <p>مرتبط با ${f.title.split(" ").slice(0, 3).join(" ")}</p>
+      </div>
+    `;
   }
 
   function selectTab(i) {

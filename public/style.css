@@ -380,6 +380,10 @@ li::marker { color: var(--text-faint); }
   padding: 18px 32px; max-width: 1300px; margin: 0 auto;
 }
 .home-nav-actions { display: flex; gap: 10px; }
+.home-nav-links { display: none; align-items: center; gap: 26px; }
+.home-nav-links a { font-size: 13px; font-weight: 600; color: var(--text-dim); text-decoration: none; }
+.home-nav-links a:hover { color: var(--text); }
+@media (min-width: 900px) { .home-nav-links { display: flex; } }
 
 /* Hero: text column + an illustrated mountain/night scene with floating
    glass mini-cards, both inside a two-column grid. */
@@ -477,6 +481,19 @@ li::marker { color: var(--text-faint); }
 .features-preview-dots span { display: block; height: 4px; width: 5px; border-radius: 999px; background: rgba(255,255,255,0.15); transition: width .3s ease, background-color .3s ease; }
 .features-preview-dots span.active { width: 16px; }
 
+.features-stat-panel {
+  display: flex; align-items: center; gap: 16px; border-radius: var(--radius-lg);
+  background: var(--card); border: 1px solid var(--border); padding: 20px;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.features-stat-box {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  min-width: 56px; height: 56px; padding: 0 10px; border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 900;
+}
+.features-stat-panel h4 { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--text); }
+.features-stat-panel p { margin: 3px 0 0; font-size: 11.5px; color: var(--text-faint); }
+
 .features-cta-panel {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
   min-height: 130px; text-align: center; border-radius: var(--radius-lg);
@@ -541,6 +558,44 @@ li::marker { color: var(--text-faint); }
 .shift-card.bad h4 { color: var(--text-dim); }
 .shift-card.good h4 { color: var(--pos); }
 .shift-card p { margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.9; }
+.compare-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 15px; }
+.compare-list li { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 13px; color: var(--text-dim); }
+.shift-card.good .compare-list li { color: var(--text); font-weight: 600; }
+.compare-mark { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; font-weight: 800; }
+.compare-mark.mark-x { background: rgba(248,113,113,0.1); color: var(--neg); }
+.compare-mark.mark-check { background: rgba(52,211,153,0.15); color: var(--pos); }
+
+/* TechBrain: central hub icon connected to N capability nodes */
+.home-techbrain { max-width: 900px; margin: 0 auto; padding: 10px 24px 76px; }
+.techbrain-hub { display: flex; flex-direction: column; align-items: center; }
+.techbrain-core-wrap { position: relative; display: flex; flex-direction: column; align-items: center; }
+.techbrain-core-glow {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 150px; height: 150px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); opacity: .12; filter: blur(32px); z-index: 0;
+}
+.techbrain-core {
+  position: relative; z-index: 1; width: 80px; height: 80px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-glow-cyan); animation: pulseGlow 3s ease-in-out infinite;
+}
+.techbrain-core svg { width: 32px; height: 32px; color: #061019; }
+@keyframes pulseGlow { 0%, 100% { opacity: .8; } 50% { opacity: 1; } }
+.techbrain-core-label { margin-top: 10px; font-size: 11.5px; font-weight: 700; color: var(--text-dim); }
+.techbrain-trunk { width: 1px; height: 34px; background: linear-gradient(to bottom, rgba(255,255,255,0.25), rgba(255,255,255,0.08)); }
+.techbrain-nodes { display: flex; flex-direction: column; gap: 24px; width: 100%; }
+@media (min-width: 700px) { .techbrain-nodes { flex-direction: row; align-items: flex-start; gap: 20px; } }
+.techbrain-node { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.techbrain-node-connector { width: 1px; height: 26px; background: rgba(255,255,255,0.1); }
+.techbrain-node-card {
+  width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 26px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  transition: transform .3s ease, border-color .3s ease;
+}
+.techbrain-node-card:hover { transform: translateY(-5px); border-color: var(--border-strong); }
+.techbrain-node-ico { margin: 0 auto 16px; }
+.techbrain-node-card h3 { margin: 0 0 8px; font-size: 14px; }
+.techbrain-node-card p { margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.9; }
 
 /* Engines */
 .home-engines { max-width: 1200px; margin: 0 auto; padding: 20px 24px 70px; }
@@ -580,26 +635,32 @@ li::marker { color: var(--text-faint); }
 .faq-item[open] summary::after { transform: rotate(45deg); }
 .faq-item p { margin: 0; padding: 0 20px 18px; font-size: 12.5px; color: var(--text-dim); line-height: 1.9; }
 
-/* Final CTA banner */
+/* Final CTA banner — mountain-scene background fading into the page bg */
 .home-cta-banner {
-  max-width: 1000px; margin: 0 auto 70px; padding: 40px 32px; text-align: center;
-  border-radius: var(--radius-lg); border: 1px solid rgba(0,212,170,0.25);
-  background: linear-gradient(135deg, rgba(0,212,170,0.14), rgba(0,240,255,0.08));
-  box-shadow: var(--shadow-glow);
+  position: relative; overflow: hidden;
+  max-width: 1200px; margin: 0 auto 70px; padding: 80px 32px; text-align: center;
+  border-radius: var(--radius-lg); border: 1px solid var(--border);
 }
-.home-cta-banner h2 { margin: 0 0 10px; font-size: 20px; }
-.home-cta-banner p { margin: 0 0 22px; color: var(--text-dim); font-size: 13px; }
+.home-cta-banner .cta-bg { position: absolute; inset: 0; z-index: 0; }
+.home-cta-banner .cta-bg svg { width: 100%; height: 100%; }
+.home-cta-banner .cta-overlay {
+  position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(to top, var(--bg) 0%, rgba(10,14,23,0.75) 55%, transparent 100%);
+}
+.home-cta-banner .cta-content { position: relative; z-index: 2; }
+.home-cta-banner h2 { margin: 0 0 14px; font-size: 24px; }
+.home-cta-banner p { margin: 0 0 26px; color: var(--text-dim); font-size: 13.5px; max-width: 480px; margin-left: auto; margin-right: auto; }
+.home-cta-banner .cta-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
 .home-footer {
-  max-width: 1200px; margin: 0 auto; padding: 40px 24px 24px; border-top: 1px solid var(--border);
+  max-width: 1300px; margin: 0 auto; padding: 30px 32px; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 22px;
 }
-.footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 24px; padding-bottom: 24px; }
-@media (max-width: 700px) { .footer-grid { grid-template-columns: 1fr; } }
-.footer-grid p { font-size: 12px; color: var(--text-dim); line-height: 1.9; max-width: 320px; margin: 10px 0 0; }
-.footer-col h5 { margin: 0 0 12px; font-size: 12px; color: var(--text-faint); }
-.footer-col a { display: block; font-size: 12.5px; color: var(--text-dim); text-decoration: none; padding: 4px 0; }
-.footer-col a:hover { color: var(--accent); }
-.footer-bottom { text-align: center; color: var(--text-faint); font-size: 11.5px; padding-top: 20px; border-top: 1px solid var(--border); }
+@media (min-width: 700px) { .home-footer { flex-direction: row; } }
+.footer-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 22px; }
+.footer-links a { font-size: 13px; color: var(--text-dim); text-decoration: none; }
+.footer-links a:hover { color: var(--text); }
+.footer-copyright { font-size: 11.5px; color: var(--text-faint); }
 
 /* ================= Auth (login/register) ================= */
 
