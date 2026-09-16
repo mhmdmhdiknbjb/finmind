@@ -30,20 +30,49 @@ function renderSidebar(activeKey) {
       <div class="brand-icon">${ICONS.zap}</div>
       <div><h1>فین‌مایند</h1><p>پنل کاربری</p></div>
     </div>
-    <nav>
-      ${NAV_ITEMS.map(
-        (item) => `
-        <a class="panel-nav-link${item.key === activeKey ? " active" : ""}" href="${item.href}">
-          <span class="nav-ico">${iconBadge(item.icon, item.tone, "sm")}</span>
-          <span>${item.label}</span>
-          ${item.badgeId ? `<span class="panel-nav-badge hidden" id="${item.badgeId}"></span>` : ""}
-        </a>`
-      ).join("")}
-    </nav>
-    <div class="panel-sidebar-footer">
-      <a class="panel-nav-link" href="/" id="panelHomeLink"><span class="nav-ico">${iconBadge("arrowLeft", "indigo", "sm")}</span><span>بازگشت به سایت</span></a>
+    <button class="panel-menu-toggle" id="panelMenuToggle" type="button" aria-label="باز کردن منو" aria-expanded="false">
+      ${ICONS.menu}
+    </button>
+    <div class="panel-menu" id="panelMenu">
+      <nav>
+        ${NAV_ITEMS.map(
+          (item) => `
+          <a class="panel-nav-link${item.key === activeKey ? " active" : ""}" href="${item.href}">
+            <span class="nav-ico">${iconBadge(item.icon, item.tone, "sm")}</span>
+            <span>${item.label}</span>
+            ${item.badgeId ? `<span class="panel-nav-badge hidden" id="${item.badgeId}"></span>` : ""}
+          </a>`
+        ).join("")}
+      </nav>
+      <div class="panel-sidebar-footer">
+        <a class="panel-nav-link" href="/" id="panelHomeLink"><span class="nav-ico">${iconBadge("arrowLeft", "indigo", "sm")}</span><span>بازگشت به سایت</span></a>
+      </div>
     </div>
   `;
+  wireMobileMenu(el);
+}
+
+/** Hamburger toggle for the sidebar's mobile (<=860px) dropdown form — a
+ * no-op on desktop, where .panel-menu is always visible via CSS. */
+function wireMobileMenu(sidebarEl) {
+  const toggle = document.getElementById("panelMenuToggle");
+  const menu = document.getElementById("panelMenu");
+  if (!toggle || !menu) return;
+
+  function setOpen(open) {
+    menu.classList.toggle("open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute("aria-label", open ? "بستن منو" : "باز کردن منو");
+    toggle.innerHTML = open ? ICONS.close : ICONS.menu;
+  }
+
+  toggle.onclick = (e) => {
+    e.stopPropagation();
+    setOpen(!menu.classList.contains("open"));
+  };
+  document.addEventListener("click", (e) => {
+    if (!sidebarEl.contains(e.target)) setOpen(false);
+  });
 }
 
 function renderTopbar(activeKey, user) {

@@ -647,6 +647,13 @@ li::marker { color: var(--text-faint); }
 .panel-sidebar .brand { padding: 0 8px; margin-bottom: 24px; }
 .panel-sidebar .brand h1 { font-size: 16px; }
 .panel-sidebar .brand p { font-size: 10.5px; }
+.panel-menu { display: flex; flex-direction: column; gap: 4px; }
+.panel-menu-toggle {
+  display: none; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 38px; height: 38px; border-radius: var(--radius-sm);
+  background: var(--card-2); border: 1px solid var(--border); color: var(--text); cursor: pointer;
+}
+.panel-menu-toggle svg { width: 20px; height: 20px; }
 .panel-nav-group-label { font-size: 10.5px; color: var(--text-faint); padding: 14px 12px 6px; }
 .panel-nav-link {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm);
@@ -726,15 +733,31 @@ li::marker { color: var(--text-faint); }
 @media (max-width: 860px) {
   .panel-shell { flex-direction: column; }
   .panel-sidebar {
-    width: 100%; height: auto; position: static; flex-direction: row; overflow-x: auto;
-    border-left: none; border-bottom: 1px solid var(--border); padding: 12px 14px; align-items: center;
+    position: relative; width: 100%; height: auto;
+    /* backdrop-filter (above) forces this element into its own stacking
+       context; without an explicit z-index here it's stuck at "auto" and
+       loses to .panel-main, which comes right after it in the DOM — so the
+       dropdown menu below, despite its own z-index, would render behind
+       the page content instead of over it. */
+    z-index: 40;
+    flex-direction: row; align-items: center; justify-content: space-between;
+    border-left: none; border-bottom: 1px solid var(--border); padding: 14px 16px;
+    overflow: visible;
   }
-  .panel-sidebar .brand { display: none; }
-  /* The nav itself isn't a flex container by default, so without this its
-     10 links stack as block elements inside one tall column instead of
-     scrolling as a horizontal strip alongside the footer link. */
-  .panel-sidebar nav { display: flex; flex-direction: row; gap: 4px; flex-shrink: 0; }
-  .panel-sidebar-footer { margin-top: 0; padding-top: 0; border-top: none; margin-right: 4px; flex-shrink: 0; }
+  .panel-sidebar .brand { display: flex; padding: 0; margin-bottom: 0; }
+  .panel-sidebar .brand p { display: none; }
+  .panel-menu-toggle { display: flex; }
+
+  /* Collapsed by default; the hamburger toggle adds .open (see panel-shell.js).
+     Positioned as a dropdown panel below the brand/toggle row rather than
+     inline, so it doesn't push page content down while closed. */
+  .panel-menu {
+    display: none; position: absolute; top: 100%; right: 0; left: 0;
+    background: var(--bg-soft); border-bottom: 1px solid var(--border);
+    padding: 10px 16px 18px; z-index: 50; box-shadow: var(--shadow);
+    max-height: calc(100vh - 68px); overflow-y: auto;
+  }
+  .panel-menu.open { display: flex; }
   .panel-nav-group-label { display: none; }
-  .panel-nav-link { white-space: nowrap; flex-shrink: 0; }
+  .panel-sidebar-footer { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 }
