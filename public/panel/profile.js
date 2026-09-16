@@ -277,7 +277,7 @@ const ONB_TOTAL_STEPS = 5;
 let onbCurrentStep = 1;
 
 function startOnboarding() {
-  $("toggleProfileBtn").classList.add("hidden");
+  $("voiceEditBtn").classList.add("hidden");
   $("profileSummary").classList.add("hidden");
   $("onbWelcome").classList.remove("hidden");
   $("profileFormWrap").classList.add("hidden");
@@ -350,6 +350,9 @@ let voiceTranscriptAccum = "";
 let voiceMediaRecorder = null;
 let voiceAudioChunks = [];
 let voiceIsRecording = false;
+// "onboarding" (first-time wizard) or "edit" (already-onboarded user adding
+// to their existing info) — controls where the back/continue buttons return to.
+let voiceMode = "onboarding";
 
 function renderVoiceChecklist() {
   const ul = $("voiceChecklist");
@@ -364,7 +367,25 @@ function renderVoiceChecklist() {
 }
 
 function startVoiceAssistant() {
+  voiceMode = "onboarding";
+  $("voiceBackBtn").textContent = "بازگشت";
+  $("voiceContinueBtn").textContent = "ادامه و مرور نهایی";
   $("onbWelcome").classList.add("hidden");
+  $("voicePanel").classList.remove("hidden");
+  voiceFoundKeys = new Set();
+  voiceTranscriptAccum = "";
+  $("voiceTranscript").textContent = "";
+  $("voiceStatus").textContent = "برای شروع، دکمه رو بزن";
+  renderVoiceChecklist();
+}
+
+/** Same voice assistant, opened from the always-visible edit form instead of
+ * the first-time onboarding welcome screen. */
+function openVoiceForEdit() {
+  voiceMode = "edit";
+  $("voiceBackBtn").textContent = "انصراف";
+  $("voiceContinueBtn").textContent = "بازگشت به فرم";
+  $("profileFormWrap").classList.add("hidden");
   $("voicePanel").classList.remove("hidden");
   voiceFoundKeys = new Set();
   voiceTranscriptAccum = "";
@@ -376,7 +397,11 @@ function startVoiceAssistant() {
 function backFromVoiceAssistant() {
   if (voiceIsRecording && voiceMediaRecorder) voiceMediaRecorder.stop();
   $("voicePanel").classList.add("hidden");
-  $("onbWelcome").classList.remove("hidden");
+  if (voiceMode === "edit") {
+    $("profileFormWrap").classList.remove("hidden");
+  } else {
+    $("onbWelcome").classList.remove("hidden");
+  }
 }
 
 async function toggleVoiceRecording() {
@@ -482,15 +507,17 @@ function applyVoiceExtraction(extracted) {
 
 function continueFromVoiceAssistant() {
   $("voicePanel").classList.add("hidden");
-  beginWizardSteps();
+  if (voiceMode === "edit") {
+    $("profileFormWrap").classList.remove("hidden");
+  } else {
+    beginWizardSteps();
+  }
 }
 
 /* ---------------- Wiring ---------------- */
 
 function wireEvents() {
-  $("toggleProfileBtn").onclick = () => {
-    $("profileBody").classList.toggle("collapsed");
-  };
+  $("voiceEditBtn").onclick = openVoiceForEdit;
   $("addAssetBtn").onclick = () => addAssetRow();
   $("saveProfileBtn").onclick = saveProfileAndRefresh;
   $("fRisk").oninput = (e) => ($("riskSliderVal").textContent = e.target.value);
@@ -513,8 +540,6 @@ async function init() {
 
   if (!profile.onboarded) {
     startOnboarding();
-  } else {
-    $("profileBody").classList.add("collapsed");
   }
 }
 
