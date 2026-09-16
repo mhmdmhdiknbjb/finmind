@@ -27,8 +27,8 @@ function renderSidebar(activeKey) {
   if (!el) return;
   el.innerHTML = `
     <div class="brand">
-      <div class="brand-icon">${ICONS.zap}</div>
-      <div><h1>فین‌مایند</h1><p>پنل کاربری</p></div>
+      <div class="brand-icon"><img src="/logo.png" alt="چقدر" /></div>
+      <div><h1>چقدر</h1><p>پنل کاربری</p></div>
     </div>
     <button class="panel-menu-toggle" id="panelMenuToggle" type="button" aria-label="باز کردن منو" aria-expanded="false">
       ${ICONS.menu}
