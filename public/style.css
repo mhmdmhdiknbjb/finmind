@@ -381,8 +381,8 @@ li::marker { color: var(--text-faint); }
 }
 .home-nav-actions { display: flex; gap: 10px; }
 .home-nav-links { display: none; align-items: center; gap: 26px; }
-.home-nav-links a { font-size: 13px; font-weight: 600; color: var(--text-dim); text-decoration: none; }
-.home-nav-links a:hover { color: var(--text); }
+.home-nav-links a { font-size: 13.5px; font-weight: 700; color: var(--text); text-decoration: none; opacity: .85; transition: opacity .2s ease, color .2s ease; }
+.home-nav-links a:hover { opacity: 1; color: var(--accent-2); }
 @media (min-width: 900px) { .home-nav-links { display: flex; } }
 
 /* Hero: text column + an illustrated mountain/night scene with floating
