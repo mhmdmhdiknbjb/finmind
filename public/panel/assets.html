@@ -50,6 +50,28 @@
         </div>
       </section>
 
+      <section class="card span-12 hidden" id="dispersionCard" style="margin-top:18px;">
+        <div class="card-head">
+          <h2><span class="ico icon-badge icon-tone-violet icon-badge-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="7" r="2.2"/><circle cx="17" cy="6" r="2.2"/><circle cx="12" cy="13" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="17" r="2.2"/></svg></span> پراکندگی و تنوع دارایی‌ها <span class="engine-tag">داده‌ی واقعی بازار</span></h2>
+          <span class="profile-summary" id="dispersionAsOf"></span>
+        </div>
+        <div class="card-body">
+          <div class="stat-row" id="dispersionStats"></div>
+          <div class="two-col" style="margin-top:16px;">
+            <div>
+              <h4 class="tag-neu">سهم سرمایه در برابر سهم ریسک هر کلاس</h4>
+              <div class="chart-wrap chart-wrap-sm"><canvas id="dispersionChart"></canvas></div>
+              <p class="summary-text">سهم ریسک یعنی هر کلاس چند درصد از نوسان بخش قیمت‌دار سبد را می‌سازد. اگر از سهم سرمایه‌ی آن کلاس بزرگ‌تر باشد، آن کلاس ریسک سبد را نسبت به وزنش بیشتر می‌کند؛ مقدار منفی یعنی نوسان سبد را کم می‌کند.</p>
+            </div>
+            <div>
+              <h4 class="tag-neg">پرچم‌های هشدار</h4>
+              <div id="dispersionFlags"></div>
+              <p class="summary-text" id="dispersionNotes"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 </div>

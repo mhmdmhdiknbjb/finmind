@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { marketDataVersion } from "./marketData.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const USERS_DATA_DIR = path.join(__dirname, "data", "users");
@@ -60,6 +61,9 @@ export function computeFingerprint(rawProfile, behaviorState) {
     existingDebt: rawProfile.existingDebt ?? null,
     liquidityNeedNote: rawProfile.liquidityNeedNote || "",
     behaviorDelta: behaviorState?.delta ?? 0,
+    // the risk/dispersion maths and the market data behind them: a new engine version or a refreshed
+    // market pack must recompute stored results instead of serving numbers from the old method
+    marketData: marketDataVersion(),
   });
 }
 

@@ -1,4 +1,5 @@
 import { optimizePortfolio } from "./optimizer.js";
+import { dispersionPromptBlock, riskPromptBlock } from "./riskPresenter.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 
 const CATEGORY_LABELS = {
@@ -74,7 +75,7 @@ export function buildProfileContext(profile) {
   const liquidityComputed = computeLiquidity(profile);
   const canonicalNumbers = `
 
-### اعداد رسمی و ثابت وضعیت فعلی سبد دارایی (محاسبه‌شده با موتور بهینه‌سازی پرتفوی و موتور نقدشوندگی — دقیقاً همین اعداد در همه‌ی صفحات و پاسخ‌های برنامه استفاده می‌شود؛ اگر جایی درباره‌ی ریسک یا نقدینگی فعلی کاربر صحبت می‌کنی، همیشه عیناً همین اعداد را بگو، هرگز عدد دیگری نساز یا دوباره حدس نزن)
+### اعداد رسمی و ثابت وضعیت فعلی سبد دارایی (محاسبه‌شده با موتور ریسک روی داده‌ی واقعی بازار و موتور نقدشوندگی — دقیقاً همین اعداد در همه‌ی صفحات و پاسخ‌های برنامه استفاده می‌شود؛ اگر جایی درباره‌ی ریسک یا نقدینگی فعلی کاربر صحبت می‌کنی، همیشه عیناً همین اعداد را بگو، هرگز عدد دیگری نساز یا دوباره حدس نزن)
 ریسک فعلی سبد: ${riskComputed.riskScore} از ۱۰۰ (سطح: ${riskComputed.riskLevel})
 نقدینگی سریع: ${liquidityComputed.liquidPercent}٪ | نیمه‌نقد: ${liquidityComputed.semiLiquidPercent}٪ | غیرنقد: ${liquidityComputed.illiquidPercent}٪`;
 
@@ -127,6 +128,7 @@ ${buildProfileContext(profile)}
 ترکیب پیشنهادی بهینه (خروجی مدل بهینه‌سازی میانگین-واریانس با قیود نقدشوندگی ایران): ${formatPct(computed.optimal.weights)}
 بازده مورد انتظار سالانه فعلی: ${(computed.current.expectedReturn * 100).toFixed(1)}٪ | پیشنهادی: ${(computed.optimal.expectedReturn * 100).toFixed(1)}٪
 نقدینگی فعلی: ${computed.current.liquidityPercent}٪ | پیشنهادی: ${computed.optimal.liquidityPercent}٪
+${dispersionPromptBlock(computed.current.analysis, computed.optimal.analysis)}
 
 ### وظیفه
 فقط بر اساس همین اعداد محاسبه‌شده (نه با ساختن عدد جدید)، توضیح بده که چرا ترکیب فعلی این نقاط قوت/ضعف را دارد و چرا موتور بهینه‌سازی این ترکیب پیشنهادی را داده (مثلاً برای کاهش تمرکز، افزایش تنوع، یا تامین نقدینگی لازم). اگر تمرکز روی یک دارایی بیش از حد است هشدار بده.${jsonInstruction(`{
@@ -143,13 +145,14 @@ export function promptRisk(profile, computed) {
 
 ${buildProfileContext(profile)}
 
-### خروجی موتور بهینه‌سازی پرتفوی (محاسبه‌شده با یک مدل میانگین-واریانس واقعی، نه توسط تو — این اعداد قطعی هستند)
+### خروجی موتور ریسک (نوسان و ریزش اندازه‌گیری‌شده روی داده‌ی هفتگی واقعی بازار ایران، نه توسط تو — این اعداد قطعی هستند)
 ریسک فعلی سبد: ${computed.current.riskScore} از ۱۰۰ (سطح: ${computed.current.riskLevel}) — نوسان سالانه محاسبه‌شده: ${(computed.current.volatility * 100).toFixed(1)}٪
 ریسک پیشنهادی (بر اساس ریسک‌پذیری اعلامی کاربر و بهینه‌سازی میانگین-واریانس با قید نقدشوندگی): ${computed.optimal.riskScore} از ۱۰۰ (سطح: ${computed.optimal.riskLevel})
 اختلاف: ${computed.optimal.riskScore - computed.current.riskScore}
+${riskPromptBlock(computed.current.analysis)}
 
 ### وظیفه
-فقط بر اساس همین دو عدد محاسبه‌شده (آن‌ها را دوباره حدس نزن یا تغییر نده)، توضیح بده این ریسک از کجا می‌آید (کدام دارایی‌ها و چه تمرکزی باعثش شده)، چه رفتار یا سوگیری اقتصادی/روانی ممکن است پشت این ترکیب باشد، و چه اقدامی برای نزدیک‌شدن به ریسک پیشنهادی توصیه می‌شود.${jsonInstruction(`{
+فقط بر اساس همین اعداد محاسبه‌شده (آن‌ها را دوباره حدس نزن یا تغییر نده)، توضیح بده این ریسک از کجا می‌آید (کدام دارایی‌ها و چه تمرکزی باعثش شده)، چه رفتار یا سوگیری اقتصادی/روانی ممکن است پشت این ترکیب باشد، و چه اقدامی برای نزدیک‌شدن به ریسک پیشنهادی توصیه می‌شود.${jsonInstruction(`{
   "reasons": [string],
   "behavioralFactors": [string],
   "suggestions": [string],

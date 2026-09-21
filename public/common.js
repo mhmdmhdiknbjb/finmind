@@ -55,6 +55,17 @@ export function formatToman(n) {
   return Math.round(n).toLocaleString("en-US") + " تومان";
 }
 
+/** Keeps a number (with its sign / ٪) left-to-right inside RTL text, so "-16.6٪" is not shown as "16.6٪-". Returns HTML. */
+export function ltr(text) {
+  return `<bdi dir="ltr">${text}</bdi>`;
+}
+
+/** ISO date (2026-09-18) -> Persian calendar date for display. */
+export function faDate(iso) {
+  const d = new Date(iso + "T00:00:00");
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("fa-IR");
+}
+
 export function formatPercent(n) {
   if (n === null || n === undefined || isNaN(n)) return "—";
   return Math.round(n) + "٪";

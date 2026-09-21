@@ -294,6 +294,13 @@ li::marker { color: var(--text-faint); }
 .meter-current { background: linear-gradient(90deg, #c084fc, #60a5fa); }
 .meter-suggested { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
 
+.range-table-wrap { overflow-x: auto; margin-bottom: 8px; }
+.range-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 460px; }
+.range-table th { text-align: right; font-weight: 600; color: var(--text-faint); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.range-table td { padding: 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+.range-table tr:last-child td { border-bottom: none; }
+.range-table small { color: var(--text-faint); }
+
 .risk-badges { display: flex; gap: 8px; margin: 4px 0 12px; }
 .badge { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--accent-2); color: #061019; }
 .badge-outline { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-weight: 600; }

@@ -29,6 +29,8 @@ import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./data
 import { transcribeAudio } from "./transcribe.js";
 import { loadChatHistory, appendChatMessages } from "./chatStore.js";
 import { computeFingerprint, loadSnapshot, saveSnapshot } from "./snapshotStore.js";
+import { ENGINE_VERSION } from "./marketData.js";
+import { dispersionPayload, riskPayload } from "./riskPresenter.js";
 import { getNotifications, addNotification, markAllRead } from "./notificationStore.js";
 import {
   registerUser,
@@ -66,12 +68,13 @@ async function withSnapshot(userId, key, force, computeFn, describeChange) {
 
   const result = await computeFn();
 
-  if (cached && describeChange) {
+  // a change caused only by a new calculation method (not by the user or the market) is not worth a notification
+  if (cached && describeChange && cached.engineVersion === ENGINE_VERSION) {
     const notif = describeChange(cached.result, result);
     if (notif) addNotification(userId, { type: key, ...notif });
   }
 
-  saveSnapshot(userId, key, { fingerprint, result, computedAt: new Date().toISOString() });
+  saveSnapshot(userId, key, { fingerprint, result, engineVersion: ENGINE_VERSION, computedAt: new Date().toISOString() });
   return result;
 }
 
@@ -275,6 +278,7 @@ app.post(
             liquidityPercent: computed.optimal.liquidityPercent,
             riskScore: computed.optimal.riskScore,
           },
+          dispersion: dispersionPayload(computed.current.analysis, computed.optimal.analysis),
           concentrationWarning: explanation.concentrationWarning,
           strengths: explanation.strengths,
           weaknesses: explanation.weaknesses,
@@ -306,6 +310,7 @@ app.post(
           difference: computed.optimal.riskScore - computed.current.riskScore,
           riskLevel: computed.current.riskLevel,
           riskToleranceInfo: riskInfo,
+          marketRisk: riskPayload(computed.current.analysis, computed.optimal.analysis),
           reasons: explanation.reasons,
           behavioralFactors: explanation.behavioralFactors,
           suggestions: explanation.suggestions,

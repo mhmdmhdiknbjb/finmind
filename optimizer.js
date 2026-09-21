@@ -1,4 +1,6 @@
 import { solveQP } from "quadprog";
+import { categoryStats } from "./marketData.js";
+import { analyzePortfolio, holdingsFromAssets, holdingsFromCategoryWeights } from "./portfolioRisk.js";
 
 /**
  * Phase 1 — Portfolio optimization engine (Markowitz mean-variance, localized for Iran).
@@ -9,12 +11,19 @@ import { solveQP } from "quadprog";
  * of this module and asked to explain them in Persian — it never invents
  * risk scores, expected returns, or allocation weights itself.
  *
- * ASSUMPTIONS: expectedReturn / volatility / correlation below are parametric
- * planning assumptions (annual, nominal Toman terms), not fitted from a real
- * historical dataset yet. That data-calibration step is Phase 5 of the
- * roadmap (see ROADMAP.md). Until then, these numbers should be read as
- * "reasonable long-run planning assumptions for the Iranian market", not
- * as a backtested forecast.
+ * DATA vs ASSUMPTIONS:
+ *  - volatility and correlation of the PRICED categories (gold, currency,
+ *    stock, fund, crypto) are measured from 3 years of real weekly returns
+ *    (marketdata/market_pack.json, built from the workflow dataset), with the
+ *    same sample-covariance estimator as calculator.py. Categories with no
+ *    price history (cash, real estate, other) keep parametric assumptions.
+ *  - expectedReturn, liquidity and the per-category upper bounds are still
+ *    parametric planning assumptions: the dataset deliberately contains no
+ *    return forecast, and a trailing nominal return in a high-inflation
+ *    regime would be a bad expected return.
+ *  - The risk score / volatility reported to the user for the current and
+ *    the suggested portfolio come from portfolioRisk.js (real 1-year data),
+ *    attached below as `analysis`; the QP only decides the weights.
  */
 
 export const ASSET_ORDER = ["cash", "gold", "currency", "stock", "fund", "realestate", "crypto", "other"];
@@ -31,7 +40,7 @@ export const ASSET_ORDER = ["cash", "gold", "currency", "stock", "fund", "reales
  */
 export const MIN_PROPERTY_VALUE_TOMAN = 4_000_000_000;
 
-export const ASSET_STATS = {
+const BASE_ASSET_STATS = {
   cash: { expectedReturn: 0.23, volatility: 0.03, liquidity: 1.0, upperBound: 1.0 },
   gold: { expectedReturn: 0.35, volatility: 0.22, liquidity: 0.75, upperBound: 0.5 },
   currency: { expectedReturn: 0.32, volatility: 0.25, liquidity: 0.85, upperBound: 0.4 },
@@ -41,6 +50,8 @@ export const ASSET_STATS = {
   crypto: { expectedReturn: 0.45, volatility: 0.7, liquidity: 0.7, upperBound: 0.15 },
   other: { expectedReturn: 0.2, volatility: 0.2, liquidity: 0.5, upperBound: 0.3 },
 };
+
+const MARKET = categoryStats(); // real 3-year stats for the priced categories, or null without a market pack
 
 // Correlation matrix: captures the dollar–gold–inflation hedge cluster that
 // dominates Iranian household portfolio behavior (assets that co-move when
@@ -63,20 +74,62 @@ function corr(a, b) {
   return CORR[a]?.[b] ?? CORR[b]?.[a] ?? 0;
 }
 
-function buildCovariance() {
+function buildStats(useMarket) {
+  return Object.fromEntries(
+    Object.entries(BASE_ASSET_STATS).map(([k, st]) => {
+      const real = useMarket ? MARKET?.vol[k] : undefined;
+      return [k, real ? { ...st, volatility: real, volatilitySource: "market_data" } : { ...st, volatilitySource: "assumption" }];
+    })
+  );
+}
+
+function buildCovariance(stats, useMarket) {
   const n = ASSET_ORDER.length;
   const sigma = Array.from({ length: n }, () => new Array(n).fill(0));
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
       const ai = ASSET_ORDER[i];
       const aj = ASSET_ORDER[j];
-      sigma[i][j] = corr(ai, aj) * ASSET_STATS[ai].volatility * ASSET_STATS[aj].volatility;
+      const bothPriced = useMarket && MARKET.vol[ai] !== undefined && MARKET.vol[aj] !== undefined;
+      const rho = bothPriced ? MARKET.corr(ai, aj) : corr(ai, aj);
+      sigma[i][j] = rho * stats[ai].volatility * stats[aj].volatility;
     }
   }
   return sigma;
 }
 
-export const COVARIANCE = buildCovariance();
+/** Cholesky succeeds only for a positive-definite matrix — the QP and the Monte Carlo both need one. */
+function isPositiveDefinite(m) {
+  const n = m.length;
+  const L = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j <= i; j++) {
+      let sum = m[i][j];
+      for (let k = 0; k < j; k++) sum -= L[i][k] * L[j][k];
+      if (i === j) {
+        if (sum <= 1e-8) return false;
+        L[i][i] = Math.sqrt(sum);
+      } else {
+        L[i][j] = sum / L[j][j];
+      }
+    }
+  }
+  return true;
+}
+
+let useMarketData = !!MARKET;
+let stats = buildStats(useMarketData);
+let cov = buildCovariance(stats, useMarketData);
+if (useMarketData && !isPositiveDefinite(cov)) {
+  console.warn("[optimizer] market-calibrated covariance is not positive definite; using parametric assumptions instead");
+  useMarketData = false;
+  stats = buildStats(false);
+  cov = buildCovariance(stats, false);
+}
+
+export const ASSET_STATS = stats;
+export const COVARIANCE = cov;
+export const RISK_DATA_SOURCE = useMarketData ? { source: "market_data", asof: MARKET.asof, weeks: MARKET.weeks } : { source: "assumption" };
 
 function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
@@ -258,9 +311,35 @@ export function optimizePortfolio(profile) {
   }
 
   return {
-    current: { weights: curWeights, total, ...portfolioStats(curWeights) },
-    optimal: { weights: optimalWeights, ...portfolioStats(optimalWeights) },
+    current: withMarketRisk({ weights: curWeights, total, ...portfolioStats(curWeights) }, profile, total),
+    optimal: withMarketRisk({ weights: optimalWeights, ...portfolioStats(optimalWeights) }, profile, total, optimalWeights),
     params: { riskAversion: lambda, requiredLiquidFraction: reqLiquid, realestateBand: [lowerBound.realestate, upperBound.realestate] },
     solverMessage: result.message || null,
+  };
+}
+
+/**
+ * Replaces the parametric volatility / risk score of a portfolio with the ones measured on real market data by
+ * portfolioRisk.js, and attaches the full dispersion + risk analysis as `analysis`. The suggested portfolio is
+ * evaluated with the SAME engine (keeping the user's own mix inside each category), so "current vs suggested"
+ * is an apples-to-apples comparison. Without a market pack the parametric numbers are kept unchanged.
+ */
+function withMarketRisk(stats, profile, total, categoryWeights) {
+  if (!(total > 0)) return stats;
+  const currentHoldings = holdingsFromAssets(profile.assets);
+  const holdings = categoryWeights ? holdingsFromCategoryWeights(categoryWeights, total, currentHoldings) : currentHoldings;
+  const analysis = analyzePortfolio(holdings, {
+    age: profile.personal?.age,
+    nDependents: profile.personal?.childrenCount,
+    monthlyExpenses: profile.monthlyExpenses,
+    debt: profile.existingDebt,
+  });
+  if (!analysis) return stats;
+  return {
+    ...stats,
+    volatility: analysis.risk.wealthVol1y,
+    riskScore: analysis.risk.riskScore,
+    riskLevel: analysis.risk.riskLevel,
+    analysis,
   };
 }

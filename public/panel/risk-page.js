@@ -1,4 +1,4 @@
-import { $, fillListLive, typeWordsInto } from "../common.js";
+import { $, fillListLive, typeWordsInto, ltr, faDate } from "../common.js";
 import { initPanelShell } from "./panel-shell.js";
 
 // `force` recomputes even if nothing the user controls has changed; a
@@ -46,6 +46,8 @@ function renderRiskWidget(data) {
   const diff = data.difference ?? (data.currentRiskScore - data.suggestedRiskScore);
   $("riskDiffBadge").textContent = `اختلاف: ${diff > 0 ? "+" : ""}${Math.round(diff)}`;
 
+  renderMarketRisk(data.marketRisk);
+
   fillListLive("riskReasons", data.reasons);
   fillListLive("riskBehavioral", data.behavioralFactors);
   fillListLive("riskSuggestions", data.suggestions);
@@ -59,6 +61,52 @@ function renderRiskWidget(data) {
   } else {
     bBanner.classList.add("hidden");
   }
+}
+
+const pct1 = (x) => ltr(Number.isFinite(x) ? (x * 100).toFixed(1) + "٪" : "—");
+const pct0 = (x) => ltr(Number.isFinite(x) ? Math.round(x * 100) + "٪" : "—");
+
+function chip(label, value) {
+  const div = document.createElement("div");
+  div.className = "stat-chip";
+  div.innerHTML = `<span class="stat-label">${label}</span><span class="stat-value">${value}</span>`;
+  return div;
+}
+
+/** ریسک واقعی: numbers measured on real weekly market data (portfolioRisk.js) — hidden when there is nothing priced. */
+function renderMarketRisk(m) {
+  const block = $("marketRiskBlock");
+  if (!m || !m.hasMarketAssets || !m.sleeve) {
+    block.classList.add("hidden");
+    return;
+  }
+  block.classList.remove("hidden");
+  $("marketRiskAsOf").innerHTML = `داده‌ی بازار تا ${faDate(m.asOf)} — پوشش ${pct0(m.modeledShare)} از دارایی`;
+
+  const s = m.sleeve;
+  const stats = $("marketRiskStats");
+  stats.innerHTML = "";
+  stats.append(
+    chip("نوسان سالانه (۱ سال)", pct1(s.annVolatility1y)),
+    chip("بیشینه ریزش (۱ سال)", pct1(s.maxDrawdown1y)),
+    chip("میانگین ۳ هفته‌ی بدتر", pct1(s.cvar95Weekly1y)),
+    chip("بتا نسبت به دلار", ltr(s.betaUsd1y)),
+    chip("بازده نسبت به دلار (۱ سال)", pct1(s.returnVsUsd1y))
+  );
+  if (s.annVolatility3y !== null) stats.append(chip("نوسان سالانه (۳ سال)", pct1(s.annVolatility3y)));
+  if (s.maxDrawdown3y !== null) stats.append(chip("بیشینه ریزش (۳ سال)", pct1(s.maxDrawdown3y)));
+
+  const body = $("forwardRangeBody");
+  body.innerHTML = "";
+  [["26w", "۲۶ هفته"], ["52w", "۵۲ هفته"]].forEach(([key, label]) => {
+    const f = m.forward?.[key];
+    if (!f) return;
+    const tr = document.createElement("tr");
+    const cell = (r) => `${pct0(r.p10)} تا ${pct0(r.p90)} <small>(میانه ${pct0(r.p50)})</small>`;
+    tr.innerHTML = `<td>${label}</td><td>${cell(f.ret)}</td><td>${pct0(f.maxDrawdown.p90)} تا ${pct0(f.maxDrawdown.p10)}</td><td>${cell(f.retVsUsd)}</td>`;
+    body.appendChild(tr);
+  });
+  $("marketRiskNotes").textContent = m.warnings.join(" ") + " بازه‌ها فقط از تاریخچه‌ی نوسان ساخته شده‌اند و تضمین یا پیش‌بینی نیستند.";
 }
 
 async function init() {

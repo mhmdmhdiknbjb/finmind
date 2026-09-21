@@ -31,7 +31,13 @@ npm start
 - `auth.js` — ثبت‌نام/ورود/نشست کاربر (هش رمز با scrypt، کوکی امضاشده با HMAC)
 - `llm.js` — فراخوانی Responses API (معمولی و استریم) و پارس خروجی JSON
 - `prompts.js` — پرامپت‌های فارسی هر بخش (فقط توضیح اعداد محاسبه‌شده، نه منبع محاسبه)
-- `optimizer.js` — بهینه‌سازی پرتفوی با Quadratic Programming
+- `optimizer.js` — بهینه‌سازی پرتفوی با Quadratic Programming؛ نوسان و همبستگی دسته‌های قیمت‌دار از داده‌ی واقعی ۳ ساله می‌آید، بازده مورد انتظار همچنان فرض است
+- `portfolioRisk.js` — موتور پراکندگی و ریسک (پورت JS از `calculator.py` پایپ‌لاین workflow): HHI، تعداد مؤثر، امتیاز تنوع، نوسان، بیشینه ریزش، CVaR، بتا، سهم ریسک هر کلاس
+- `marketData.js` — بارگذاری بسته‌ی داده‌ی بازار و محاسبه‌ی نوسان/همبستگی دسته‌ها
+- `riskPresenter.js` — تبدیل خروجی موتور ریسک به JSON ویجت‌ها و بلوک متنی پرامپت (بدون محاسبه‌ی جدید)
+- `marketdata/market_pack.json` — ۱۵۶ هفته داده‌ی واقعی بازار ایران (خروجی منجمدشده‌ی پایپ‌لاین workflow)
+- `tools/export_market_pack.py` — ساخت دوباره‌ی بسته‌ی داده: `PYTHONUTF8=1 python tools/export_market_pack.py --workflow <مسیر workflow>`
+- `tools/verify_risk_engine.mjs` — تست رگرسیون: خروجی موتور JS باید با خروجی Python (`tools/risk_engine_reference.json`) یکی باشد؛ اجرا: `node tools/verify_risk_engine.mjs`
 - `monteCarlo.js` — شبیه‌سازی سناریو با نمونه‌گیری از نرمال چندمتغیره شرطی
 - `liquidityEngine.js` — دسته‌بندی قطعی نقدشوندگی هر دارایی
 - `marketFeed.js` — نرخ آنی دلار/تومان و طلا از یک API واقعی و رایگان
