@@ -38,6 +38,7 @@ function populateProfileForm() {
   $("fHorizon").value = profile.timeHorizonNote ?? "";
   $("fLiquidityNote").value = profile.liquidityNeedNote ?? "";
   $("fMainGoal").value = profile.mainGoalDescription ?? "";
+  $("fFreeNotes").value = profile.freeNotes ?? "";
   renderAssetRows(profile.assets || []);
   renderProfileSummary();
 }
@@ -252,6 +253,7 @@ function collectProfileFromForm() {
     timeHorizonNote: $("fHorizon").value.trim(),
     liquidityNeedNote: $("fLiquidityNote").value.trim(),
     mainGoalDescription: $("fMainGoal").value.trim(),
+    freeNotes: $("fFreeNotes").value.trim(),
     assets,
     goals: profile.goals || [],
   };

@@ -1,9 +1,15 @@
 """Exports the market history + calculator settings the Node risk/dispersion engines need.
 
 The heavy lifting (cleaning ~thousands of price histories into weekly returns) stays in the separate
-`workflow` dataset pipeline. This script only freezes the LAST 156 WEEKS of the weekly return panel
-(the 1y and 3y windows calculator.py uses) plus the calculator config into one small JSON file, so
-the Node server never needs Python, pandas or parquet at runtime.
+`workflow` dataset pipeline. This script freezes the last WEEKS of the weekly return panel plus the
+calculator config into one small JSON file, so the Node server never needs Python, pandas or parquet
+at runtime.
+
+WEEKS=320: the 1y/3y windows calculator.py uses need only the last 52/156 weeks (sliced from the END
+of the array — safe regardless of total length), but fhsEngine.js's block-bootstrap (portfolioRisk's
+FHS port) needs the calibrated W=260-week window from clean/models/fhs_config.json PLUS ~60 weeks of
+lead-in so its own EWMA volatility estimator (min_periods=13) is properly warmed up before that window
+starts, the same way it is in Python (computed over the whole multi-year history, not a short slice).
 
 usage:  python tools/export_market_pack.py [--workflow C:\\Users\\GREEN\\Desktop\\workflow] [--out marketdata/market_pack.json]
 """
@@ -24,7 +30,7 @@ WF = Path(args.workflow)
 sys.path.insert(0, str(WF / "pipeline"))
 import calculator as calc  # noqa: E402  (needs the workflow pipeline on sys.path)
 
-WEEKS = 156
+WEEKS = 320
 mk = calc.Market()
 asof = mk.last_asof
 pos = mk.weeks_pos[asof]
@@ -66,6 +72,7 @@ regime = {k: (float(v) if isinstance(v, (int, float, np.floating)) and not isins
           for k, v in reg.items() if k != "asof_jalali"}
 
 meta_model = json.load(open(WF / "clean" / "models" / "model_meta.json", encoding="utf-8"))
+fhs_config = json.load(open(WF / "clean" / "models" / "fhs_config.json", encoding="utf-8"))
 pack = {
     "meta": {
         "asof": str(asof.date()),
@@ -90,6 +97,10 @@ pack = {
         "risk_list": calc.RISK_LIST,
     },
     "forward_baseline_b2": meta_model["baselines"]["B2"],
+    # calibrated on train+val months only (07_train_risk_model.py); fhsEngine.js uses these verbatim
+    # rather than re-guessing lam/W/drift_w/block, the same "freeze what Python calibrated" pattern as B2.
+    "fhs_params": {"lam": fhs_config["lam"], "W": fhs_config["params"]["W"], "drift_w": fhs_config["params"]["drift_w"],
+                    "block": fhs_config["block"], "S": fhs_config["S"]},
 }
 
 out = Path(args.out)

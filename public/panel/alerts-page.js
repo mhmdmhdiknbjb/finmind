@@ -13,9 +13,27 @@ function renderAlerts(alerts) {
     const item = document.createElement("div");
     item.className = "emotional-item";
     const time = alert.at ? new Date(alert.at).toLocaleString("fa-IR") : "";
-    item.innerHTML = `<div class="em-time">${time}</div><div>${alert.reason || ""}</div><div class="em-msg">${alert.message || ""}</div>`;
+    item.innerHTML = `
+      <div class="em-head">
+        <div class="em-time">${time}</div>
+        <button class="btn btn-ghost btn-small em-ack-btn" type="button">حواسم هست</button>
+      </div>
+      <div>${alert.reason || ""}</div>
+      <div class="em-msg">${alert.message || ""}</div>`;
+    item.querySelector(".em-ack-btn").onclick = () => acknowledgeAlert(alert.id, item);
     list.appendChild(item);
   });
+}
+
+async function acknowledgeAlert(id, item) {
+  item.classList.add("em-item-ack");
+  try {
+    await fetch(`/api/emotional-alerts/${id}/ack`, { method: "POST" });
+  } catch (e) {
+    console.error(e);
+  }
+  item.remove();
+  if (!$("emotionalList").children.length) $("emotionalEmpty").classList.remove("hidden");
 }
 
 async function loadAlerts() {

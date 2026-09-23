@@ -95,6 +95,7 @@ export function buildProfileContext(profile) {
 یادداشت افق زمانی سرمایه‌گذاری: ${profile.timeHorizonNote || "ندارد"}
 یادداشت نیاز به نقدینگی: ${profile.liquidityNeedNote || "ندارد"}
 مهم‌ترین هدف مالی زندگی (خوداظهاری آزاد): ${profile.mainGoalDescription || "ندارد"}
+یادداشت آزاد کاربر (هر نکته‌ی دیگری که خودش صلاح دیده اضافه کند): ${profile.freeNotes || "ندارد"}
 
 ### دارایی‌های کاربر (مجموع: ${fmtNum(totalAssets)} تومان)
 ${assetLines}${liveRatesLine}

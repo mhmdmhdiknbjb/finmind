@@ -25,6 +25,7 @@ const DEFAULT_PROFILE = {
   timeHorizonNote: "",
   liquidityNeedNote: "",
   mainGoalDescription: "",
+  freeNotes: "",
   assets: [],
   goals: [],
 };

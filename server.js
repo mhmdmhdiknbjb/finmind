@@ -24,7 +24,7 @@ import { evaluateGoal } from "./goalEngine.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 import { simulateShock } from "./monteCarlo.js";
 import { resolveProfileAssets, getLiveRates, applyAssetChanges, normalizeExtractedAssets } from "./assetPricing.js";
-import { logEvent, effectiveRiskTolerance, getBehaviorState, getEmotionalEvents } from "./behaviorStore.js";
+import { logEvent, effectiveRiskTolerance, getBehaviorState, getEmotionalEvents, acknowledgeEvent } from "./behaviorStore.js";
 import { logInteraction, logProfileSnapshot, getAggregateInsights } from "./dataAsset.js";
 import { transcribeAudio } from "./transcribe.js";
 import { loadChatHistory, appendChatMessages } from "./chatStore.js";
@@ -497,6 +497,17 @@ app.get(
   "/api/emotional-alerts",
   requireAuth,
   handleAsync(async (req, res) => {
+    res.json({ alerts: getEmotionalEvents(req.userId) });
+  })
+);
+
+// "حواسم هست" — dismisses one alert from the list. Does not touch the behavioral risk-tolerance
+// nudge that event already caused; that reflects something real the user did.
+app.post(
+  "/api/emotional-alerts/:id/ack",
+  requireAuth,
+  handleAsync(async (req, res) => {
+    acknowledgeEvent(req.userId, req.params.id);
     res.json({ alerts: getEmotionalEvents(req.userId) });
   })
 );

@@ -360,6 +360,9 @@ li::marker { color: var(--text-faint); }
 .emotional-item { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.35); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
 .emotional-item .em-time { color: var(--text-faint); font-size: 11px; }
 .emotional-item .em-msg { margin-top: 4px; color: #fcd34d; }
+.emotional-item .em-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.emotional-item .em-ack-btn { flex-shrink: 0; padding: 3px 10px; font-size: 12px; }
+.emotional-item.em-item-ack { opacity: 0.35; transition: opacity 0.2s ease; pointer-events: none; }
 
 /* Chat message bubbles — used by the standalone chat page (panel/chat.html) */
 .chat-msg { max-width: 85%; padding: 9px 13px; border-radius: 12px; font-size: 13px; line-height: 1.8; }

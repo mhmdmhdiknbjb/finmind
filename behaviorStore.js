@@ -55,15 +55,30 @@ function ensureUserDir(userId) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+function makeId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
 function load(userId) {
   ensureUserDir(userId);
   const f = file(userId);
   if (!fs.existsSync(f)) return { events: [], delta: 0 };
+  let state;
   try {
-    return JSON.parse(fs.readFileSync(f, "utf-8"));
+    state = JSON.parse(fs.readFileSync(f, "utf-8"));
   } catch {
     return { events: [], delta: 0 };
   }
+  // Events logged before `id`/`acknowledged` existed have neither — back-fill them here so
+  // acknowledging ("حواسم هست") always has something stable to match, even for old events.
+  let backfilled = false;
+  state.events = (state.events || []).map((e) => {
+    if (e.id && e.acknowledged !== undefined) return e;
+    backfilled = true;
+    return { ...e, id: e.id || makeId(), acknowledged: e.acknowledged ?? false };
+  });
+  if (backfilled) save(userId, state);
+  return state;
 }
 
 function save(userId, state) {
@@ -78,10 +93,23 @@ function clamp(x, lo, hi) {
 export function logEvent(userId, type, nudgeKey, meta = {}) {
   const state = load(userId);
   const nudge = NUDGE[nudgeKey] || 0;
-  state.events.push({ type, nudgeKey, nudge, meta, at: new Date().toISOString() });
+  state.events.push({ id: makeId(), type, nudgeKey, nudge, meta, at: new Date().toISOString(), acknowledged: false });
   state.delta = clamp(state.delta + nudge, -MAX_DELTA, MAX_DELTA);
   save(userId, state);
   return state;
+}
+
+// Dismisses one flagged event from the "هشدار تصمیم‌های هیجانی" list (a "حواسم هست" click) — this
+// only hides it from that list, it never undoes the risk-tolerance nudge already applied above: the
+// nudge reflects something the user actually did, acknowledging the alert doesn't erase that it happened.
+export function acknowledgeEvent(userId, eventId) {
+  const state = load(userId);
+  const ev = state.events.find((e) => e.id === eventId);
+  if (ev) {
+    ev.acknowledged = true;
+    save(userId, state);
+  }
+  return ev || null;
 }
 
 export function getBehaviorState(userId) {
@@ -96,11 +124,12 @@ export function effectiveRiskTolerance(userId, selfReported) {
   return { base, delta: state.delta, effective, eventCount: state.events.length };
 }
 
-/** Recent chat messages flagged as an emotional/impulsive reaction, newest first. */
+/** Recent chat messages flagged as an emotional/impulsive reaction, newest first — acknowledged
+ * ("حواسم هست") ones are left out; the underlying event (and its risk-tolerance nudge) still exists. */
 export function getEmotionalEvents(userId) {
   const state = load(userId);
   return state.events
-    .filter((e) => e.type === "chat_emotional")
-    .map((e) => ({ at: e.at, reason: e.meta?.reason || null, message: e.meta?.message || null }))
+    .filter((e) => e.type === "chat_emotional" && !e.acknowledged)
+    .map((e) => ({ id: e.id, at: e.at, reason: e.meta?.reason || null, message: e.meta?.message || null }))
     .reverse();
 }
