@@ -19,6 +19,7 @@ const DEFAULT_PROFILE = {
   riskTolerance: 5,
   investmentExperience: null,
   emotionalRiskReaction: null,
+  horizonYears: null,
   monthlyIncome: null,
   monthlyExpenses: null,
   existingDebt: null,

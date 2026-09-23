@@ -35,6 +35,7 @@ function populateProfileForm() {
   $("riskSliderVal").textContent = profile.riskTolerance ?? 5;
   $("fExperience").value = profile.investmentExperience || "مبتدی (کمتر از ۱ سال)";
   $("fEmotionalReaction").value = profile.emotionalRiskReaction || "صبر می‌کنم";
+  $("fHorizonYears").value = profile.horizonYears ?? "";
   $("fHorizon").value = profile.timeHorizonNote ?? "";
   $("fLiquidityNote").value = profile.liquidityNeedNote ?? "";
   $("fMainGoal").value = profile.mainGoalDescription ?? "";
@@ -247,6 +248,7 @@ function collectProfileFromForm() {
     riskTolerance: Number($("fRisk").value),
     investmentExperience: $("fExperience").value,
     emotionalRiskReaction: $("fEmotionalReaction").value,
+    horizonYears: $("fHorizonYears").value ? Number($("fHorizonYears").value) : null,
     monthlyIncome: $("fIncome").value ? millionInputToToman($("fIncome").value) : null,
     monthlyExpenses: $("fExpenses").value ? millionInputToToman($("fExpenses").value) : null,
     existingDebt: $("fDebt").value ? millionInputToToman($("fDebt").value) : null,

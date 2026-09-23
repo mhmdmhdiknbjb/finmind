@@ -102,11 +102,14 @@ function renderMarketRisk(m) {
     const f = m.forward?.[key];
     if (!f) return;
     const tr = document.createElement("tr");
-    const cell = (r) => `${pct0(r.p10)} تا ${pct0(r.p90)} <small>(میانه ${pct0(r.p50)})</small>`;
-    tr.innerHTML = `<td>${label}</td><td>${cell(f.ret)}</td><td>${pct0(f.maxDrawdown.p90)} تا ${pct0(f.maxDrawdown.p10)}</td><td>${cell(f.retVsUsd)}</td>`;
+    const tag = (r) => (r.source === "ml_stack" ? ' <span class="ml-tag" title="شبیه‌سازی تاریخی + تصحیح یادگیری ماشین، روی داده‌ی نگه‌داشته‌شده اعتبارسنجی‌شده">مدل</span>' : "");
+    const cell = (r) => `${pct0(r.p10)} تا ${pct0(r.p90)} <small>(میانه ${pct0(r.p50)})</small>${tag(r)}`;
+    tr.innerHTML = `<td>${label}</td><td>${cell(f.ret)}</td><td>${pct0(f.maxDrawdown.p90)} تا ${pct0(f.maxDrawdown.p10)}${tag(f.maxDrawdown)}</td><td>${cell(f.retVsUsd)}</td>`;
     body.appendChild(tr);
   });
-  $("marketRiskNotes").textContent = m.warnings.join(" ") + " بازه‌ها فقط از تاریخچه‌ی نوسان ساخته شده‌اند و تضمین یا پیش‌بینی نیستند.";
+  const hasMl = ["26w", "52w"].some((h) => ["ret", "maxDrawdown", "retVsUsd"].some((t) => m.forward?.[h]?.[t]?.source === "ml_stack"));
+  $("marketRiskNotes").textContent = m.warnings.join(" ") + " بازه‌های بدون برچسب «مدل» فقط از تاریخچه‌ی نوسان ساخته شده‌اند و پیش‌بینی نیستند."
+    + (hasMl ? " ردیف‌های با برچسب «مدل» خروجی یک مدل آماری اعتبارسنجی‌شده‌اند (نه صرفاً نوسان تاریخی) ولی همچنان تضمین نیستند." : "");
 }
 
 async function init() {

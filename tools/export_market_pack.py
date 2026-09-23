@@ -67,6 +67,22 @@ valid_3y = {s: full3(mk.R_sub[s].values.astype(float)) for s in SUBCLASS_USED}
 valid_3y["stock_basket"] = all(full3(R_inst[a].values.astype(float)) for a in top30)
 valid_3y["crypto_alt_basket"] = all(full3(R_inst[a].values.astype(float)) for a in alts_ok)
 
+# ---- portfolio-weighted "class features" (mlfeatures.py's cf_*) for the STACK correction model.
+# Only exported for the 11 modeled categories FinMind can actually put nonzero weight on (see
+# portfolioRisk.js HOLDING_TYPES) — a category with zero weight in every FinMind portfolio can never
+# affect the weighted average, so its row would never be used.
+CF_CATS = ["fx_usd", "fx_eur", "fx_other", "gold_physical", "crypto_btc", "crypto_eth", "crypto_stable",
+           "crypto_alt", "stock", "equity_fund", "fixed_income_fund"]
+CLASS_FEATS = ["ann_vol_1y", "ann_vol_3y", "max_drawdown_1y", "mom_3m", "mom_12m", "beta_usd_1y", "ann_ret_vs_usd_1y"]
+Fs = mk.Fs_by.get(asof)
+class_features = {}
+for c in CF_CATS:
+    row = {}
+    for f in CLASS_FEATS:
+        v = Fs.loc[c, f] if (Fs is not None and c in Fs.index) else np.nan
+        row[f] = float(v) if np.isfinite(v) else None
+    class_features[c] = row
+
 reg = mk.REG.loc[asof]
 regime = {k: (float(v) if isinstance(v, (int, float, np.floating)) and not isinstance(v, bool) else bool(v) if isinstance(v, (bool, np.bool_)) else v)
           for k, v in reg.items() if k != "asof_jalali"}
@@ -88,6 +104,7 @@ pack = {
     "series": series,
     "series_valid_3y": valid_3y,
     "regime": regime,
+    "class_features": class_features,
     "config": {
         "liq_factor": calc.LIQ,
         "score": calc.SC,
@@ -102,6 +119,34 @@ pack = {
     "fhs_params": {"lam": fhs_config["lam"], "W": fhs_config["params"]["W"], "drift_w": fhs_config["params"]["drift_w"],
                     "block": fhs_config["block"], "S": fhs_config["S"]},
 }
+
+# ---- STACK correction models (LightGBM) for the 2 targets that actually beat B2 in 07_train_risk_model.py
+# (see clean/models/model_card.md — everything else stays on the B2 baseline). Exported via LightGBM's
+# own dump_model() as plain JSON tree ensembles so portfolioRisk.js can evaluate them without needing
+# LightGBM, Python or a native binding at runtime (lightgbmEval.js walks the same tree structure).
+STACK_TARGETS = {"t_ret_vs_usd_26w": None, "t_max_drawdown_52w": None}
+for target in STACK_TARGETS:
+    method = meta_model["models"].get(target, {}).get("method")
+    if method != "STACK":
+        continue
+    quantiles = {}
+    for q in (10, 50, 90):
+        import lightgbm as lgb  # noqa: E402  (only needed here, keep the top of the file import-light)
+        booster = lgb.Booster(model_file=str(WF / "clean" / "models" / f"{target}_q{q}_stack.txt"))
+        quantiles[str(q)] = booster.dump_model()
+    STACK_TARGETS[target] = {"method": method, "quantiles": quantiles}
+
+stack_dir = Path(args.out).resolve().parent / "stack_models"
+stack_dir.mkdir(parents=True, exist_ok=True)
+stack_index = {}
+for target, data in STACK_TARGETS.items():
+    if data is None:
+        continue
+    fname = f"{target}.json"
+    (stack_dir / fname).write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
+    stack_index[target] = fname
+    print(f"wrote {stack_dir / fname}  ({(stack_dir / fname).stat().st_size / 1024:.1f} KB)")
+(stack_dir / "index.json").write_text(json.dumps({"targets": stack_index, "feature_order": meta_model["features"]}, ensure_ascii=False, indent=1), encoding="utf-8")
 
 out = Path(args.out)
 out.parent.mkdir(parents=True, exist_ok=True)

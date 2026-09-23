@@ -92,6 +92,7 @@ export function buildProfileContext(profile) {
 درآمد ماهانه: ${fmtNum(profile.monthlyIncome)} تومان
 هزینه ماهانه: ${fmtNum(profile.monthlyExpenses)} تومان
 بدهی/اقساط وام فعلی: ${fmtNum(profile.existingDebt)} تومان
+افق زمانی سرمایه‌گذاری: ${profile.horizonYears ? `${profile.horizonYears} سال` : "نامشخص"}
 یادداشت افق زمانی سرمایه‌گذاری: ${profile.timeHorizonNote || "ندارد"}
 یادداشت نیاز به نقدینگی: ${profile.liquidityNeedNote || "ندارد"}
 مهم‌ترین هدف مالی زندگی (خوداظهاری آزاد): ${profile.mainGoalDescription || "ندارد"}

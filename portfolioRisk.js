@@ -210,8 +210,18 @@ export function analyzePortfolio(holdings, profile = {}) {
   const modeledShare = cols.reduce((s, c) => s + Wm[c], 0);
   const hasMarket = modeledShare > 0.02 + 1e-6;
 
-  // ---- concentration (whole wealth; one holding per type)
-  const hold = Object.values(w);
+  // ---- concentration (whole wealth). A "stock"/"crypto_alt" holding isn't really one undiversified
+  // position — FinMind always models it as the equal-weight 30-stock / alt-coin basket (same as
+  // calculator.py's own concentration metric, which counts each basket member as its own holding) —
+  // so it's expanded here the same way, or a bare stock holding would look artificially concentrated.
+  const stockN = (pack.meta.stock_basket_members || []).length || 1;
+  const altN = (pack.meta.crypto_alt_basket_members || []).length || 1;
+  const hold = [];
+  for (const [t, x] of Object.entries(w)) {
+    if (t === "stock" && x > 0) hold.push(...Array(stockN).fill(x / stockN));
+    else if (t === "crypto_alt" && x > 0) hold.push(...Array(altN).fill(x / altN));
+    else hold.push(x);
+  }
   const hhiHoldings = hold.reduce((s, x) => s + x * x, 0);
   const bs = cfg.broad_list.map((b) => broadShare[b]);
   const hhiClass = bs.reduce((s, x) => s + x * x, 0);
@@ -362,7 +372,7 @@ export function analyzePortfolio(holdings, profile = {}) {
     total,
     modeledShare,
     hasMarketAssets: hasMarket,
-    allocation: { byType: w, byClass: broadShare, exposureShares: share },
+    allocation: { byType: w, byClass: broadShare, exposureShares: share, seriesWeights: Wm },
     dispersion: {
       diversificationScore, effectiveNHoldings: 1 / hhiHoldings, hhiHoldings, effectiveNClass: 1 / hhiClass, hhiClass,
       entropyClassNorm: entropy / Math.log(cfg.broad_list.length), top1Share: top1, top3Share: top3,

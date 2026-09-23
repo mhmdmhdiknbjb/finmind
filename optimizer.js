@@ -1,6 +1,7 @@
 import { solveQP } from "quadprog";
-import { categoryStats } from "./marketData.js";
+import { categoryStats, getMarketPack } from "./marketData.js";
 import { analyzePortfolio, holdingsFromAssets, holdingsFromCategoryWeights } from "./portfolioRisk.js";
+import { stackForwardRanges } from "./stackForward.js";
 
 /**
  * Phase 1 — Portfolio optimization engine (Markowitz mean-variance, localized for Iran).
@@ -324,6 +325,26 @@ export function optimizePortfolio(profile) {
  * evaluated with the SAME engine (keeping the user's own mix inside each category), so "current vs suggested"
  * is an apples-to-apples comparison. Without a market pack the parametric numbers are kept unchanged.
  */
+const round4 = (x) => (Number.isFinite(x) ? Math.round(x * 10000) / 10000 : null);
+
+// For the 2 forward-range rows workflow's rigorous evaluation actually found beat the historical (B2)
+// baseline — see clean/models/model_card.md — replaces that row's p10/p50/p90 with the FHS + LightGBM
+// (STACK) correction and tags its source. Every other row keeps analyzePortfolio's B2 baseline
+// untouched: that's still the validated, honest choice for them (see stackForward.js's own header).
+function applyStackForwardRanges(profile, analysis) {
+  if (!analysis.forward) return;
+  let stacked;
+  try {
+    stacked = stackForwardRanges(profile, analysis, getMarketPack());
+  } catch (e) {
+    console.error("stackForwardRanges failed, keeping B2 baseline:", e.message);
+    return;
+  }
+  const q = (v) => ({ p10: round4(v.p10), p50: round4(v.p50), p90: round4(v.p90), source: "ml_stack" });
+  if (stacked.t_ret_vs_usd_26w) analysis.forward["26w"].retVsUsd = q(stacked.t_ret_vs_usd_26w);
+  if (stacked.t_max_drawdown_52w) analysis.forward["52w"].maxDrawdown = q(stacked.t_max_drawdown_52w);
+}
+
 function withMarketRisk(stats, profile, total, categoryWeights) {
   if (!(total > 0)) return stats;
   const currentHoldings = holdingsFromAssets(profile.assets);
@@ -335,6 +356,7 @@ function withMarketRisk(stats, profile, total, categoryWeights) {
     debt: profile.existingDebt,
   });
   if (!analysis) return stats;
+  applyStackForwardRanges(profile, analysis);
   return {
     ...stats,
     volatility: analysis.risk.wealthVol1y,
