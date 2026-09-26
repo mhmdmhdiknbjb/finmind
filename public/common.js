@@ -2,16 +2,8 @@
 // so each page only imports what it needs instead of loading one giant
 // all-widgets bundle.
 
-export const CATEGORY_LABELS = {
-  cash: "نقد و سپرده بانکی",
-  gold: "طلا",
-  currency: "ارز",
-  stock: "سهام (بورس)",
-  fund: "صندوق سرمایه‌گذاری",
-  realestate: "ملک و مستغلات",
-  crypto: "رمزارز",
-  other: "سایر",
-};
+export { CATEGORY_LABELS, CURRENCY_SYMBOLS, CRYPTO_SYMBOLS, ASSET_KINDS, UNIT_LABELS, kindOf, isQuantityAsset } from "./assetCatalog.js";
+import { CATEGORY_LABELS } from "./assetCatalog.js";
 export const CATEGORY_COLORS = {
   cash: "#2dd4bf",
   gold: "#fb923c",
@@ -23,17 +15,7 @@ export const CATEGORY_COLORS = {
   other: "#94a3b8",
 };
 
-export const CURRENCY_SYMBOLS = [
-  ["USD", "دلار آمریکا"], ["EUR", "یورو"], ["GBP", "پوند"], ["AED", "درهم امارات"],
-  ["TRY", "لیر ترکیه"], ["CAD", "دلار کانادا"], ["AUD", "دلار استرالیا"], ["CHF", "فرانک سوئیس"],
-  ["CNY", "یوآن چین"], ["SAR", "ریال عربستان"], ["KWD", "دینار کویت"], ["IQD", "دینار عراق"],
-  ["JPY", "ین ژاپن"], ["INR", "روپیه هند"], ["RUB", "روبل روسیه"],
-];
-export const CRYPTO_SYMBOLS = [
-  ["BTC", "بیت‌کوین"], ["ETH", "اتریوم"], ["USDT", "تتر"], ["XRP", "ایکس‌آرپی"], ["BNB", "بی‌ان‌بی"],
-  ["SOL", "سولانا"], ["USDC", "یواس‌دی کوین"], ["ADA", "کاردانو"], ["DOGE", "دوج‌کوین"], ["TRX", "ترون"],
-  ["LINK", "چین‌لینک"], ["XLM", "استلار"], ["AVAX", "آوالانچ"], ["LTC", "لایت‌کوین"], ["DOT", "پولکادات"],
-];
+
 
 export const SCENARIO_PRESETS = [
   { id: "usd_up_30", title: "دلار ۳۰٪ رشد کند", description: "نرخ دلار آزاد نسبت به وضعیت فعلی ۳۰ درصد افزایش پیدا می‌کند." },

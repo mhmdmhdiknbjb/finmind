@@ -34,6 +34,9 @@ export async function fetchLiveRates() {
   const gold18k = (data.gold || []).find((g) => g.symbol === "IR_GOLD_18K");
   if (!gold18k) throw new Error("قیمت طلای ۱۸ عیار در پاسخ BrsApi یافت نشد");
 
+  const gold = {};
+  for (const g of data.gold || []) gold[g.symbol] = Number(g.price);
+
   const currencies = {};
   for (const c of data.currency || []) currencies[c.symbol] = c.price;
 
@@ -48,6 +51,7 @@ export async function fetchLiveRates() {
     time: data.time,
     usdToman: currencies.USD,
     goldTomanPerGram: gold18k.price,
+    gold, // every quote by BrsApi symbol: IR_GOLD_18K/24K/MELTED (per mesghal), IR_COIN_* (per coin), XAUUSD
     currencies,
     cryptos,
     source: "BrsApi.ir (نرخ آزاد بازار ایران)",

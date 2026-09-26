@@ -3,6 +3,10 @@ import {
   CATEGORY_LABELS,
   CURRENCY_SYMBOLS,
   CRYPTO_SYMBOLS,
+  ASSET_KINDS,
+  UNIT_LABELS,
+  kindOf,
+  isQuantityAsset,
   formatToman,
   tomanToMillionInput,
   millionInputToToman,
@@ -78,10 +82,6 @@ async function getLiveRatesCached() {
   }
 }
 
-function isQuantityCategory(cat) {
-  return cat === "gold" || cat === "currency" || cat === "crypto";
-}
-
 function symbolListFor(cat) {
   if (cat === "currency") return CURRENCY_SYMBOLS;
   if (cat === "crypto") return CRYPTO_SYMBOLS;
@@ -95,65 +95,72 @@ function renderAssetRows(assets) {
   assets.forEach((a) => addAssetRow(a));
 }
 
+/** Live toman price of one unit (gram / mesghal / coin / currency unit / crypto coin) of this row, or null. */
+function livePriceOf(asset, rates) {
+  if (asset.category === "currency") return rates.currencies[asset.symbol || "USD"] ?? rates.usdToman;
+  if (asset.category === "crypto") {
+    const usd = rates.cryptos[asset.symbol || "BTC"];
+    return usd ? usd * rates.usdToman : null;
+  }
+  if (asset.category === "gold") {
+    const live = kindOf(asset)?.live;
+    if (!live) return null;
+    return rates.gold?.[live] ?? (live === "IR_GOLD_18K" ? rates.goldTomanPerGram : null);
+  }
+  return null;
+}
+
 function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
   const wrap = $("assetRows");
   const row = document.createElement("div");
   row.className = "asset-row";
 
-  const select = document.createElement("select");
+  const catSelect = document.createElement("select");
+  catSelect.className = "js-cat";
   Object.entries(CATEGORY_LABELS).forEach(([val, label]) => {
     const opt = document.createElement("option");
     opt.value = val;
     opt.textContent = label;
     if (val === asset.category) opt.selected = true;
-    select.appendChild(opt);
+    catSelect.appendChild(opt);
   });
 
-  // Second field: a free-text label for most categories, or a symbol picker
-  // (which currency / which coin) for currency & crypto.
-  let secondField = document.createElement("input");
-  secondField.placeholder = "توضیح (اختیاری) مثلاً سپرده بانک ملت";
-  secondField.value = asset.label || "";
+  // Second column: a symbol picker (which currency / coin), or a KIND picker (which sort of gold / fund / ...)
+  // plus an optional free-text note.
+  const second = document.createElement("div");
+  second.className = "asset-kind-wrap";
 
   const valueInput = document.createElement("input");
   valueInput.type = "number";
-
+  valueInput.className = "js-value";
   const hint = document.createElement("div");
   hint.className = "asset-row-hint hidden";
 
-  function buildSymbolSelect(cat, symbol) {
-    const sel = document.createElement("select");
-    symbolListFor(cat).forEach(([val, label]) => {
-      const opt = document.createElement("option");
-      opt.value = val;
-      opt.textContent = `${val} — ${label}`;
-      if (val === symbol) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    sel.onchange = updateHint;
-    return sel;
-  }
+  const current = () => {
+    const kindEl = second.querySelector(".js-kind");
+    const symEl = second.querySelector(".js-symbol");
+    return { category: catSelect.value, kind: kindEl ? kindEl.value : undefined, symbol: symEl ? symEl.value : undefined };
+  };
+  const unitOf = () => {
+    const a = current();
+    if (a.category === "currency") return "unit";
+    if (a.category === "crypto") return "coin";
+    return kindOf(a)?.unit || "toman";
+  };
 
-  function rebuildSecondField(cat, initialAsset) {
-    const list = symbolListFor(cat);
-    const next = list ? buildSymbolSelect(cat, initialAsset?.category === cat ? initialAsset.symbol : null) : (() => {
-      const input = document.createElement("input");
-      input.placeholder = "توضیح (اختیاری) مثلاً سپرده بانک ملت";
-      input.value = initialAsset?.category === cat ? initialAsset.label || "" : "";
-      return input;
-    })();
-    secondField.replaceWith(next);
-    secondField = next;
-  }
-
-  function setPlaceholderFor(cat) {
-    if (cat === "gold") {
+  function setPlaceholder() {
+    const a = current();
+    const u = unitOf();
+    if (u === "gram" || u === "mesghal") {
       valueInput.step = "0.001";
-      valueInput.placeholder = "مقدار (گرم)";
-    } else if (cat === "currency") {
+      valueInput.placeholder = `مقدار (${UNIT_LABELS[u]})`;
+    } else if (u === "count") {
+      valueInput.step = "1";
+      valueInput.placeholder = "تعداد (عدد)";
+    } else if (a.category === "currency") {
       valueInput.step = "0.01";
       valueInput.placeholder = "تعداد";
-    } else if (cat === "crypto") {
+    } else if (a.category === "crypto") {
       valueInput.step = "0.0001";
       valueInput.placeholder = "تعداد واحد";
     } else {
@@ -163,43 +170,71 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
   }
 
   async function updateHint() {
-    const cat = select.value;
-    if (!isQuantityCategory(cat) || !valueInput.value) {
-      hint.classList.add("hidden");
-      return;
-    }
+    const a = current();
+    if (!isQuantityAsset(a) || !valueInput.value) return hint.classList.add("hidden");
     const rates = await getLiveRatesCached();
-    if (!rates) {
-      hint.classList.add("hidden");
-      return;
-    }
-    let price = null;
-    if (cat === "gold") price = rates.goldTomanPerGram;
-    else if (cat === "currency") price = rates.currencies[secondField.value || "USD"] ?? rates.usdToman;
-    else if (cat === "crypto") {
-      const usd = rates.cryptos[secondField.value || "BTC"];
-      price = usd ? usd * rates.usdToman : null;
-    }
-    if (!price) {
-      hint.classList.add("hidden");
-      return;
-    }
+    const price = rates ? livePriceOf(a, rates) : null;
+    if (!price) return hint.classList.add("hidden");
     hint.textContent = `≈ ${formatToman(Number(valueInput.value) * price)} (نرخ آنی)`;
     hint.classList.remove("hidden");
   }
 
-  rebuildSecondField(asset.category, asset);
-  setPlaceholderFor(asset.category);
-  if (isQuantityCategory(asset.category)) {
-    valueInput.value = asset.quantity ?? "";
-  } else {
-    valueInput.value = tomanToMillionInput(asset.amount);
+  let lastUnit = null;
+  function buildSecond(initial) {
+    const cat = catSelect.value;
+    second.innerHTML = "";
+    const list = symbolListFor(cat);
+    if (list) {
+      const sel = document.createElement("select");
+      sel.className = "js-symbol";
+      list.forEach(([val, label]) => {
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.textContent = `${val} — ${label}`;
+        if (initial?.category === cat && val === initial.symbol) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.onchange = updateHint;
+      second.appendChild(sel);
+    } else {
+      const def = ASSET_KINDS[cat];
+      const sel = document.createElement("select");
+      sel.className = "js-kind";
+      const wanted = initial?.category === cat ? initial.kind || def.default : def.default;
+      def.kinds.forEach((k) => {
+        const opt = document.createElement("option");
+        opt.value = k.id;
+        opt.textContent = k.label;
+        if (k.id === wanted) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.onchange = () => {
+        if (unitOf() !== lastUnit) {
+          valueInput.value = "";
+          hint.classList.add("hidden");
+        }
+        lastUnit = unitOf();
+        setPlaceholder();
+        updateHint();
+      };
+      const label = document.createElement("input");
+      label.className = "js-label";
+      label.placeholder = "توضیح (اختیاری) مثلاً سپرده بانک ملت";
+      label.value = initial?.category === cat ? initial.label || "" : "";
+      second.append(sel, label);
+    }
   }
+
+  buildSecond(asset);
+  setPlaceholder();
+  lastUnit = unitOf();
+  valueInput.value = isQuantityAsset(current()) ? asset.quantity ?? "" : tomanToMillionInput(asset.amount);
   updateHint();
 
-  select.onchange = () => {
-    rebuildSecondField(select.value, null);
-    setPlaceholderFor(select.value);
+  catSelect.onchange = () => {
+    buildSecond(null);
+    setPlaceholder();
+    lastUnit = unitOf();
     valueInput.value = "";
     hint.classList.add("hidden");
   };
@@ -215,24 +250,28 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
   valueWrap.className = "asset-value-wrap";
   valueWrap.append(valueInput, hint);
 
-  row.append(select, secondField, valueWrap, delBtn);
+  row.append(catSelect, second, valueWrap, delBtn);
   wrap.appendChild(row);
 }
 
 function collectProfileFromForm() {
   const assets = [];
   $("assetRows").querySelectorAll(".asset-row").forEach((row) => {
-    const [select, secondField, valueInput] = row.querySelectorAll("select, input");
-    const category = select.value;
+    const category = row.querySelector(".js-cat").value;
+    const value = row.querySelector(".js-value").value;
     if (category === "currency" || category === "crypto") {
-      const quantity = Number(valueInput.value) || 0;
-      if (quantity > 0) assets.push({ category, symbol: secondField.value, quantity });
-    } else if (category === "gold") {
-      const quantity = Number(valueInput.value) || 0;
-      if (quantity > 0) assets.push({ category, label: secondField.value.trim(), quantity });
+      const quantity = Number(value) || 0;
+      if (quantity > 0) assets.push({ category, symbol: row.querySelector(".js-symbol").value, quantity });
+      return;
+    }
+    const kind = row.querySelector(".js-kind").value;
+    const label = row.querySelector(".js-label").value.trim();
+    if (isQuantityAsset({ category, kind })) {
+      const quantity = Number(value) || 0;
+      if (quantity > 0) assets.push({ category, kind, label, quantity });
     } else {
-      const amount = millionInputToToman(valueInput.value);
-      if (amount > 0) assets.push({ category, label: secondField.value.trim(), amount });
+      const amount = millionInputToToman(value);
+      if (amount > 0) assets.push({ category, kind, label, amount });
     }
   });
 
@@ -499,8 +538,9 @@ function applyVoiceExtraction(extracted) {
   if (extracted.assets && extracted.assets.length) {
     const existingRows = $("assetRows").querySelectorAll(".asset-row");
     if (existingRows.length === 1) {
-      const [, secondField, valueInput] = existingRows[0].querySelectorAll("select, input");
-      if (!valueInput.value && !secondField.value) existingRows[0].remove();
+      const valueInput = existingRows[0].querySelector(".js-value");
+      const labelInput = existingRows[0].querySelector(".js-label");
+      if (!valueInput.value && !(labelInput && labelInput.value)) existingRows[0].remove();
     }
     extracted.assets.forEach((a) => addAssetRow(a));
   }

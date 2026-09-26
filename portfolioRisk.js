@@ -1,4 +1,5 @@
 import { getMarketPack, seriesArrays, PPY } from "./marketData.js";
+import { kindOf } from "./public/assetCatalog.js";
 
 /**
  * Dispersion (diversification) + risk engine.
@@ -36,6 +37,19 @@ const HOLDING_TYPES = {
   fixed_income_fund: { series: { fixed_income_fund: 1 }, cls: "fund", cashLike: 1 },
   // FinMind's generic "fund" cannot say which kind it is: modelled as an even blend of an equity fund and a fixed-income fund.
   fund: { series: { equity_fund: 0.5, fixed_income_fund: 0.5 }, cls: "fund", eqLinked: 0.5, cashLike: 0.5, liq: 0.875 },
+  // Kinds the user can now pick (public/assetCatalog.js). Gold coins / gold funds ride the same gold series;
+  // a leveraged fund is modelled as an (under-stated) equity fund; kinds with no price history in the pack
+  // (silver, commodity/real-estate funds, bonds, vehicles) are unmodelled: concentration + liquidity only.
+  coin_full: { series: { gold_physical: 1 }, cls: "gold", goldLinked: 1 },
+  coin_partial: { series: { gold_physical: 1 }, cls: "gold", goldLinked: 1 },
+  gold_fund: { series: { gold_physical: 1 }, cls: "gold", goldLinked: 1 },
+  silver: { cls: "gold", goldLinked: 1 },
+  leveraged_fund: { series: { equity_fund: 1 }, cls: "fund", eqLinked: 1 },
+  commodity_fund: { cls: "fund" },
+  realestate_fund: { cls: "fund", realAsset: 1 },
+  bond_govt: { cls: "bond", cashLike: 1 },
+  bond_corp: { cls: "bond", cashLike: 1 },
+  vehicle: { cls: "vehicle", realAsset: 1 },
   real_estate: { cls: "real_estate", realAsset: 1 },
   other_assets: { cls: "other_assets" },
 };
@@ -49,13 +63,13 @@ const SERIES_CLASS = {
   equity_fund: "fund", fixed_income_fund: "fund",
 };
 
-const UNPRICED_FOR_LIQUID_BUFFER = new Set(["real_estate", "other_assets"]); // calculator excludes these from the emergency buffer
+const UNPRICED_FOR_LIQUID_BUFFER = new Set(["real_estate", "other_assets", "vehicle", "realestate_fund"]); // calculator excludes these from the emergency buffer
 
 /** Maps a FinMind asset category (+ symbol) to a holding type. */
 export function holdingTypeOf(asset) {
   switch (asset.category) {
-    case "cash": return "cash_deposit";
-    case "gold": return "gold_physical";
+    case "cash": return kindOf(asset)?.type || "cash_deposit";
+    case "gold": return kindOf(asset)?.type || "gold_physical";
     case "currency": {
       const s = asset.symbol || "USD";
       return s === "USD" ? "fx_usd" : s === "EUR" ? "fx_eur" : "fx_other";
@@ -68,9 +82,9 @@ export function holdingTypeOf(asset) {
       return "crypto_alt";
     }
     case "stock": return "stock";
-    case "fund": return "fund";
+    case "fund": return kindOf(asset)?.type || "fund";
     case "realestate": return "real_estate";
-    default: return "other_assets";
+    default: return kindOf(asset)?.type || "other_assets";
   }
 }
 
@@ -92,7 +106,7 @@ const DEFAULT_TYPE_FOR_CATEGORY = {
 };
 const CATEGORY_OF_TYPE = (type) => {
   if (type === "cash_deposit") return "cash";
-  if (type === "gold_physical") return "gold";
+  if (type === "gold_physical" || type === "coin_full" || type === "coin_partial" || type === "silver") return "gold";
   if (type.startsWith("fx_")) return "currency";
   if (type.startsWith("crypto_")) return "crypto";
   if (type === "stock") return "stock";
@@ -341,6 +355,12 @@ export function analyzePortfolio(holdings, profile = {}) {
   flag("realestate_heavy_illiquid", broadShare.real_estate > FL.realestate_heavy_share);
   flag("no_fx_gold_hedge", share.fx_linked + share.gold_linked < FL.no_hedge_share && reg.usd_ret_52w > 0.3);
   flag("debt_heavy", debtToWealth > FL.debt_ratio);
+  // calculator.py: leveraged-fund share is only a risk for someone with dependents or over 50; a large coin
+  // position is only flagged while the coin premium ("حباب") over its gold value is high.
+  const nDependents = Number(profile.nDependents) || 0;
+  flag("leveraged_fund_risk", (w.leveraged_fund || 0) > FL.leverage_share && (nDependents > 0 || age > 50));
+  const coinBubble = Math.max(reg.bubble_emami_pct ?? -Infinity, reg.bubble_bahar_pct ?? -Infinity);
+  flag("coin_bubble_exposure", (w.coin_full || 0) + (w.coin_partial || 0) > FL.coin_share && Number.isFinite(coinBubble) && coinBubble > FL.coin_bubble_pct);
   flag("no_market_assets", !hasMarket);
 
   // ---- forward ranges: vol-scaled historical quantiles (calculator's B2 baseline; the ML/FHS layers are not ported)

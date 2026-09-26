@@ -38,7 +38,10 @@ function renderDecisionResult(data) {
   typeWordsInto($("decisionGoalImpact"), data.goalImpact || "—");
 
   const recEl = $("decisionRecommendation");
-  recEl.textContent = data.recommendation || "—";
+  // The stored value ("پیشنهاد می‌شود"...) keeps driving the behaviour-learning logic; what the user reads is a
+  // fit assessment of THEIR OWN hypothetical decision, never an instruction to trade.
+  const REC_LABEL = { "پیشنهاد می‌شود": "همسو با ریسک و اهداف شما", "با احتیاط": "قابل‌تأمل؛ با احتیاط", "پیشنهاد نمی‌شود": "ناهمسو با ریسک و اهداف شما" };
+  recEl.textContent = REC_LABEL[data.recommendation] || data.recommendation || "—";
   recEl.className = "recommendation-badge";
   if (data.recommendation === "پیشنهاد می‌شود") recEl.classList.add("rec-go");
   else if (data.recommendation === "با احتیاط") recEl.classList.add("rec-caution");

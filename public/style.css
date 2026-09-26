@@ -166,6 +166,9 @@ textarea { resize: vertical; }
 .asset-row { display: grid; grid-template-columns: 1fr 1.4fr 1fr auto; gap: 8px; align-items: center; }
 @media (max-width: 700px) { .asset-row { grid-template-columns: 1fr; } }
 .asset-row .btn-del { background: transparent; color: var(--neg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+.asset-kind-wrap { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.asset-kind-wrap select, .asset-kind-wrap input { width: 100%; }
+.asset-row { align-items: start; }
 .asset-value-wrap { display: flex; flex-direction: column; gap: 3px; }
 .asset-value-wrap input { width: 100%; }
 .asset-row-hint { font-size: 11px; color: var(--accent); padding: 0 2px; }

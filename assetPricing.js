@@ -1,4 +1,5 @@
 import { fetchLiveRates } from "./marketFeed.js";
+import { kindOf, isQuantityAsset } from "./public/assetCatalog.js";
 
 /**
  * Gold, currency, and crypto holdings are entered by the user as a
@@ -30,7 +31,11 @@ export async function getLiveRates() {
 
 /** Toman price of one unit of `quantity` for this asset, or null if not a live-priced category. */
 function unitPriceToman(asset, rates) {
-  if (asset.category === "gold") return rates.goldTomanPerGram;
+  if (asset.category === "gold") {
+    const live = kindOf(asset)?.live; // silver etc. have no live quote: they are entered as a toman amount
+    if (!live) return null;
+    return rates.gold?.[live] ?? (live === "IR_GOLD_18K" ? rates.goldTomanPerGram : null);
+  }
   if (asset.category === "currency") return rates.currencies[asset.symbol || "USD"] ?? rates.usdToman;
   if (asset.category === "crypto") {
     const usdPrice = rates.cryptos[asset.symbol || "BTC"];
@@ -58,17 +63,19 @@ export async function normalizeExtractedAssets(assets) {
   const out = [];
   for (const a of assets) {
     if (!a || !a.category) continue;
-    if (a.category === "gold" || a.category === "currency" || a.category === "crypto") {
+    const kind = kindOf(a)?.id; // undefined for currency/crypto; falls back to the category default for an unknown id
+    const probe = { category: a.category, symbol: a.symbol, kind };
+    if (isQuantityAsset(probe)) {
       const symbol = a.symbol || (a.category === "crypto" ? "BTC" : "USD");
       let quantity = Number(a.quantity) || 0;
       if (quantity <= 0 && a.amount && rates) {
-        const price = unitPriceToman({ category: a.category, symbol }, rates);
+        const price = unitPriceToman({ ...probe, symbol }, rates);
         if (price) quantity = Number(a.amount) / price;
       }
-      if (quantity > 0) out.push({ category: a.category, symbol, quantity, label: a.label || "" });
+      if (quantity > 0) out.push({ category: a.category, ...(a.category === "gold" ? { kind } : { symbol }), quantity, label: a.label || "" });
     } else {
       const amount = Number(a.amount) || 0;
-      if (amount > 0) out.push({ category: a.category, amount, label: a.label || "" });
+      if (amount > 0) out.push({ category: a.category, ...(kind ? { kind } : {}), amount, label: a.label || "" });
     }
   }
   return out;
@@ -127,14 +134,15 @@ export async function applyAssetChanges(profile, changes) {
     if (!category || !Number.isFinite(amountDelta) || amountDelta === 0) continue;
 
     if (category === "gold" || category === "currency" || category === "crypto") {
-      const idx = assets.findIndex((a) => a.category === category);
-      const refAsset = idx !== -1 ? assets[idx] : { category, symbol: category === "crypto" ? "BTC" : "USD" };
+      // only rows priced by quantity can absorb a toman delta (a toman-entered silver row cannot)
+      const idx = assets.findIndex((a) => a.category === category && isQuantityAsset(a));
+      const refAsset = idx !== -1 ? assets[idx] : { category, ...(category === "gold" ? { kind: "gold18" } : { symbol: category === "crypto" ? "BTC" : "USD" }) };
       const price = rates ? unitPriceToman(refAsset, rates) : null;
       if (!price) continue;
       const quantityDelta = amountDelta / price;
       if (idx === -1) {
         if (quantityDelta <= 0) continue;
-        assets.push({ category, symbol: refAsset.symbol, quantity: quantityDelta });
+        assets.push({ category, ...(category === "gold" ? { kind: refAsset.kind } : { symbol: refAsset.symbol }), quantity: quantityDelta });
       } else {
         assets[idx].quantity = Math.max(0, (Number(assets[idx].quantity) || 0) + quantityDelta);
       }

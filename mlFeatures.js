@@ -7,17 +7,12 @@
  * DATA vs ASSUMPTIONS (same spirit as optimizer.js's header comment):
  *  - w_, d_share_, y_, f_, ctx_, reg_ and cf_ columns are computed from real data (the same
  *    deterministic engines used everywhere else in the app) or come frozen from market_pack.json.
- *  - The STACK model was trained on 26 fine-grained asset subclasses (e.g. "سکه امامی" vs "ربع سکه"
- *    vs bullion, each a separate w_* column); FinMind only collects 8 broad categories from the user.
- *    A category FinMind cannot distinguish (bonds, leveraged funds, real-estate funds, gold coins vs
- *    bullion, ...) is simply left at weight 0 — this is a genuine approximation, not a bug: the model
- *    still sees the categories FinMind DOES track (which carry most of the feature importance — see
- *    clean/models/model_card.md), just not the finer subtypes finmind's UI doesn't ask for.
+ *  - The STACK model was trained on 26 fine-grained asset subclasses. FinMind's asset kinds
+ *    (public/assetCatalog.js) now cover most of them (coins, silver, gold/leveraged/real-estate/commodity
+ *    funds, government/corporate bonds, vehicles); the few with no FinMind equivalent (equity_index,
+ *    bond_housing_cert) stay at weight 0 — a genuine approximation, not a bug.
  *  - profile_horizon_years falls back to the same age-based heuristic the synthetic training data used
  *    (workflow/pipeline/04_synthetic_portfolios.py) when the user hasn't filled in the new horizon field.
- *  - f_leveraged_fund_risk / f_coin_bubble_exposure are always 0: FinMind has no leveraged-fund holding
- *    type, and "gold" doesn't distinguish a coin (which can carry a speculative premium/"bubble") from
- *    bullion (which doesn't).
  */
 
 const MARITAL = ["single", "married", "divorced", "widowed"];
@@ -87,13 +82,13 @@ export function buildBaseFeatures(profile, analysis, pack) {
   const wGet = (t) => w[t] || 0;
   Object.assign(X, {
     w_fx_usd: wGet("fx_usd"), w_fx_eur: wGet("fx_eur"), w_fx_other: wGet("fx_other"),
-    w_gold_physical: wGet("gold_physical"), w_coin_full: 0, w_coin_partial: 0, w_silver: 0, w_gold_fund: 0,
+    w_gold_physical: wGet("gold_physical"), w_coin_full: wGet("coin_full"), w_coin_partial: wGet("coin_partial"), w_silver: wGet("silver"), w_gold_fund: wGet("gold_fund"),
     w_crypto_btc: wGet("crypto_btc"), w_crypto_eth: wGet("crypto_eth"), w_crypto_stable: wGet("crypto_stable"),
     w_equity_index: 0, w_crypto_alt: wGet("crypto_alt"), w_stock: wGet("stock"),
-    w_equity_fund: wGet("equity_fund") + 0.5 * wGet("fund"), w_leveraged_fund: 0,
+    w_equity_fund: wGet("equity_fund") + 0.5 * wGet("fund"), w_leveraged_fund: wGet("leveraged_fund"),
     w_fixed_income_fund: wGet("fixed_income_fund") + 0.5 * wGet("fund"),
-    w_realestate_fund: 0, w_commodity_fund: 0, w_bond_govt: 0, w_bond_corp: 0, w_bond_housing_cert: 0,
-    w_cash_deposit: wGet("cash_deposit"), w_real_estate: wGet("real_estate"), w_vehicle: 0,
+    w_realestate_fund: wGet("realestate_fund"), w_commodity_fund: wGet("commodity_fund"), w_bond_govt: wGet("bond_govt"), w_bond_corp: wGet("bond_corp"), w_bond_housing_cert: 0,
+    w_cash_deposit: wGet("cash_deposit"), w_real_estate: wGet("real_estate"), w_vehicle: wGet("vehicle"),
     w_other_assets: wGet("other_assets"),
   });
 
@@ -131,11 +126,9 @@ export function buildBaseFeatures(profile, analysis, pack) {
   // ---- f_* flags + n_flags
   const flagSet = new Set(d.flags || []);
   for (const f of ["single_asset_dominant", "no_liquid_buffer", "crypto_heavy_older", "mostly_rial_cash_like",
-    "realestate_heavy_illiquid", "no_fx_gold_hedge", "debt_heavy", "no_market_assets"]) {
+    "realestate_heavy_illiquid", "no_fx_gold_hedge", "debt_heavy", "no_market_assets", "leveraged_fund_risk", "coin_bubble_exposure"]) {
     X[`f_${f}`] = flagSet.has(f) ? 1 : 0;
   }
-  X.f_leveraged_fund_risk = 0; // see file header
-  X.f_coin_bubble_exposure = 0;
   X.n_flags = flagSet.size;
 
   // ---- ctx_* — already computed by analyzePortfolio as `marketContext`.
