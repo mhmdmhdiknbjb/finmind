@@ -128,9 +128,10 @@ function renderDispersion(d) {
   $("dispersionNotes").textContent = d.warnings.join(" ");
 }
 
-function statChip(label, value) {
+function statChip(label, value, hint) {
   const div = document.createElement("div");
   div.className = "stat-chip";
+  if (hint) div.title = hint;
   div.innerHTML = `<span class="stat-label">${label}</span><span class="stat-value">${value}</span>`;
   return div;
 }
@@ -144,7 +145,26 @@ function renderStatChips(elId, stats) {
   // Same 0-100 score shown on صفحه‌ی ریسک‌سنجی (identical formula, identical
   // number) so the two pages never look like they disagree about risk.
   wrap.appendChild(statChip("امتیاز ریسک (از ۱۰۰)", stats.riskScore));
-  wrap.appendChild(statChip("نقدینگی", formatPercent(stats.liquidityPercent)));
+  // Two different measures, labelled as such so the two pages never look like they disagree:
+  //  - the weighted score: mean of each holding's liquidity factor (also a constraint of the optimizer)
+  //  - the tiers: the same fast / semi-liquid / illiquid split shown on صفحه‌ی نقدینگی
+  wrap.appendChild(
+    statChip(
+      "امتیاز نقدشوندگی وزنی",
+      formatPercent(stats.liquidityPercent),
+      "میانگین وزنی ضریب نقدشوندگی دارایی‌ها؛ با درصد «نقد سریع / نیمه‌نقد» صفحه‌ی نقدینگی فرق دارد (آن‌جا هر دارایی در یک دسته‌ی مشخص قرار می‌گیرد)."
+    )
+  );
+  const t = stats.liquidityTiers;
+  if (t) {
+    wrap.appendChild(
+      statChip(
+        "نقد سریع / نیمه‌نقد / غیرنقد",
+        `${formatPercent(t.liquidPercent)} / ${formatPercent(t.semiLiquidPercent)} / ${formatPercent(t.illiquidPercent)}`,
+        "همان تقسیم‌بندی صفحه‌ی «نقدینگی من»."
+      )
+    );
+  }
 }
 
 function renderOptimalComparisonChart(current, optimal) {

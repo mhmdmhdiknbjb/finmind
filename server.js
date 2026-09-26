@@ -43,6 +43,17 @@ import {
   requireAuth,
 } from "./auth.js";
 
+/**
+ * Profile with live-priced assets AND the behaviour-adjusted risk tolerance attached as `_engineRiskTolerance`, so
+ * prompts, the goals engine and the validator all run the engines with the same tolerance (the goals widget and the
+ * text on other pages used to be able to disagree by a few months or on feasibility).
+ */
+async function loadResolvedProfile(userId) {
+  const profile = await resolveProfileAssets(loadProfile(userId));
+  profile._engineRiskTolerance = effectiveRiskTolerance(userId, profile.riskTolerance).effective;
+  return profile;
+}
+
 /** Blends the profile's self-reported riskTolerance with the behaviorally-learned one (Phase 4) before it reaches the optimizer. */
 function profileWithEffectiveRisk(userId, profile) {
   const info = effectiveRiskTolerance(userId, profile.riskTolerance);
@@ -292,7 +303,7 @@ app.post(
       "assets",
       !!req.body?.force,
       async () => {
-        const profile = await resolveProfileAssets(loadProfile(req.userId));
+        const profile = await loadResolvedProfile(req.userId);
         const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
         const computed = optimizePortfolio(profileForOpt);
         const explanation = await groundedJSON(promptAssets(profile, computed), profile);
@@ -304,6 +315,7 @@ app.post(
             expectedReturn: computed.current.expectedReturn,
             volatility: computed.current.volatility,
             liquidityPercent: computed.current.liquidityPercent,
+            liquidityTiers: (({ liquidPercent, semiLiquidPercent, illiquidPercent }) => ({ liquidPercent, semiLiquidPercent, illiquidPercent }))(computeLiquidity(profile)),
             riskScore: computed.current.riskScore,
           },
           optimalStats: {
@@ -334,7 +346,7 @@ app.post(
       "risk",
       !!req.body?.force,
       async () => {
-        const profile = await resolveProfileAssets(loadProfile(req.userId));
+        const profile = await loadResolvedProfile(req.userId);
         const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(req.userId, profile);
         const computed = optimizePortfolio(profileForOpt);
         const explanation = await groundedJSON(promptRisk(profile, computed), profile);
@@ -369,7 +381,7 @@ app.post(
   requireAuth,
   handleAsync(async (req, res) => {
     const result = await withSnapshot(req.userId, "liquidity", !!req.body?.force, async () => {
-      const profile = await resolveProfileAssets(loadProfile(req.userId));
+      const profile = await loadResolvedProfile(req.userId);
       const computed = computeLiquidity(profile);
       const explanation = await groundedJSON(promptLiquidity(profile, computed), profile);
       return {
@@ -390,7 +402,7 @@ app.post(
   "/api/widgets/goal",
   requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile(req.userId));
+    const profile = await loadResolvedProfile(req.userId);
     const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
     const goal = req.body.goal;
     const computed = evaluateGoal(profileForOpt, goal);
@@ -403,7 +415,7 @@ app.post(
   "/api/widgets/scenario",
   requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile(req.userId));
+    const profile = await loadResolvedProfile(req.userId);
     const scenario = req.body.scenario || {};
     let shocks = scenario.id && PRESET_SHOCKS[scenario.id] ? PRESET_SHOCKS[scenario.id] : null;
     let scenarioTitle = scenario.title;
@@ -456,7 +468,7 @@ app.post(
   "/api/widgets/decision",
   requireAuth,
   handleAsync(async (req, res) => {
-    const profile = await resolveProfileAssets(loadProfile(req.userId));
+    const profile = await loadResolvedProfile(req.userId);
     const decision = req.body.decision;
 
     // Step 1: LLM turns the free-text decision into structured per-category
@@ -588,7 +600,7 @@ app.get(
 app.post("/api/chat", requireAuth, (req, res) => {
   (async () => {
     const userId = req.userId;
-    const profile = await resolveProfileAssets(loadProfile(userId));
+    const profile = await loadResolvedProfile(userId);
     const { message } = req.body;
 
     // The server's own persisted history is the source of truth for context

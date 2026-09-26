@@ -72,6 +72,17 @@ function startingCapital(profile) {
   return liq.breakdown.filter((b) => b.tier !== "illiquid").reduce((sum, b) => sum + b.amount, 0);
 }
 
+/**
+ * The ONE place goal feasibility is decided. The goals widget, the chat/risk/liquidity prompts and the answer
+ * validator all call this, so a page can never say "your saving is not enough" while the goals page says the goal
+ * is reached in 18 months. `profile._engineRiskTolerance` (behaviour-adjusted tolerance) is used when present so the
+ * assumed growth rate is the same in every caller.
+ */
+export function evaluateGoals(profile) {
+  const engineProfile = { ...profile, riskTolerance: profile._engineRiskTolerance ?? profile.riskTolerance };
+  return (profile.goals || []).map((goal) => ({ goal, result: evaluateGoal(engineProfile, goal) }));
+}
+
 export function evaluateGoal(profile, goal) {
   const targetAmount = Math.max(0, Number(goal?.targetAmount) || 0);
   const targetMonths = Math.max(1, Math.round(Number(goal?.targetMonths) || 1));

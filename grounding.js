@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS, engineCategoryOf } from "./public/assetCatalog.js";
+import { evaluateGoals } from "./goalEngine.js";
 
 /**
  * Grounding layer: the LLM only explains numbers the engines / the user's profile already contain. This module
@@ -143,7 +144,13 @@ export function answersQuestion(question, reply) {
 function badCashflowClaim(s, profile) {
   const NEG = /(ندار|بدون|فاقد|نیست|هیچ|بی‌?بدهی|ثبت نشده)/;
   if (num(profile.existingDebt) <= 0 && /(بدهی|مقروض|اقساط|قسط|وام)/.test(s) && !NEG.test(s)) return "کاربر بدهی/قسطی ثبت نکرده است (بدهی صفر)";
-  if (num(profile.monthlyIncome) > num(profile.monthlyExpenses) && (/بیشs*ازs*(?:نیاز|درآمد)[^.]{0,30}هزینه/.test(s) || /هزینه[^.]{0,40}بیشs*(?:تر)?s*ازs*درآمد/.test(s))) return "درآمد کاربر از هزینه‌اش بیشتر است، نه کمتر";
+  if (num(profile.monthlyIncome) > num(profile.monthlyExpenses) && (/بیش\s*از\s*(?:نیاز|درآمد)[^.]{0,30}هزینه/.test(s) || /هزینه[^.]{0,40}بیش\s*(?:تر)?\s*از\s*درآمد/.test(s))) return "درآمد کاربر از هزینه‌اش بیشتر است، نه کمتر";
+  // "income/saving is not enough for the goal" must agree with the goals engine (the same function the goals page uses)
+  const NOT_ENOUGH = /((درآمد|پس‌?انداز|صرفه‌?جویی)[^.]{0,70}(کافی\s*نیست|کافی\s*به\s*نظر\s*نمی|ناکافی|کافی\s*نمی‌?باشد|کافی\s*نمی‌?رسد)|هدف[^.]{0,60}(دست‌?نیافتنی|غیرممکن|قابل\s*دستیابی\s*نیست|قابل\s*تحقق\s*نیست))/;
+  if ((profile.goals || []).length && NOT_ENOUGH.test(s)) {
+    const results = evaluateGoals(profile).map((g) => g.result);
+    if (results.every((r) => r.feasible)) return "طبق موتور اهداف، پس‌انداز و دارایی کاربر برای همه‌ی اهدافش در مهلت کافی است";
+  }
   return null;
 }
 

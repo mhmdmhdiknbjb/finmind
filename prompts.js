@@ -3,6 +3,7 @@ import { dispersionPromptBlock, riskPromptBlock } from "./riskPresenter.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 
 import { factsBlock } from "./grounding.js";
+import { evaluateGoals } from "./goalEngine.js";
 import { CATEGORY_LABELS, ASSET_KINDS, UNIT_LABELS, kindOf } from "./public/assetCatalog.js";
 
 export function categoryLabel(cat) {
@@ -51,6 +52,21 @@ function assetLine(a, i) {
   return `${i + 1}. ${label}${categoryLabel(a.category)} — ${fmtNum(a.amount)} تومان`;
 }
 
+/** Per-goal verdicts from goalEngine.js (the same function as the goals page): the only source for "is my saving enough for my goal". */
+function goalStatusBlock(profile) {
+  if (!(profile.goals || []).length) return "";
+  const lines = evaluateGoals(profile).map(({ goal, result: r }) => {
+    const pace =
+      r.monthsNeededAtCurrentPace === 0
+        ? "سرمایه‌ی موجود به‌تنهایی به هدف می‌رسد"
+        : r.monthsNeededAtCurrentPace !== null
+          ? `با سرمایه‌ی موجود و پس‌انداز ماهانه‌ی فعلی حدود ${r.monthsNeededAtCurrentPace} ماه`
+          : "با پس‌انداز فعلی به هدف نمی‌رسد";
+    return `«${goal.title}»: ${r.feasible ? "با شرایط فعلی در مهلت قابل دستیابی است" : "با شرایط فعلی در مهلت قابل دستیابی نیست"} — ${pace} (مهلت ${goal.targetMonths} ماه) — پیش‌بینی جمع‌شده تا مهلت ${fmtNum(r.projectedAmountAtDeadline)} تومان از مبلغ هدف ${fmtNum(r.targetAmount)}`;
+  });
+  return `\n\n### وضعیت رسیدن به اهداف (خروجی موتور اهداف، همان اعداد صفحه‌ی اهداف مالی — هر جمله درباره‌ی کافی/ناکافی بودن درآمد یا پس‌انداز برای هدف باید دقیقاً با همین‌ها هم‌خوان باشد و خلافش را نگو)\n${lines.join("\n")}`;
+}
+
 export function buildProfileContext(profile) {
   const p = profile.personal || {};
   const totalAssets = (profile.assets || []).reduce((s, a) => s + (Number(a.amount) || 0), 0);
@@ -77,7 +93,8 @@ export function buildProfileContext(profile) {
   // as a different number on one page/response than another: every prompt
   // sees the same canonical figures and is told to reuse them verbatim,
   // never re-derive or guess its own.
-  const riskComputed = optimizePortfolio(profile).current;
+  const engineProfile = { ...profile, riskTolerance: profile._engineRiskTolerance ?? profile.riskTolerance };
+  const riskComputed = optimizePortfolio(engineProfile).current;
   const liquidityComputed = computeLiquidity(profile);
   const canonicalNumbers = `
 
@@ -108,7 +125,7 @@ export function buildProfileContext(profile) {
 ${assetLines}${liveRatesLine}
 
 ### اهداف مالی ثبت‌شده
-${goalLines}${canonicalNumbers}
+${goalLines}${goalStatusBlock(profile)}${canonicalNumbers}
 
 ${factsBlock(profile)}`;
 }
@@ -139,7 +156,7 @@ ${buildProfileContext(profile)}
 ترکیب فعلی (درصد از کل دارایی): ${formatPct(computed.current.weights)}
 ترکیب پیشنهادی بهینه (خروجی مدل بهینه‌سازی میانگین-واریانس با قیود نقدشوندگی ایران): ${formatPct(computed.optimal.weights)}
 بازده مورد انتظار سالانه فعلی: ${(computed.current.expectedReturn * 100).toFixed(1)}٪ | پیشنهادی: ${(computed.optimal.expectedReturn * 100).toFixed(1)}٪
-نقدینگی فعلی: ${computed.current.liquidityPercent}٪ | پیشنهادی: ${computed.optimal.liquidityPercent}٪
+امتیاز نقدشوندگی وزنی (میانگین ضریب نقدشوندگی دارایی‌ها؛ با درصد «نقد سریع/نیمه‌نقد» صفحه‌ی نقدینگی فرق دارد و جایگزین آن نیست) فعلی: ${computed.current.liquidityPercent}٪ | پیشنهادی: ${computed.optimal.liquidityPercent}٪
 ${dispersionPromptBlock(computed.current.analysis, computed.optimal.analysis)}
 
 ### وظیفه
