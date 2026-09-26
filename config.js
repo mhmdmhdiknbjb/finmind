@@ -26,7 +26,10 @@ loadEnvFile();
 
 export const API_BASE_URL = process.env.FINMIND_API_BASE_URL || "https://ai.parspack.com/v1";
 export const API_KEY = process.env.FINMIND_API_KEY || "";
-export const MODEL = process.env.FINMIND_MODEL || "openai/gpt-4.1-nano";
+// Comma-separated, in order of preference. llm.js falls back to the next one when a model errors out (the provider has
+// repeatedly returned "all providers failed" for the whole OpenAI 4.1 family while gpt-4o-mini / Gemini kept working).
+export const MODELS = (process.env.FINMIND_MODEL || "openai/gpt-4.1-nano,openai/gpt-4o-mini,google/gemini-2.5-flash-lite").split(",").map((m) => m.trim()).filter(Boolean);
+export const MODEL = MODELS[0];
 export const PORT = process.env.PORT || 4173;
 
 export const BRSAPI_KEY = process.env.BRSAPI_KEY || "";

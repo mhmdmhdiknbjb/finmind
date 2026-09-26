@@ -56,7 +56,7 @@ export function buildProfileContext(profile) {
   const assetLines = (profile.assets || []).length ? profile.assets.map(assetLine).join("\n") : "کاربر هنوز هیچ دارایی‌ای ثبت نکرده است.";
 
   const liveRatesLine = profile._liveRates
-    ? `\n(نرخ‌های آنی استفاده‌شده برای تبدیل طلا/ارز/رمزارز به تومان: هر گرم طلای ۱۸ عیار ${fmtNum(profile._liveRates.goldTomanPerGram)} تومان، هر دلار ${fmtNum(profile._liveRates.usdToman)} تومان — منبع: ${profile._liveRates.source} — تاریخ ${profile._liveRates.date}، ساعت ${profile._liveRates.time})`
+    ? `\n(نرخ‌های آنی استفاده‌شده برای تبدیل طلا/ارز/رمزارز به تومان: هر گرم طلای ۱۸ عیار ${fmtNum(profile._liveRates.goldTomanPerGram)} تومان، هر دلار ${fmtNum(profile._liveRates.usdToman)} تومان — منبع: ${profile._liveRates.source}${profile._liveRates.date ? ` — تاریخ ${profile._liveRates.date}، ساعت ${profile._liveRates.time}` : ` — دریافت‌شده در ${profile._liveRates.fetchedAt}`})`
     : "";
 
   const goalLines = (profile.goals || []).length

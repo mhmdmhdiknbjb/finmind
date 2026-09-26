@@ -1,9 +1,42 @@
-import { API_BASE_URL, API_KEY, MODEL } from "./config.js";
+import { API_BASE_URL, API_KEY, MODELS } from "./config.js";
 
 // Only reasoning-family models (o-series, gpt-5-*) accept the `reasoning`
 // param; sending it to a non-reasoning model like gpt-4o-mini breaks the
 // upstream call.
-const SUPPORTS_REASONING = /^openai\/(o\d|gpt-5)/.test(MODEL);
+const supportsReasoning = (model) => /^openai\/(o\d|gpt-5)/.test(model);
+
+const REQUEST_TIMEOUT_MS = 45000;
+
+/**
+ * Model fallback. The provider (Parspack) has repeatedly answered "all providers failed" (HTTP 424, or an SSE
+ * error event inside a 200 stream) for whole model families while others kept working. A model that fails is
+ * skipped for COOLDOWN_MS so one dead model does not add its (up to 20 s) failure delay to every request; if
+ * every model is cooling down they are all tried again. Only errors from the LLM call itself trigger a fallback.
+ */
+const COOLDOWN_MS = 10 * 60 * 1000;
+const downUntil = new Map();
+
+function candidateModels() {
+  const now = Date.now();
+  const up = MODELS.filter((m) => !(downUntil.get(m) > now));
+  return up.length ? up : MODELS;
+}
+
+async function withFallback(run) {
+  let lastErr;
+  for (const model of candidateModels()) {
+    try {
+      const out = await run(model);
+      downUntil.delete(model);
+      return out;
+    } catch (err) {
+      lastErr = err;
+      downUntil.set(model, Date.now() + COOLDOWN_MS);
+      console.warn(`[llm] ${model} failed (${String(err.message).slice(0, 120)}) — trying the next model`);
+    }
+  }
+  throw lastErr;
+}
 
 function extractOutputText(data) {
   if (typeof data.output_text === "string" && data.output_text.length) return data.output_text;
@@ -19,7 +52,7 @@ function extractOutputText(data) {
   throw new Error("No output_text found in LLM response: " + JSON.stringify(data).slice(0, 500));
 }
 
-export async function callLLM(input, { effort = "medium" } = {}) {
+async function callOnce(model, input, effort) {
   const res = await fetch(`${API_BASE_URL}/responses`, {
     method: "POST",
     headers: {
@@ -27,10 +60,11 @@ export async function callLLM(input, { effort = "medium" } = {}) {
       Authorization: `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       input,
-      ...(SUPPORTS_REASONING ? { reasoning: { effort } } : {}),
+      ...(supportsReasoning(model) ? { reasoning: { effort } } : {}),
     }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     const body = await res.text();
@@ -40,14 +74,25 @@ export async function callLLM(input, { effort = "medium" } = {}) {
   return extractOutputText(data);
 }
 
+export async function callLLM(input, { effort = "medium" } = {}) {
+  return withFallback((model) => callOnce(model, input, effort));
+}
+
 /**
  * Streams a plain-text completion, invoking `onDelta(chunk)` as each token
  * arrives from the Responses API's SSE stream (event type
  * "response.output_text.delta"). Used for the chat widget so the reply
  * appears live/word-by-word instead of popping in all at once when the
  * full response finishes. Resolves with the full concatenated text.
+ *
+ * A failing model is detected before any text is shown (HTTP error, an SSE `error` event, or an empty stream)
+ * and the next model takes over; once text has started flowing an error is thrown, never silently swapped.
  */
 export async function streamLLM(input, { effort = "medium" } = {}, onDelta) {
+  return withFallback((model) => streamOnce(model, input, effort, onDelta));
+}
+
+async function streamOnce(model, input, effort, onDelta) {
   const res = await fetch(`${API_BASE_URL}/responses`, {
     method: "POST",
     headers: {
@@ -55,11 +100,12 @@ export async function streamLLM(input, { effort = "medium" } = {}, onDelta) {
       Authorization: `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       input,
       stream: true,
-      ...(SUPPORTS_REASONING ? { reasoning: { effort } } : {}),
+      ...(supportsReasoning(model) ? { reasoning: { effort } } : {}),
     }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok || !res.body) {
     const body = res.body ? await res.text() : "";
@@ -89,12 +135,15 @@ export async function streamLLM(input, { effort = "medium" } = {}, onDelta) {
       } catch {
         continue;
       }
+      // the provider reports upstream failures as `data: {"error": {...}}` inside an HTTP 200 stream
+      if (evt.error) throw new Error(`LLM stream error: ${JSON.stringify(evt.error).slice(0, 300)}`);
       if (evt.type === "response.output_text.delta" && typeof evt.delta === "string") {
         full += evt.delta;
         onDelta(evt.delta);
       }
     }
   }
+  if (!full) throw new Error("LLM stream ended without any text");
   return full;
 }
 
@@ -124,7 +173,22 @@ export function parseJSONLoose(text) {
   }
 }
 
-export async function callLLMJSON(input, opts = {}) {
-  const text = await callLLM(input, opts);
-  return parseJSONLoose(text);
+/**
+ * JSON call: an unparseable answer (a weak model echoing the prompt, wrong format) makes THIS call try the next
+ * model, but does not put the model on cooldown — that is a quality problem of one answer, not an outage.
+ */
+export async function callLLMJSON(input, { effort = "medium" } = {}) {
+  let lastErr;
+  for (const model of candidateModels()) {
+    try {
+      const parsed = parseJSONLoose(await callOnce(model, input, effort));
+      downUntil.delete(model);
+      return parsed;
+    } catch (err) {
+      lastErr = err;
+      if (!String(err.message).startsWith("Failed to parse JSON")) downUntil.set(model, Date.now() + COOLDOWN_MS);
+      console.warn(`[llm] ${model} failed (${String(err.message).slice(0, 120)}) — trying the next model`);
+    }
+  }
+  throw lastErr;
 }

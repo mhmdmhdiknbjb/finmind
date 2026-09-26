@@ -30,7 +30,9 @@ export function loadChatHistory(userId) {
   if (!fs.existsSync(f)) return [];
   try {
     const parsed = JSON.parse(fs.readFileSync(f, "utf-8"));
-    return Array.isArray(parsed) ? parsed : [];
+    // empty assistant turns were once saved when the provider's stream failed silently; fed back as context they
+    // derail the model (it started inventing names and amounts), so they never count as history
+    return Array.isArray(parsed) ? parsed.filter((m) => !(m.role === "assistant" && !String(m.content || "").trim())) : [];
   } catch {
     return [];
   }
@@ -39,7 +41,7 @@ export function loadChatHistory(userId) {
 /** Appends one or more {role, content, at} messages and returns the updated (trimmed) history. */
 export function appendChatMessages(userId, messages) {
   const history = loadChatHistory(userId);
-  const next = [...history, ...messages].slice(-MAX_MESSAGES);
+  const next = [...history, ...messages.filter((m) => !(m.role === "assistant" && !String(m.content || "").trim()))].slice(-MAX_MESSAGES);
   ensureUserDir(userId);
   fs.writeFileSync(file(userId), JSON.stringify(next, null, 2), "utf-8");
   return next;
