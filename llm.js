@@ -5,7 +5,14 @@ import { API_BASE_URL, API_KEY, MODELS } from "./config.js";
 // upstream call.
 const supportsReasoning = (model) => /^openai\/(o\d|gpt-5)/.test(model);
 
-const REQUEST_TIMEOUT_MS = 45000;
+const REQUEST_TIMEOUT_MS = 30000;
+
+// Output cap sent as `max_output_tokens`. Without an explicit cap the provider's default cut long Persian JSON in the
+// middle of a sentence ("... از 45,000,000 تومان به 31,500,") and the answer could not be parsed. Reasoning models
+// spend part of the cap on hidden reasoning, so they get more room.
+const MAX_OUT_TOKENS = 3500;
+const MAX_OUT_TOKENS_REASONING = 8000;
+const outCap = (model, boost = 1) => (supportsReasoning(model) ? MAX_OUT_TOKENS_REASONING : MAX_OUT_TOKENS) * boost;
 
 /**
  * Model fallback. The provider (Parspack) has repeatedly answered "all providers failed" (HTTP 424, or an SSE
@@ -52,7 +59,8 @@ function extractOutputText(data) {
   throw new Error("No output_text found in LLM response: " + JSON.stringify(data).slice(0, 500));
 }
 
-async function callOnce(model, input, effort) {
+/** One non-streamed call. Resolves {text, truncated}: truncated = the model stopped because it hit the output cap. */
+async function callRaw(model, input, effort, boost = 1) {
   const res = await fetch(`${API_BASE_URL}/responses`, {
     method: "POST",
     headers: {
@@ -62,6 +70,7 @@ async function callOnce(model, input, effort) {
     body: JSON.stringify({
       model,
       input,
+      max_output_tokens: outCap(model, boost),
       ...(supportsReasoning(model) ? { reasoning: { effort } } : {}),
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -71,7 +80,12 @@ async function callOnce(model, input, effort) {
     throw new Error(`LLM API error ${res.status}: ${body.slice(0, 500)}`);
   }
   const data = await res.json();
-  return extractOutputText(data);
+  const truncated = data.status === "incomplete" && /max_(output_)?tokens|length/.test(JSON.stringify(data.incomplete_details || ""));
+  return { text: extractOutputText(data), truncated };
+}
+
+async function callOnce(model, input, effort) {
+  return (await callRaw(model, input, effort)).text;
 }
 
 export async function callLLM(input, { effort = "medium" } = {}) {
@@ -103,6 +117,7 @@ async function streamOnce(model, input, effort, onDelta) {
       model,
       input,
       stream: true,
+      max_output_tokens: outCap(model),
       ...(supportsReasoning(model) ? { reasoning: { effort } } : {}),
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -155,6 +170,43 @@ function stripCodeFence(text) {
   return t.trim();
 }
 
+/**
+ * Best-effort repair of JSON that was cut off mid-way (output cap, dropped connection): closes an open string, drops a
+ * dangling key or comma and closes every open bracket. Fields after the cut are simply missing.
+ */
+export function repairTruncatedJSON(text) {
+  const t = stripCodeFence(text);
+  const start = t.indexOf("{");
+  if (start === -1) throw new Error("no JSON object to repair");
+  let out = t.slice(start);
+  const stack = [];
+  let inStr = false;
+  let esc = false;
+  for (const ch of out) {
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{" || ch === "[") stack.push(ch);
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  if (esc) out = out.slice(0, -1);
+  if (inStr) {
+    // the cut string is a half sentence: keep only its complete sentences (if it has none, keep it and close it)
+    const open = out.lastIndexOf('"');
+    const tail = out.slice(open + 1);
+    const cut = Math.max(tail.lastIndexOf(". "), tail.lastIndexOf("؟"), tail.lastIndexOf("! "), tail.endsWith(".") ? tail.length - 1 : -1);
+    out = cut > 0 ? out.slice(0, open + 1) + tail.slice(0, cut + 1) : out;
+    out += '"';
+  }
+  out = out.replace(/,\s*$/, "").replace(/,?\s*"[^"]*"\s*:\s*$/, "");
+  while (stack.length) out += stack.pop() === "{" ? "}" : "]";
+  return JSON.parse(out);
+}
+
 export function parseJSONLoose(text) {
   const cleaned = stripCodeFence(text);
   try {
@@ -177,11 +229,27 @@ export function parseJSONLoose(text) {
  * JSON call: an unparseable answer (a weak model echoing the prompt, wrong format) makes THIS call try the next
  * model, but does not put the model on cooldown — that is a quality problem of one answer, not an outage.
  */
-export async function callLLMJSON(input, { effort = "medium" } = {}) {
+export async function callLLMJSON(input, { effort = "medium", deadlineMs = 50000 } = {}) {
   let lastErr;
+  const started = Date.now();
   for (const model of candidateModels()) {
+    // do not start another model once the time budget is spent: the caller (a page waiting for this) must not hang
+    if (lastErr && Date.now() - started > deadlineMs) break;
     try {
-      const parsed = parseJSONLoose(await callOnce(model, input, effort));
+      let raw = await callRaw(model, input, effort);
+      if (raw.truncated) {
+        console.warn(`[llm] ${model} output hit the token cap — retrying with a larger cap`);
+        raw = await callRaw(model, input, effort, 2);
+      }
+      let parsed;
+      try {
+        parsed = parseJSONLoose(raw.text);
+      } catch (parseErr) {
+        // a still-truncated answer is repaired (missing tail fields) rather than failing the whole request
+        // the provider does not always flag a cut-off answer: text that stops without a closing bracket is repaired too
+        if (!raw.truncated && /[}\]]\s*(`{3})?\s*$/.test(raw.text)) throw parseErr; // looks complete: a real format problem
+        parsed = repairTruncatedJSON(raw.text);
+      }
       downUntil.delete(model);
       return parsed;
     } catch (err) {

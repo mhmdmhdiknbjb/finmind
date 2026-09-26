@@ -1,4 +1,4 @@
-import { $, formatToman, formatPercent, cssVar, destroyChart } from "../common.js";
+import { $, widgetFetch, formatToman, formatPercent, cssVar, destroyChart } from "../common.js";
 import { initPanelShell } from "./panel-shell.js";
 
 const charts = {};
@@ -10,12 +10,11 @@ async function loadLiquidityWidget(force = false) {
   $("liquidityLoading").classList.remove("hidden");
   $("liquidityContent").classList.add("hidden");
   try {
-    const res = await fetch("/api/widgets/liquidity", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ force }),
-    });
-    const data = await res.json();
+    const data = await widgetFetch("liquidityLoading", "/api/widgets/liquidity", { force }, () => loadLiquidityWidget(force));
+    if (!data) {
+      $("liquidityLoading").classList.add("hidden");
+      return;
+    }
     $("liquidityLoading").classList.add("hidden");
     $("liquidityContent").classList.remove("hidden");
     renderLiquidityWidget(data);
@@ -75,6 +74,12 @@ function renderLiquidityWidget(data) {
     const div = document.createElement("div");
     div.className = "banner banner-warn";
     div.textContent = "⚠ " + w;
+    warnWrap.appendChild(div);
+  });
+  (data.notes || []).forEach((n) => {
+    const div = document.createElement("div");
+    div.className = "banner banner-live";
+    div.textContent = "✓ " + n;
     warnWrap.appendChild(div);
   });
 }

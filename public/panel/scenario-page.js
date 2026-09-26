@@ -1,4 +1,4 @@
-import { $, CATEGORY_LABELS, SCENARIO_PRESETS, formatToman, cssVar, typeWordsInto, destroyChart } from "../common.js";
+import { $, widgetFetch, CATEGORY_LABELS, SCENARIO_PRESETS, formatToman, cssVar, typeWordsInto, destroyChart } from "../common.js";
 import { initPanelShell } from "./panel-shell.js";
 
 const charts = {};
@@ -23,12 +23,11 @@ async function runScenario(scenario, chipEl) {
   $("scenarioLoading").classList.remove("hidden");
   $("scenarioContent").classList.add("hidden");
   try {
-    const res = await fetch("/api/widgets/scenario", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scenario }),
-    });
-    const data = await res.json();
+    const data = await widgetFetch("scenarioLoading", "/api/widgets/scenario", { scenario }, () => runScenario(scenario, chipEl));
+    if (!data) {
+      $("scenarioLoading").classList.add("hidden");
+      return;
+    }
     $("scenarioLoading").classList.add("hidden");
     $("scenarioContent").classList.remove("hidden");
     renderScenarioResult(data);

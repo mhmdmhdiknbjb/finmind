@@ -114,10 +114,10 @@ export async function normalizeExtractedAssets(assets) {
  * unchanged. Also returns the rates used, so callers can show/explain the
  * conversion.
  */
-export async function resolveProfileAssets(profile) {
-  let rates;
+export async function resolveProfileAssets(profile, pinnedRates) {
+  let rates = pinnedRates;
   try {
-    rates = await getLiveRates();
+    if (!rates) rates = await getLiveRates();
   } catch {
     return { ...profile, assets: profile.assets || [], _liveRates: null };
   }
@@ -143,13 +143,13 @@ export async function resolveProfileAssets(profile) {
  * `amount` directly. Amounts/quantities never go below zero, and a
  * category with no existing row is only created for a net increase.
  */
-export async function applyAssetChanges(profile, changes) {
+export async function applyAssetChanges(profile, changes, pinnedRates) {
   const assets = (profile.assets || []).map((a) => ({ ...a }));
   if (!changes || !changes.length) return assets;
 
-  let rates = null;
+  let rates = pinnedRates || null;
   try {
-    rates = await getLiveRates();
+    if (!rates) rates = await getLiveRates();
   } catch {
     // no live feed available: skip live-priced categories, still apply plain ones below
   }

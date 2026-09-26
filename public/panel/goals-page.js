@@ -38,12 +38,8 @@ function renderGoalsList() {
       box.classList.remove("hidden");
       box.textContent = "در حال محاسبه و بررسی...";
       try {
-        const res = await fetch("/api/widgets/goal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ goal: g }),
-        });
-        const d = await res.json();
+        const d = await goalRequest(g, box);
+        if (!d) return;
         const paceLine =
           d.monthsNeededAtCurrentPace === 0
             ? `<div>سرمایه‌ی موجود شما به‌تنهایی همین حالا به این هدف می‌رسد.</div>`
@@ -102,3 +98,27 @@ async function init() {
 }
 
 init();
+
+// 15 s: a "taking longer" note; 90 s: give up with a message (never an endless "در حال تحلیل...")
+async function goalRequest(goal, box) {
+  const slow = setTimeout(() => {
+    box.textContent = "این تحلیل بیشتر از حد معمول طول کشیده؛ لطفاً کمی صبر کنید…";
+  }, 15000);
+  try {
+    const res = await fetch("/api/widgets/goal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal }),
+      signal: AbortSignal.timeout(90000),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data && data.error) || "خطای سرور");
+    return data;
+  } catch (e) {
+    console.error(e);
+    box.textContent = e && (e.name === "TimeoutError" || e.name === "AbortError") ? "این تحلیل بیشتر از حد معمول طول کشید و متوقف شد؛ دوباره تلاش کنید." : "دریافت تحلیل ناموفق بود؛ دوباره تلاش کنید.";
+    return null;
+  } finally {
+    clearTimeout(slow);
+  }
+}

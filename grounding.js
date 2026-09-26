@@ -141,18 +141,29 @@ export function answersQuestion(question, reply) {
 }
 
 /** Qualitative claims about the user's cash flow that the profile contradicts (invented debt, invented overspending). */
-function badCashflowClaim(s, profile) {
+function badCashflowClaim(s, profile, goalFeasible) {
   const NEG = /(ندار|بدون|فاقد|نیست|هیچ|بی‌?بدهی|ثبت نشده)/;
   if (num(profile.existingDebt) <= 0 && /(بدهی|مقروض|اقساط|قسط|وام)/.test(s) && !NEG.test(s)) return "کاربر بدهی/قسطی ثبت نکرده است (بدهی صفر)";
   if (num(profile.monthlyIncome) > num(profile.monthlyExpenses) && (/بیش\s*از\s*(?:نیاز|درآمد)[^.]{0,30}هزینه/.test(s) || /هزینه[^.]{0,40}بیش\s*(?:تر)?\s*از\s*درآمد/.test(s))) return "درآمد کاربر از هزینه‌اش بیشتر است، نه کمتر";
   // "income/saving is not enough for the goal" must agree with the goals engine (the same function the goals page uses)
-  const NOT_ENOUGH = /((درآمد|پس‌?انداز|صرفه‌?جویی)[^.]{0,70}(کافی\s*نیست|کافی\s*به\s*نظر\s*نمی|ناکافی|کافی\s*نمی‌?باشد|کافی\s*نمی‌?رسد)|هدف[^.]{0,60}(دست‌?نیافتنی|غیرممکن|قابل\s*دستیابی\s*نیست|قابل\s*تحقق\s*نیست))/;
-  if ((profile.goals || []).length && NOT_ENOUGH.test(s)) {
-    const results = evaluateGoals(profile).map((g) => g.result);
-    if (results.every((r) => r.feasible)) return "طبق موتور اهداف، پس‌انداز و دارایی کاربر برای همه‌ی اهدافش در مهلت کافی است";
+  const NOT_ENOUGH = /((درآمد|پس‌?انداز|صرفه‌?جویی|سرمایه)[^.]{0,70}(کافی\s*نیست|کافی\s*به\s*نظر\s*نمی|ناکافی|کافی\s*نمی‌?باشد|کافی\s*نمی‌?رسد|کفایت\s*ندارد|کفایت\s*نمی)|هدف[^.]{0,60}(دست‌?نیافتنی|غیرممکن|قابل\s*دستیابی\s*نیست|قابل\s*تحقق\s*نیست)|نیاز(?:مند)?[^.]{0,40}(درآمد(?:های)?\s*جدید|ورودی(?:های)?\s*جدید|سرمایه‌?گذاری\s*مناسب)[^.]{0,50}(برسید|رسیدن))/;
+  const ENOUGH = /((پس‌?انداز|سرمایه|درآمد)[^.]{0,60}(کافی\s*است|کفایت\s*دارد|کفایت\s*می‌?کند)|(به\s*هدف|هدف\s*را)[^.]{0,40}(به\s*راحتی|بدون\s*مشکل)[^.]{0,20}(می‌?رسید|محقق))/;
+  if (NOT_ENOUGH.test(s) || ENOUGH.test(s)) {
+    // the widget analysing ONE goal passes its verdict; otherwise every registered goal must agree
+    let verdict = goalFeasible;
+    if (verdict === undefined && (profile.goals || []).length) {
+      const results = evaluateGoals(profile).map((g) => g.result);
+      if (results.every((r) => r.feasible)) verdict = true;
+      else if (results.every((r) => !r.feasible)) verdict = false;
+    }
+    if (verdict === true && NOT_ENOUGH.test(s)) return "طبق موتور اهداف، پس‌انداز و دارایی کاربر برای این هدف کافی است و هدف با شرایط فعلی در مهلت قابل دستیابی است";
+    if (verdict === false && ENOUGH.test(s)) return "طبق موتور اهداف، این هدف با شرایط فعلی در مهلتش قابل دستیابی نیست";
   }
   return null;
 }
+
+// scripts a Persian answer never contains: a weak model drifting into Cyrillic/CJK/Thai, or long Latin words
+const FOREIGN_SCRIPT = /[Ѐ-ӿ฀-๿぀-ヿ一-鿿가-힯]|[A-Za-z]{7,}/;
 
 /* ------------------------------------------------------------- validation */
 
@@ -172,7 +183,7 @@ function splitSentences(text) {
  *    user brought the category up themselves).
  * `checkCategories` is off for scenario / decision text, where talking about a class the user does not hold is the point.
  */
-export function validateText(text, { profile, groundText, userMessage = "", extra = [], checkCategories = true }) {
+export function validateText(text, { profile, groundText, userMessage = "", extra = [], checkCategories = true, goalFeasible }) {
   const problems = [];
   const badSentences = [];
   const allowed = allowedMoney(groundText + "\n" + userMessage, extra);
@@ -184,13 +195,18 @@ export function validateText(text, { profile, groundText, userMessage = "", extr
       badSentences.push(s);
       continue;
     }
+    if (FOREIGN_SCRIPT.test(s)) {
+      problems.push(`متن باید فارسی روان باشد؛ نوشته‌ی غیرفارسی/نامفهوم: «${s.trim().slice(0, 80)}»`);
+      badSentences.push(s);
+      continue;
+    }
     const pcts = badPercents(s, groundText);
     if (pcts.length) {
       problems.push(`درصد نامعتبر ${pcts.join("، ")}٪: «${s.trim().slice(0, 100)}»`);
       badSentences.push(s);
       continue;
     }
-    const cf = checkCategories ? badCashflowClaim(s, profile) : null;
+    const cf = checkCategories ? badCashflowClaim(s, profile, goalFeasible) : null;
     if (cf) {
       problems.push(`ادعای نادرست (${cf}): «${s.trim().slice(0, 100)}»`);
       badSentences.push(s);
@@ -255,6 +271,8 @@ function describeItem(a) {
 export function answerFactual(profile, message) {
   const m = String(message).trim();
   if (m.length > 140) return null;
+  const spend = answerSpend(profile, m);
+  if (spend) return spend;
   const asks = /(چقدر|چند|چنده|چیه|چیست|چقد|مقدار|مبلغ|میزان|دقیقاً|دقیقا|مجموع|کل)/.test(m);
   if (!asks) return null;
   // how much can be saved: pure arithmetic on two profile numbers
@@ -308,4 +326,77 @@ export function fallbackReply(profile) {
   const { byEngine, total } = holdings(profile);
   const rows = Object.entries(byEngine).sort((a, b) => b[1] - a[1]).map(([c, v]) => `${CAT_NAME[c] || c}: ${fmt(v)} تومان`);
   return `نتوانستم پاسخی بنویسم که ۱۰۰٪ با اطلاعات ثبت‌شده‌ی شما هم‌خوان باشد و ترجیح دادم عددی نسازم. آنچه از پروفایل شما مطمئنم:\nدرآمد ماهانه ${fmt(profile.monthlyIncome)} تومان، هزینه‌ی ماهانه ${fmt(profile.monthlyExpenses)} تومان، مجموع دارایی ${fmt(total)} تومان${rows.length ? " (" + rows.join("، ") + ")" : ""}.\nلطفاً سؤالت را کمی دقیق‌تر یا کوتاه‌تر بپرس تا از روی همین داده‌ها پاسخ بدهم.`;
+}
+
+/* ---------------------------------------------- decision extraction checks */
+
+// words that make an asset class "mentioned" in a decision text (prefix match, so «سپرده‌ام»/«طلاهایم» count)
+const EXTRACT_TERMS = {
+  cash: ["سپرده", "نقد", "حساب", "پول", "بانک", "خرج", "مصرف", "هزینه"],
+  gold: ["طلا", "سکه", "زر", "جواهر"],
+  currency: ["ارز", "دلار", "یورو", "درهم", "پوند"],
+  stock: ["سهام", "سهم", "بورس"],
+  fund: ["صندوق"],
+  realestate: ["ملک", "املاک", "خانه", "منزل", "مسکن", "آپارتمان", "زمین", "ویلا"],
+  crypto: ["رمزارز", "کریپتو", "بیت", "اتریوم", "تتر", "کوین"],
+};
+const RELATIVE_AMOUNT = /(نیمی|نصف|همه|تمام|کل\s|درصد|٪|%|یک‌?سوم|یک‌?چهارم|ثلث|بخشی)/;
+
+function mentions(text, cat) {
+  // very short stems (\u00AB\u0627\u0631\u0632\u00BB must not match \u00AB\u0627\u0631\u0632\u0634\u00BB) only match as a whole word or with a plural / possessive ending
+  return (EXTRACT_TERMS[cat] || []).some((t) => new RegExp(`(?<![\u0600-\u06FF])${t}${t.length <= 2 || t === "\u0627\u0631\u0632" ? "(?:(?![\u0600-\u06FF])|\u0647\u0627|\u0647\u0627\u06CC|\u0647\u0627\u06CC\u0645|\u0627\u0645)" : ""}`).test(text));
+}
+
+/**
+ * The decision widget's free-text -> structured-change step is a model call and was seen (once in two runs) turning
+ * «۳۰۰ میلیون از سپرده‌ام را خرج کنم» into «۲۰۰ میلیون در سهام». A change is accepted only when its class is named in the
+ * user's text and its amount appears in it (unless the text is relative: «نصف طلا»).
+ */
+export function validateExtraction(text, amount, changes) {
+  const t = String(text || "");
+  const problems = [];
+  const stated = [...extractMoney(t), ...(amount ? [Number(amount)] : [])];
+  const relative = RELATIVE_AMOUNT.test(t);
+  for (const c of changes || []) {
+    const d = Math.abs(num(c.amountDelta));
+    if (!c.category || !d) continue;
+    if (c.category !== "other" && !mentions(t, c.category)) {
+      problems.push(`دسته‌ی «${CAT_NAME[c.category] || c.category}» در متن کاربر اصلاً نیامده است`);
+    }
+    if (!relative && stated.length && !stated.some((v) => Math.abs(v - d) <= Math.max(v * 0.015, 1000))) {
+      problems.push(`مبلغ ${fmt(d)} تومان در متن کاربر نیامده است (مبلغ‌های متن: ${stated.map(fmt).join("، ")})`);
+    }
+  }
+  return problems;
+}
+
+/** Decreases that exceed what the user holds in the class. Returns [{category, wanted, held}]. */
+export function overdrawn(profile, changes) {
+  const { byEngine } = holdings(profile);
+  return (changes || [])
+    .filter((c) => num(c.amountDelta) < 0 && -num(c.amountDelta) > num(byEngine[c.category]) * 1.0001 + 1)
+    .map((c) => ({ category: c.category, wanted: -num(c.amountDelta), held: num(byEngine[c.category]) }));
+}
+
+export function overdrawnMessage(list) {
+  return (
+    "این تصمیم با دارایی‌های ثبت‌شده‌ی شما قابل اجرا نیست: " +
+    list.map((o) => `می‌خواهید ${fmt(o.wanted)} تومان از «${CAT_NAME[o.category] || o.category}» کم کنید ولی فقط ${fmt(o.held)} تومان در این دسته دارید`).join("؛ ") +
+    ". مبلغ را کمتر کنید یا موجودی را در پروفایل به‌روز کنید."
+  );
+}
+
+/** «اگه ۵۰۰۰ میلیون از نقدم خرج کنم چقدر می‌مونه؟» — pure arithmetic on the profile; also says when it is impossible. */
+export function answerSpend(profile, message) {
+  const m = String(message);
+  if (!/(خرج|برداشت|بردارم|بفروشم|پرداخت|بدهم|کم\s*کنم)/.test(m) || !/(می‌?مان|باقی|می‌?ماند|چقدر)/.test(m)) return null;
+  const amt = extractMoney(m)[0];
+  if (!amt) return null;
+  const cat = (CAT_ASK.find((c) => c.re.test(m) && c.cats[0] !== "cash") || CAT_ASK[1]).cats[0];
+  const { byEngine, total } = holdings(profile);
+  const held = num(byEngine[cat]);
+  if (amt > held * 1.0001 + 1) {
+    return `این مبلغ (${fmt(amt)} تومان) از موجودی شما بیشتر است: در «${CAT_NAME[cat]}» فقط ${fmt(held)} تومان ثبت شده، پس با اطلاعات فعلی چنین خرجی ممکن نیست.`;
+  }
+  return `اگر ${fmt(amt)} تومان از «${CAT_NAME[cat]}» خرج شود، از ${fmt(held)} تومان فعلی ${fmt(held - amt)} تومان می‌ماند و مجموع دارایی‌های شما از ${fmt(total)} به ${fmt(total - amt)} تومان می‌رسد. (فقط محاسبه است، نه توصیه.)`;
 }

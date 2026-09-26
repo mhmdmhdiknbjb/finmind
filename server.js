@@ -1,10 +1,11 @@
 import express from "express";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PORT } from "./config.js";
 import { loadProfile, saveProfile } from "./store.js";
 import { callLLM, callLLMJSON } from "./llm.js";
-import { answersQuestion, validateText, collectStrings, stripBadSentences, answerFactual, fallbackReply } from "./grounding.js";
+import { validateExtraction, overdrawn, overdrawnMessage, answersQuestion, validateText, collectStrings, stripBadSentences, answerFactual, fallbackReply } from "./grounding.js";
 import {
   promptAssets,
   promptRisk,
@@ -48,8 +49,24 @@ import {
  * prompts, the goals engine and the validator all run the engines with the same tolerance (the goals widget and the
  * text on other pages used to be able to disagree by a few months or on feasibility).
  */
-async function loadResolvedProfile(userId) {
-  const profile = await resolveProfileAssets(loadProfile(userId));
+// One price snapshot per user for an hour: the gold/dollar tick between two requests used to move "total assets" by a few
+// hundred thousand toman from one page to the next. `refresh` (the widgets' force button) takes a new snapshot.
+const RATE_PIN_MS = 60 * 60 * 1000;
+const ratePins = new Map();
+async function pinnedRatesFor(userId, refresh) {
+  const pin = ratePins.get(userId);
+  if (!refresh && pin && Date.now() - pin.at < RATE_PIN_MS) return pin.rates;
+  try {
+    const rates = await getLiveRates();
+    ratePins.set(userId, { rates, at: Date.now() });
+    return rates;
+  } catch {
+    return pin ? pin.rates : undefined; // no feed: resolveProfileAssets falls back on its own handling
+  }
+}
+
+async function loadResolvedProfile(userId, { refresh = false } = {}) {
+  const profile = await resolveProfileAssets(loadProfile(userId), await pinnedRatesFor(userId, refresh));
   profile._engineRiskTolerance = effectiveRiskTolerance(userId, profile.riskTolerance).effective;
   return profile;
 }
@@ -87,7 +104,8 @@ async function withSnapshot(userId, key, force, computeFn, describeChange) {
     if (notif) addNotification(userId, { type: key, ...notif });
   }
 
-  saveSnapshot(userId, key, { fingerprint, result, engineVersion: ENGINE_VERSION, computedAt: new Date().toISOString() });
+  // a result with fallback wording (LLM was down) is served but not cached, so the next visit retries the real text
+  if (!result?._degraded) saveSnapshot(userId, key, { fingerprint, result, engineVersion: ENGINE_VERSION, computedAt: new Date().toISOString() });
   return result;
 }
 
@@ -119,24 +137,49 @@ function allocationArray(weights, total) {
  * asset class they do not hold, sends the answer back once or twice with the exact problems listed; if it still
  * fails, the offending sentences are cut out instead of shown. `checkCategories:false` for scenario/decision text.
  */
+function logDecisionExtraction(userId, entry) {
+  // full record of what the user typed and what the model extracted, for diagnosing intermittent misreadings
+  try {
+    const dir = path.join(__dirname, "data");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, "decision_log.jsonl"), JSON.stringify({ at: new Date().toISOString(), userId, ...entry }) + "\n", "utf-8");
+  } catch {
+    /* logging must never break the request */
+  }
+}
+
+const GOOD_NEWS = /(کافی\s*است|کمبودی[^.]{0,20}(نمی|نیست)|مشکلی[^.]{0,15}(ندارد|نیست)|مناسب\s*است|کفایت\s*دارد)/;
+const NO_TEXT_NOTE = "توضیح متنی هوش مصنوعی الان در دسترس نیست؛ اعداد و نمودارها از موتورهای محاسباتی آمده‌اند و معتبرند. چند دقیقه بعد دوباره تحلیل را اجرا کنید.";
 const GROUNDING_ATTEMPTS = 3;
-async function groundedJSON(prompt, profile, { effort = "medium", checkCategories = true } = {}) {
+const GROUNDING_DEADLINE_MS = 40000; // a page must never hang for minutes on retries
+async function groundedJSON(prompt, profile, { effort = "medium", checkCategories = true, goalFeasible, fallback } = {}) {
+  const started = Date.now();
   let feedback = "";
   let last = null;
   let lastVerdict = null;
   for (let i = 0; i < GROUNDING_ATTEMPTS; i++) {
-    const result = await callLLMJSON(prompt + feedback, { effort });
-    const verdict = validateText(collectStrings(result).join("\n"), { profile, groundText: prompt, checkCategories });
+    let result;
+    try {
+      result = await callLLMJSON(prompt + feedback, { effort, deadlineMs: Math.max(15000, 55000 - (Date.now() - started)) });
+    } catch (err) {
+      if (last) break; // an earlier answer exists: clean it up below instead of failing
+      if (!fallback) throw err;
+      // every model failed or returned garbage: the numeric part of the page still works, only the wording is missing
+      console.warn(`[grounding] LLM unavailable, sending the deterministic fallback text (${String(err.message).slice(0, 80)})`);
+      return { ...fallback(), _degraded: true };
+    }
+    const verdict = validateText(collectStrings(result).join("\n"), { profile, groundText: prompt, checkCategories, goalFeasible });
     if (verdict.ok) return result;
     last = result;
     lastVerdict = verdict;
     console.warn(`[grounding] attempt ${i + 1} rejected: ${verdict.problems.slice(0, 3).join(" | ")}`);
+    if (Date.now() - started > GROUNDING_DEADLINE_MS) break;
     feedback = `
 
 ### اصلاح لازم
 پاسخ قبلی تو رد شد چون با اطلاعات واقعی کاربر نمی‌خواند:
 - ${verdict.problems.slice(0, 5).join("\n- ")}
-دوباره بنویس؛ فقط از مبلغ‌ها و دارایی‌های موجود در پروفایل و خروجی موتورها استفاده کن و به دارایی‌هایی که کاربر ندارد اشاره‌ی مالکیتی نکن.`;
+دوباره بنویس؛ فقط از مبلغ‌ها و دارایی‌های موجود در پروفایل و خروجی موتورها استفاده کن، به دارایی‌هایی که کاربر ندارد اشاره‌ی مالکیتی نکن، با «وضعیت رسیدن به اهداف» و اعداد موتورها مخالفت نکن و جمله‌ها را کوتاه، ساده و به فارسی روان بنویس.`;
   }
   const cleaned = stripBadSentences(last, lastVerdict.badSentences);
   for (const [k, v] of Object.entries(cleaned)) {
@@ -303,10 +346,12 @@ app.post(
       "assets",
       !!req.body?.force,
       async () => {
-        const profile = await loadResolvedProfile(req.userId);
+        const profile = await loadResolvedProfile(req.userId, { refresh: !!req.body?.force });
         const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
         const computed = optimizePortfolio(profileForOpt);
-        const explanation = await groundedJSON(promptAssets(profile, computed), profile);
+        const explanation = await groundedJSON(promptAssets(profile, computed), profile, {
+          fallback: () => ({ concentrationWarning: null, strengths: [], weaknesses: [], suggestions: [], summary: NO_TEXT_NOTE }),
+        });
         return {
           totalAssets: computed.current.total,
           allocation: allocationArray(computed.current.weights, computed.current.total),
@@ -330,6 +375,7 @@ app.post(
           weaknesses: explanation.weaknesses,
           suggestions: explanation.suggestions,
           summary: explanation.summary,
+          _degraded: explanation._degraded,
         };
       }
     );
@@ -346,10 +392,12 @@ app.post(
       "risk",
       !!req.body?.force,
       async () => {
-        const profile = await loadResolvedProfile(req.userId);
+        const profile = await loadResolvedProfile(req.userId, { refresh: !!req.body?.force });
         const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(req.userId, profile);
         const computed = optimizePortfolio(profileForOpt);
-        const explanation = await groundedJSON(promptRisk(profile, computed), profile);
+        const explanation = await groundedJSON(promptRisk(profile, computed), profile, {
+          fallback: () => ({ reasons: [], behavioralFactors: [], suggestions: [], summary: NO_TEXT_NOTE }),
+        });
         return {
           currentRiskScore: computed.current.riskScore,
           suggestedRiskScore: computed.optimal.riskScore,
@@ -361,6 +409,7 @@ app.post(
           behavioralFactors: explanation.behavioralFactors,
           suggestions: explanation.suggestions,
           summary: explanation.summary,
+          _degraded: explanation._degraded,
         };
       },
       (prev, next) => {
@@ -381,17 +430,20 @@ app.post(
   requireAuth,
   handleAsync(async (req, res) => {
     const result = await withSnapshot(req.userId, "liquidity", !!req.body?.force, async () => {
-      const profile = await loadResolvedProfile(req.userId);
+      const profile = await loadResolvedProfile(req.userId, { refresh: !!req.body?.force });
       const computed = computeLiquidity(profile);
-      const explanation = await groundedJSON(promptLiquidity(profile, computed), profile);
+      const explanation = await groundedJSON(promptLiquidity(profile, computed), profile, { fallback: () => ({ warnings: [], summary: NO_TEXT_NOTE }) });
       return {
         liquidPercent: computed.liquidPercent,
         semiLiquidPercent: computed.semiLiquidPercent,
         illiquidPercent: computed.illiquidPercent,
         availableByPeriod: computed.availableByPeriod,
         breakdown: computed.breakdown,
-        warnings: explanation.warnings,
+        // good news the model put among the warnings (e.g. "the cash buffer is enough") is shown as a note, not as a warning
+        warnings: (explanation.warnings || []).filter((w) => !GOOD_NEWS.test(w)),
+        notes: (explanation.warnings || []).filter((w) => GOOD_NEWS.test(w)),
         summary: explanation.summary,
+        _degraded: explanation._degraded,
       };
     });
     res.json(result);
@@ -406,7 +458,10 @@ app.post(
     const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
     const goal = req.body.goal;
     const computed = evaluateGoal(profileForOpt, goal);
-    const explanation = await groundedJSON(promptGoal(profile, goal, computed), profile);
+    const explanation = await groundedJSON(promptGoal(profile, goal, computed), profile, {
+      goalFeasible: computed.feasible,
+      fallback: () => ({ suggestedPath: [], risks: [], summary: NO_TEXT_NOTE }),
+    });
     res.json({ ...computed, suggestedPath: explanation.suggestedPath, risks: explanation.risks, summary: explanation.summary });
   })
 );
@@ -432,7 +487,10 @@ app.post(
 
     if (shocks) {
       const mc = simulateShock(profile, shocks, 8000);
-      const explanation = await groundedJSON(promptScenarioExplain(profile, scenarioTitle, mc), profile, { checkCategories: false });
+      const explanation = await groundedJSON(promptScenarioExplain(profile, scenarioTitle, mc), profile, {
+        checkCategories: false,
+        fallback: () => ({ explanation: NO_TEXT_NOTE, recommendation: "" }),
+      });
       logInteraction(req.userId, "scenario_run", { scenarioTitle, engine: "monte_carlo", shocks, portfolioChangePercent: mc.portfolio.p50Percent });
       res.json({
         scenarioTitle,
@@ -457,7 +515,10 @@ app.post(
         recommendation: explanation.recommendation,
       });
     } else {
-      const result = await groundedJSON(promptScenarioQualitative(profile, scenario), profile, { checkCategories: false });
+      const result = await groundedJSON(promptScenarioQualitative(profile, scenario), profile, {
+        checkCategories: false,
+        fallback: () => ({ scenarioTitle: scenario.title || "", impactByAsset: [], totalPortfolioChangePercent: null, totalPortfolioChangeAmount: null, explanation: NO_TEXT_NOTE, recommendation: "" }),
+      });
       logInteraction(req.userId, "scenario_run", { scenarioTitle, engine: "qualitative_llm" });
       res.json(result);
     }
@@ -473,9 +534,30 @@ app.post(
 
     // Step 1: LLM turns the free-text decision into structured per-category
     // asset deltas (the one part of this widget that genuinely needs
-    // language understanding).
-    const extraction = await callLLMJSON(promptDecisionExtract(profile, decision), { effort: "medium" });
-    const assetChanges = Array.isArray(extraction.assetChanges) ? extraction.assetChanges : [];
+    // language understanding). Its answer is checked against the user's own text
+    // (class named? amount stated?) and retried with the mismatch listed, because
+    // it was seen turning «۳۰۰ میلیون از سپرده خرج کنم» into «۲۰۰ میلیون سهام».
+    let assetChanges = [];
+    let extractionProblems = [];
+    let feedback = "";
+    for (let i = 0; i < 3; i++) {
+      const extraction = await callLLMJSON(promptDecisionExtract(profile, decision) + feedback, { effort: "medium" });
+      assetChanges = Array.isArray(extraction.assetChanges) ? extraction.assetChanges : [];
+      extractionProblems = validateExtraction(decision.description, decision.amount, assetChanges);
+      logDecisionExtraction(req.userId, { description: decision.description, amount: decision.amount || null, attempt: i + 1, assetChanges, problems: extractionProblems });
+      if (!extractionProblems.length) break;
+      feedback = "\n\n### اصلاح لازم\nاستخراج قبلی تو با متن کاربر نمی‌خواند:\n- " + extractionProblems.join("\n- ") + "\nدوباره استخراج کن؛ فقط دسته‌ها و مبلغ‌هایی که خود کاربر در متن گفته.";
+    }
+    if (extractionProblems.length) {
+      res.json({ infeasible: true, message: "متوجه نشدم دقیقاً چه تصمیمی مدنظر شماست. لطفاً با مبلغ و دارایی مشخص بنویسید، مثلاً «۳۰۰ میلیون از سپرده‌ام را خرج کنم»." });
+      return;
+    }
+    // A decrease larger than what is held is not executable: say so instead of silently clamping it to the balance.
+    const over = overdrawn(profile, assetChanges);
+    if (over.length) {
+      res.json({ infeasible: true, message: overdrawnMessage(over) });
+      return;
+    }
 
     // Step 2: apply those deltas to a hypothetical copy of the portfolio and
     // run BOTH the before and after states through the exact same
@@ -485,8 +567,8 @@ app.post(
     const beforeOptimized = optimizePortfolio(beforeForOpt);
     const beforeLiquidity = computeLiquidity(profile);
 
-    const afterAssets = await applyAssetChanges(profile, assetChanges);
-    const afterProfile = await resolveProfileAssets({ ...profile, assets: afterAssets });
+    const afterAssets = await applyAssetChanges(profile, assetChanges, profile._liveRates || undefined);
+    const afterProfile = await resolveProfileAssets({ ...profile, assets: afterAssets }, profile._liveRates || undefined);
     const { profile: afterForOpt } = profileWithEffectiveRisk(req.userId, afterProfile);
     const afterOptimized = optimizePortfolio(afterForOpt);
     const afterLiquidity = computeLiquidity(afterProfile);
@@ -497,7 +579,10 @@ app.post(
     };
 
     // Step 3: LLM only narrates/recommends based on the numbers computed above.
-    const explanation = await groundedJSON(promptDecisionExplain(profile, decision, computed), profile, { checkCategories: false });
+    const explanation = await groundedJSON(promptDecisionExplain(profile, decision, computed), profile, {
+      checkCategories: false,
+      fallback: () => ({ decisionSummary: NO_TEXT_NOTE, goalImpact: "", recommendation: null, reasoning: [] }),
+    });
 
     res.json({
       decisionSummary: explanation.decisionSummary,

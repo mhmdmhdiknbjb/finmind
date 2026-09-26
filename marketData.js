@@ -40,7 +40,7 @@ export function seriesArrays(pack = getMarketPack()) {
 }
 
 /** Bump when the risk/dispersion maths changes so cached widget results are recomputed once. */
-export const ENGINE_VERSION = 5; // 5: goal verdicts in prompts, liquidity tiers on the assets page; 4: risk-warning text names only held classes; 3: LLM texts are grounded/validated (older cached texts may contain fabricated facts); 2: forward-volatility ML forecast added to the risk analysis
+export const ENGINE_VERSION = 6; // 6: liquidity notes, pinned prices; 5: goal verdicts in prompts, liquidity tiers on the assets page; 4: risk-warning text names only held classes; 3: LLM texts are grounded/validated (older cached texts may contain fabricated facts); 2: forward-volatility ML forecast added to the risk analysis
 
 /** Identifies the maths + market data behind stored numbers (used in the widget snapshot fingerprint). */
 export function marketDataVersion() {

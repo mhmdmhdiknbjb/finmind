@@ -171,3 +171,77 @@ export async function logout() {
     window.location.href = "/";
   }
 }
+
+/**
+ * POST to a widget endpoint with visible feedback: after SLOW_MS a "taking longer than usual" note appears inside the
+ * loading element, after HARD_MS the request is abandoned. Failures (HTTP error, timeout, network) render an error
+ * banner with a retry button instead of silence. Resolves the JSON, or null when it failed (already shown to the user).
+ */
+const SLOW_MS = 15000;
+const HARD_MS = 90000;
+
+export function clearWidgetError(loadingId) {
+  document.getElementById(loadingId + "Error")?.remove();
+}
+
+export function showWidgetError(loadingId, message, retry) {
+  clearWidgetError(loadingId);
+  const loading = document.getElementById(loadingId);
+  if (!loading) return;
+  const box = document.createElement("div");
+  box.id = loadingId + "Error";
+  box.className = "banner banner-warn";
+  box.textContent = message + " ";
+  if (retry) {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-ghost";
+    btn.textContent = "تلاش دوباره";
+    btn.onclick = () => {
+      box.remove();
+      retry();
+    };
+    box.appendChild(btn);
+  }
+  loading.insertAdjacentElement("afterend", box);
+}
+
+export async function widgetFetch(loadingId, url, body, retry) {
+  clearWidgetError(loadingId);
+  const loading = document.getElementById(loadingId);
+  let note = null;
+  const slowTimer = setTimeout(() => {
+    note = document.createElement("div");
+    note.className = "widget-slow";
+    note.style.cssText = "margin-top:8px;font-size:12px;color:var(--text-dim)";
+    note.textContent = "این تحلیل بیشتر از حد معمول طول کشیده؛ لطفاً کمی صبر کنید…";
+    loading?.appendChild(note);
+  }, SLOW_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+      signal: AbortSignal.timeout(HARD_MS),
+    });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      /* non-JSON error page */
+    }
+    if (!res.ok) throw new Error((data && data.error) || "خطای سرور");
+    return data;
+  } catch (e) {
+    console.error(e);
+    const timedOut = e && (e.name === "TimeoutError" || e.name === "AbortError");
+    showWidgetError(
+      loadingId,
+      timedOut ? "این تحلیل بیشتر از حد معمول طول کشید و متوقف شد." : "دریافت تحلیل ناموفق بود (" + (e.message || "خطا") + ").",
+      retry
+    );
+    return null;
+  } finally {
+    clearTimeout(slowTimer);
+    note?.remove();
+  }
+}

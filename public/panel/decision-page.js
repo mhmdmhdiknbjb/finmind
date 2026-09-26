@@ -1,4 +1,4 @@
-import { $, formatToman, formatPercent, millionInputToToman, fillListLive, typeWordsInto } from "../common.js";
+import { $, widgetFetch, showWidgetError, formatToman, formatPercent, millionInputToToman, fillListLive, typeWordsInto } from "../common.js";
 import { initPanelShell } from "./panel-shell.js";
 
 async function runDecision() {
@@ -9,18 +9,23 @@ async function runDecision() {
   $("decisionLoading").classList.remove("hidden");
   $("decisionContent").classList.add("hidden");
   try {
-    const res = await fetch("/api/widgets/decision", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision: { description, amount } }),
-    });
-    const data = await res.json();
+    const data = await widgetFetch("decisionLoading", "/api/widgets/decision", { decision: { description, amount } }, runDecision);
+    if (!data) {
+      $("decisionLoading").classList.add("hidden");
+      return;
+    }
+    if (data.infeasible) {
+      // not executable with the holdings (or not understood): say so instead of showing misleading before/after numbers
+      showWidgetError("decisionLoading", data.message, null);
+      $("decisionLoading").classList.add("hidden");
+      return;
+    }
     renderDecisionResult(data);
-  } catch (e) {
-    console.error(e);
-  } finally {
     $("decisionLoading").classList.add("hidden");
     $("decisionContent").classList.remove("hidden");
+  } catch (e) {
+    console.error(e);
+    $("decisionLoading").classList.add("hidden");
   }
 }
 

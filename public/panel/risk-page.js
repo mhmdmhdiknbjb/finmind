@@ -1,4 +1,4 @@
-import { $, fillListLive, typeWordsInto, ltr, faDate } from "../common.js";
+import { $, widgetFetch, fillListLive, typeWordsInto, ltr, faDate } from "../common.js";
 import { initPanelShell } from "./panel-shell.js";
 
 // `force` recomputes even if nothing the user controls has changed; a
@@ -9,18 +9,17 @@ async function loadRiskWidget(force = false) {
   $("riskLoading").classList.remove("hidden");
   $("riskContent").classList.add("hidden");
   try {
-    const res = await fetch("/api/widgets/risk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ force }),
-    });
-    const data = await res.json();
+    const data = await widgetFetch("riskLoading", "/api/widgets/risk", { force }, () => loadRiskWidget(force));
+    if (!data) {
+      $("riskLoading").classList.add("hidden");
+      return;
+    }
     renderRiskWidget(data);
-  } catch (e) {
-    console.error(e);
-  } finally {
     $("riskLoading").classList.add("hidden");
     $("riskContent").classList.remove("hidden");
+  } catch (e) {
+    console.error(e);
+    $("riskLoading").classList.add("hidden");
   }
 }
 

@@ -1,4 +1,4 @@
-import { $, CATEGORY_LABELS, CATEGORY_COLORS, formatToman, formatPercent, cssVar, fillListLive, typeWordsInto, destroyChart, ltr, faDate } from "../common.js";
+import { $, widgetFetch, CATEGORY_LABELS, CATEGORY_COLORS, formatToman, formatPercent, cssVar, fillListLive, typeWordsInto, destroyChart, ltr, faDate } from "../common.js";
 import { initPanelShell } from "./panel-shell.js";
 
 const charts = {};
@@ -11,12 +11,11 @@ async function loadAssetsWidget(force = false) {
   $("assetsLoading").classList.remove("hidden");
   $("assetsContent").classList.add("hidden");
   try {
-    const res = await fetch("/api/widgets/assets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ force }),
-    });
-    const data = await res.json();
+    const data = await widgetFetch("assetsLoading", "/api/widgets/assets", { force }, () => loadAssetsWidget(force));
+    if (!data) {
+      $("assetsLoading").classList.add("hidden");
+      return;
+    }
     $("assetsLoading").classList.add("hidden");
     $("assetsContent").classList.remove("hidden");
     $("assetsTextContent").classList.remove("hidden");
