@@ -2,6 +2,7 @@ import { optimizePortfolio } from "./optimizer.js";
 import { dispersionPromptBlock, riskPromptBlock } from "./riskPresenter.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 
+import { factsBlock } from "./grounding.js";
 import { CATEGORY_LABELS, ASSET_KINDS, UNIT_LABELS, kindOf } from "./public/assetCatalog.js";
 
 export function categoryLabel(cat) {
@@ -106,7 +107,9 @@ export function buildProfileContext(profile) {
 ${assetLines}${liveRatesLine}
 
 ### اهداف مالی ثبت‌شده
-${goalLines}${canonicalNumbers}`;
+${goalLines}${canonicalNumbers}
+
+${factsBlock(profile)}`;
 }
 
 function jsonInstruction(schemaDescription) {
@@ -367,7 +370,7 @@ ${decision.amount ? `مبلغ مرتبط: ${fmtNum(decision.amount)} تومان`
 
 function chatHistoryText(history) {
   return (history || [])
-    .slice(-10)
+    .slice(-6)
     .map((h) => `${h.role === "user" ? "کاربر" : "دستیار"}: ${h.content}`)
     .join("\n");
 }
@@ -384,7 +387,7 @@ export function promptChatReply(profile, message, history) {
 
 ${buildProfileContext(profile)}
 
-### تاریخچه گفتگو (آخرین پیام‌ها)
+### تاریخچه گفتگو (فقط برای فهم ادامه‌ی مکالمه؛ اگر با «واقعیت‌های قطعی» فرق دارد، آن بلاک درست است و تاریخچه نادرست)
 ${chatHistoryText(history)}
 
 ### پیام جدید کاربر
@@ -393,6 +396,7 @@ ${message}
 ### نحوه‌ی پاسخ‌دهی به‌عنوان مشاور مالی چت
 ۱. اول ببین این پیام دقیقاً چه می‌پرسد یا چه تصمیمی را مطرح می‌کند؛ اگر ابهام دارد (مثلاً معلوم نیست منظورش کدام دارایی یا کدام هدف است)، به‌جای حدس زدن، همان ابتدا با یک سؤال کوتاه روشنش کن.
 ۲. اگر روشن است، قبل از نوشتن پاسخ در ذهن خودت مرور کن: این موضوع به کدام بخش از وضعیت کاربر مربوط است — نقدینگی، ریسک، بدهی، افق زمانی، یا اهداف مالی ثبت‌شده‌اش؟ معمولاً بیش از یکی از این‌ها با هم مرتبط‌اند (مثلاً یک تصمیم سرمایه‌گذاری هم روی ریسک اثر دارد هم روی نقدینگی لازم برای هدف نزدیکش)؛ همه‌ی این ابعاد مرتبط را در پاسخ لحاظ کن، نه فقط یکی.
+۰. اگر پرسش درباره‌ی یک واقعیت پروفایل است (مبلغ دارایی، درآمد، هدف…)، فقط همان را از «واقعیت‌های قطعی» بخوان و بگو؛ چیزی اضافه یا حدسی نگو و بحث نامرتبط نکن.
 ۳. پاسخ را با جواب مستقیم و روشن شروع کن (نه با مقدمه‌چینی)، بعد دلیل و اعداد پشتیبان را بیاور. همیشه از اعداد واقعی خود همین کاربر استفاده کن (مبلغ دقیق دارایی/درآمد/هدف)، نه توصیف کلی مثل «دارایی قابل‌توجهی دارید».
 ۴. اگر پیام کاربر درباره‌ی یک تصمیم یا سناریوی فرضی خود اوست، اثر آن را روی ریسک/نقدینگی/اهدافش با اعداد واقعی همین پروفایل (و اعداد رسمی ثابت بالا) تحلیل کن؛ ولی خودت مقدار یا دستور معامله پیشنهاد نکن.
 ۵. اگر پاسخ به یک هدف مالی ثبت‌شده‌ی کاربر مربوط می‌شود، آن را صریح نام ببر و بگو این پاسخ چه تاثیری روی رسیدن به آن هدف در مهلت تعیین‌شده‌اش دارد.

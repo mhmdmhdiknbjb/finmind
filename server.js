@@ -3,7 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PORT } from "./config.js";
 import { loadProfile, saveProfile } from "./store.js";
-import { callLLMJSON, streamLLM } from "./llm.js";
+import { callLLM, callLLMJSON } from "./llm.js";
+import { answersQuestion, validateText, collectStrings, stripBadSentences, answerFactual, fallbackReply } from "./grounding.js";
 import {
   promptAssets,
   promptRisk,
@@ -18,6 +19,7 @@ import {
   promptChatEmotionalCheck,
   promptVoiceExtract,
   categoryLabel,
+  buildProfileContext,
 } from "./prompts.js";
 import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
 import { evaluateGoal } from "./goalEngine.js";
@@ -98,6 +100,38 @@ function allocationArray(weights, total) {
     amount: Math.round((weights[k] || 0) * total),
     percent: Math.round((weights[k] || 0) * 1000) / 10,
   }));
+}
+
+/**
+ * LLM call whose answer is checked against the user's real data before it is used. The model may only explain
+ * numbers that exist in the prompt (profile + engine output): an invented amount, or a claim that the user holds an
+ * asset class they do not hold, sends the answer back once or twice with the exact problems listed; if it still
+ * fails, the offending sentences are cut out instead of shown. `checkCategories:false` for scenario/decision text.
+ */
+const GROUNDING_ATTEMPTS = 3;
+async function groundedJSON(prompt, profile, { effort = "medium", checkCategories = true } = {}) {
+  let feedback = "";
+  let last = null;
+  let lastVerdict = null;
+  for (let i = 0; i < GROUNDING_ATTEMPTS; i++) {
+    const result = await callLLMJSON(prompt + feedback, { effort });
+    const verdict = validateText(collectStrings(result).join("\n"), { profile, groundText: prompt, checkCategories });
+    if (verdict.ok) return result;
+    last = result;
+    lastVerdict = verdict;
+    console.warn(`[grounding] attempt ${i + 1} rejected: ${verdict.problems.slice(0, 3).join(" | ")}`);
+    feedback = `
+
+### اصلاح لازم
+پاسخ قبلی تو رد شد چون با اطلاعات واقعی کاربر نمی‌خواند:
+- ${verdict.problems.slice(0, 5).join("\n- ")}
+دوباره بنویس؛ فقط از مبلغ‌ها و دارایی‌های موجود در پروفایل و خروجی موتورها استفاده کن و به دارایی‌هایی که کاربر ندارد اشاره‌ی مالکیتی نکن.`;
+  }
+  const cleaned = stripBadSentences(last, lastVerdict.badSentences);
+  for (const [k, v] of Object.entries(cleaned)) {
+    if (typeof v === "string" && !v.trim() && typeof last[k] === "string") cleaned[k] = "توضیح متنی این بخش به‌دلیل نبود اطمینان از انطباق با اطلاعات ثبت‌شده‌ی شما نمایش داده نمی‌شود؛ اعداد بالا از موتورهای محاسباتی آمده‌اند.";
+  }
+  return cleaned;
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -261,7 +295,7 @@ app.post(
         const profile = await resolveProfileAssets(loadProfile(req.userId));
         const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
         const computed = optimizePortfolio(profileForOpt);
-        const explanation = await callLLMJSON(promptAssets(profile, computed), { effort: "medium" });
+        const explanation = await groundedJSON(promptAssets(profile, computed), profile);
         return {
           totalAssets: computed.current.total,
           allocation: allocationArray(computed.current.weights, computed.current.total),
@@ -303,7 +337,7 @@ app.post(
         const profile = await resolveProfileAssets(loadProfile(req.userId));
         const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(req.userId, profile);
         const computed = optimizePortfolio(profileForOpt);
-        const explanation = await callLLMJSON(promptRisk(profile, computed), { effort: "medium" });
+        const explanation = await groundedJSON(promptRisk(profile, computed), profile);
         return {
           currentRiskScore: computed.current.riskScore,
           suggestedRiskScore: computed.optimal.riskScore,
@@ -337,7 +371,7 @@ app.post(
     const result = await withSnapshot(req.userId, "liquidity", !!req.body?.force, async () => {
       const profile = await resolveProfileAssets(loadProfile(req.userId));
       const computed = computeLiquidity(profile);
-      const explanation = await callLLMJSON(promptLiquidity(profile, computed), { effort: "medium" });
+      const explanation = await groundedJSON(promptLiquidity(profile, computed), profile);
       return {
         liquidPercent: computed.liquidPercent,
         semiLiquidPercent: computed.semiLiquidPercent,
@@ -360,7 +394,7 @@ app.post(
     const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
     const goal = req.body.goal;
     const computed = evaluateGoal(profileForOpt, goal);
-    const explanation = await callLLMJSON(promptGoal(profile, goal, computed), { effort: "medium" });
+    const explanation = await groundedJSON(promptGoal(profile, goal, computed), profile);
     res.json({ ...computed, suggestedPath: explanation.suggestedPath, risks: explanation.risks, summary: explanation.summary });
   })
 );
@@ -386,7 +420,7 @@ app.post(
 
     if (shocks) {
       const mc = simulateShock(profile, shocks, 8000);
-      const explanation = await callLLMJSON(promptScenarioExplain(profile, scenarioTitle, mc), { effort: "medium" });
+      const explanation = await groundedJSON(promptScenarioExplain(profile, scenarioTitle, mc), profile, { checkCategories: false });
       logInteraction(req.userId, "scenario_run", { scenarioTitle, engine: "monte_carlo", shocks, portfolioChangePercent: mc.portfolio.p50Percent });
       res.json({
         scenarioTitle,
@@ -411,7 +445,7 @@ app.post(
         recommendation: explanation.recommendation,
       });
     } else {
-      const result = await callLLMJSON(promptScenarioQualitative(profile, scenario), { effort: "medium" });
+      const result = await groundedJSON(promptScenarioQualitative(profile, scenario), profile, { checkCategories: false });
       logInteraction(req.userId, "scenario_run", { scenarioTitle, engine: "qualitative_llm" });
       res.json(result);
     }
@@ -451,7 +485,7 @@ app.post(
     };
 
     // Step 3: LLM only narrates/recommends based on the numbers computed above.
-    const explanation = await callLLMJSON(promptDecisionExplain(profile, decision, computed), { effort: "medium" });
+    const explanation = await groundedJSON(promptDecisionExplain(profile, decision, computed), profile, { checkCategories: false });
 
     res.json({
       decisionSummary: explanation.decisionSummary,
@@ -562,7 +596,13 @@ app.post("/api/chat", requireAuth, (req, res) => {
     // gives the chat real memory across page reloads and later visits, and
     // keeps a lost/cleared client-side state from silently truncating what
     // the assistant remembers.
-    const priorHistory = loadChatHistory(userId);
+    const groundText = buildProfileContext(profile);
+    // earlier assistant turns that contradict the profile (from before this check existed, or a weak model) are
+    // dropped from the context so the model cannot imitate them
+    const storedHistory = loadChatHistory(userId);
+    const priorHistory = storedHistory.filter(
+      (h) => h.role !== "assistant" || validateText(h.content, { profile, groundText, userMessage: "" }).ok
+    );
     appendChatMessages(userId, [{ role: "user", content: message, at: new Date().toISOString() }]);
 
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -574,9 +614,43 @@ app.post("/api/chat", requireAuth, (req, res) => {
       () => ({ flag: false, reason: null, message: null })
     );
 
-    const fullReply = await streamLLM(promptChatReply(profile, message, priorHistory), { effort: "medium" }, (delta) => {
-      res.write(`data: ${JSON.stringify({ type: "delta", text: delta })}\n\n`);
-    });
+    // Plain factual questions ("how much gold do I have?") are answered from the profile, not by the model.
+    // Everything else is generated, validated against the profile, retried with the problems listed, and only
+    // then shown (as a simulated stream, since nothing unvalidated may reach the user).
+    let fullReply = answerFactual(profile, message);
+    if (!fullReply) {
+      const prompt = promptChatReply(profile, message, priorHistory);
+      let feedback = "";
+      let text = "";
+      let verdict = null;
+      for (let i = 0; i < GROUNDING_ATTEMPTS; i++) {
+        text = (await callLLM(prompt + feedback, { effort: "medium" })).trim();
+        verdict = validateText(text, { profile, groundText, userMessage: message });
+        if (verdict.ok && !answersQuestion(message, text)) {
+          verdict = { ok: false, problems: ["پاسخ به سؤال کاربر مربوط نیست؛ مستقیم به همین پرسش جواب بده: «" + message.slice(0, 200) + "»"], badSentences: [] };
+        }
+        if (verdict.ok) break;
+        console.warn(`[grounding] chat attempt ${i + 1} rejected: ${verdict.problems.slice(0, 3).join(" | ")}`);
+        feedback = `
+
+### اصلاح لازم
+پاسخ قبلی تو رد شد چون با اطلاعات واقعی کاربر نمی‌خواند:
+- ${verdict.problems.slice(0, 5).join("\n- ")}
+دوباره و کوتاه‌تر بنویس؛ فقط از «واقعیت‌های قطعی» و پروفایل استفاده کن، عدد یا هدف یا دارایی نساز و مستقیم به همان چیزی که کاربر پرسیده جواب بده.`;
+      }
+      if (!verdict.ok) {
+        const kept = stripBadSentences(text, verdict.badSentences);
+        fullReply = verdict.badSentences.length && kept.length >= 40 ? kept : fallbackReply(profile);
+      } else {
+        fullReply = text;
+      }
+    }
+    for (const chunk of fullReply.match(/\S+\s*/g) || [fullReply]) {
+      res.write(`data: ${JSON.stringify({ type: "delta", text: chunk })}
+
+`);
+      await new Promise((r) => setTimeout(r, 12));
+    }
     appendChatMessages(userId, [{ role: "assistant", content: fullReply, at: new Date().toISOString() }]);
 
     const emotional = await emotionalPromise;
