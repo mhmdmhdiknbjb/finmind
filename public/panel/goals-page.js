@@ -45,12 +45,16 @@ function renderGoalsList() {
         });
         const d = await res.json();
         const paceLine =
-          d.monthsNeededAtCurrentPace !== null
+          d.monthsNeededAtCurrentPace === 0
+            ? `<div>سرمایه‌ی موجود شما به‌تنهایی همین حالا به این هدف می‌رسد.</div>`
+            : d.monthsNeededAtCurrentPace !== null
             ? `<div>با توان پس‌انداز فعلی، رسیدن به این هدف واقعاً حدود <b>${d.monthsNeededAtCurrentPace} ماه</b> طول می‌کشد (به‌جای ${d.targetMonths} ماه خواسته‌شده)</div>`
             : "";
         box.innerHTML = `
           <div>امکان‌پذیری: <span class="${d.feasible ? "feasible-yes" : "feasible-no"}">${d.feasible ? "قابل دستیابی است" : "با شرایط فعلی دشوار است"}</span></div>
-          <div>پس‌انداز ماهانه لازم: <b>${formatToman(d.requiredMonthlySaving)}</b></div>
+          <div>سرمایه‌ی موجود در نظر گرفته‌شده (نقد و نیمه‌نقد): <b>${formatToman(d.startingCapital)}</b></div>
+          <div>پیش‌بینی جمع‌شده تا مهلت (سرمایه‌ی موجود + پس‌انداز فعلی): <b>${formatToman(d.projectedAmountAtDeadline)}</b></div>
+          <div>پس‌انداز ماهانه‌ی جدید لازم: <b>${formatToman(d.requiredMonthlySaving)}</b></div>
           <div>توان پس‌انداز فعلی: <b>${formatToman(d.currentMonthlySavingCapacity)}</b></div>
           <div>مازاد/کسری ماهانه: <b class="${d.monthlySurplus >= 0 ? "feasible-yes" : "feasible-no"}">${d.monthlySurplus >= 0 ? "+" : ""}${formatToman(d.monthlySurplus)}</b></div>
           ${paceLine}

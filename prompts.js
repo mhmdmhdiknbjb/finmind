@@ -221,12 +221,13 @@ ${buildProfileContext(profile)}
 ### اعداد محاسبه‌شده توسط موتور مالی (عیناً استفاده کن، عدد جدیدی نساز)
 افق زمانی: ${computed.horizonTier}
 نرخ رشد سالانه فرض‌شده برای پول این هدف: ${computed.assumedAnnualReturnPercent}٪
-پس‌انداز ماهانه لازم برای رسیدن دقیق به هدف در مهلت تعیین‌شده: ${fmtNum(computed.requiredMonthlySaving)} تومان
+سرمایه‌ی موجود کاربر که برای این هدف حساب شده (دارایی‌های نقد و نیمه‌نقد فعلی؛ ملک/خودرو حساب نشده و در صورت وجود چند هدف، همین سرمایه بین همه‌ی اهداف مشترک است): ${fmtNum(computed.startingCapital)} تومان — اگر بدون هیچ پس‌انداز جدیدی نگه داشته شود با نرخ رشد فرض‌شده تا مهلت به ${fmtNum(computed.projectedFromExistingAssets)} تومان می‌رسد
+پس‌انداز ماهانه‌ی جدید لازم (علاوه بر همین سرمایه‌ی موجود) برای رسیدن دقیق به هدف در مهلت تعیین‌شده: ${fmtNum(computed.requiredMonthlySaving)} تومان
 توان پس‌انداز ماهانه فعلی کاربر (درآمد منهای هزینه و اقساط بدهی): ${fmtNum(computed.currentMonthlySavingCapacity)} تومان
 مازاد یا کسری ماهانه نسبت به نیاز: ${computed.monthlySurplus >= 0 ? "+" : ""}${fmtNum(computed.monthlySurplus)} تومان
 آیا با پس‌انداز فعلی امکان‌پذیر است: ${computed.feasible ? "بله" : "خیر"}
-${computed.monthsNeededAtCurrentPace !== null ? `با همین توان پس‌انداز فعلی، رسیدن به مبلغ هدف واقعاً حدود ${computed.monthsNeededAtCurrentPace} ماه طول می‌کشد (نه ${goal.targetMonths} ماه خواسته‌شده).` : "توان پس‌انداز فعلی کاربر صفر یا نامشخص است (درآمد/هزینه ثبت نشده)."}
-با پس‌انداز فعلی، تا مهلت ${goal.targetMonths} ماهه حدود ${fmtNum(computed.projectedAmountAtDeadline)} تومان جمع می‌شود.
+${computed.monthsNeededAtCurrentPace === 0 ? "سرمایه‌ی موجود کاربر به‌تنهایی همین حالا به مبلغ هدف می‌رسد." : computed.monthsNeededAtCurrentPace !== null ? `با سرمایه‌ی موجود و همین توان پس‌انداز فعلی، رسیدن به مبلغ هدف حدود ${computed.monthsNeededAtCurrentPace} ماه طول می‌کشد (مهلت خواسته‌شده ${goal.targetMonths} ماه است).` : "توان پس‌انداز فعلی کاربر صفر یا نامشخص است (درآمد/هزینه ثبت نشده)."}
+با سرمایه‌ی موجود به‌علاوه‌ی پس‌انداز ماهانه‌ی فعلی، تا مهلت ${goal.targetMonths} ماهه حدود ${fmtNum(computed.projectedAmountAtDeadline)} تومان جمع می‌شود.
 
 ### وظیفه
 این اعداد را در یک خلاصه‌ی روان فارسی توضیح بده و مسیرهای ممکن را به‌صورت کیفی (تنظیم پس‌انداز، تمدید مهلت، کاهش مبلغ هدف) با مزیت/هزینه‌ی هرکدام مقایسه کن.

@@ -1,4 +1,5 @@
-import { ASSET_STATS, optimizePortfolio, portfolioStats } from "./optimizer.js";
+import { ASSET_STATS, optimizePortfolio } from "./optimizer.js";
+import { computeLiquidity } from "./liquidityEngine.js";
 
 /**
  * Phase 1-style deterministic engine for the "اهداف مالی" (financial goals)
@@ -36,27 +37,39 @@ function assumedAnnualReturn(targetMonths, profile) {
 }
 
 /**
- * Required monthly contribution (ordinary annuity, PMT) to reach `futureValue`
- * in `months` months at monthly rate `r`.
+ * Time-value-of-money with a starting lump sum L (the money already owned) and a monthly payment P at monthly rate r:
+ *   FV(n) = L(1+r)^n + P((1+r)^n - 1)/r
+ * The first version only annuitised the new savings, so a user holding 438M today was told the goal takes 38 months
+ * instead of ~18 and that the pot at the deadline was 2.1B instead of ~3.8B: the growth of what they already own
+ * was left out of every figure.
  */
-function requiredPayment(futureValue, months, r) {
-  if (r <= 1e-9) return futureValue / months;
-  return (futureValue * r) / (Math.pow(1 + r, months) - 1);
+function futureValue(lump, payment, months, r) {
+  const g = Math.pow(1 + r, months);
+  return lump * g + (r <= 1e-9 ? payment * months : (payment * (g - 1)) / r);
 }
 
-/** How many months of saving `payment`/month at rate `r` it actually takes to reach `futureValue`. */
-function monthsToReach(futureValue, payment, r) {
-  if (payment <= 0) return null;
-  if (r <= 1e-9) return futureValue / payment;
-  const inside = 1 + (futureValue * r) / payment;
-  if (inside <= 0) return null;
-  return Math.log(inside) / Math.log(1 + r);
+/** Monthly contribution needed so that lump + contributions reach `target` in `months` (0 when the lump alone gets there). */
+function requiredPayment(target, lump, months, r) {
+  const gap = target - lump * Math.pow(1 + r, months);
+  if (gap <= 0) return 0;
+  if (r <= 1e-9) return gap / months;
+  return (gap * r) / (Math.pow(1 + r, months) - 1);
 }
 
-/** Amount actually accumulated after `months` of saving `payment`/month at rate `r`. */
-function futureValueOfSavings(payment, months, r) {
-  if (r <= 1e-9) return payment * months;
-  return (payment * (Math.pow(1 + r, months) - 1)) / r;
+/** Months until lump + `payment`/month reaches `target`: 0 if already there, null if it never does. */
+function monthsToReach(target, lump, payment, r) {
+  if (target <= lump) return 0;
+  if (payment <= 0 && lump <= 0) return null;
+  if (r <= 1e-9) return payment > 0 ? (target - lump) / payment : null;
+  const k = payment / r;
+  const ratio = (target + k) / (lump + k);
+  return ratio > 1 ? Math.log(ratio) / Math.log(1 + r) : null;
+}
+
+/** Money already owned that can fund a goal: liquid + semi-liquid holdings (a house or a car is not spent on a goal). */
+function startingCapital(profile) {
+  const liq = computeLiquidity(profile);
+  return liq.breakdown.filter((b) => b.tier !== "illiquid").reduce((sum, b) => sum + b.amount, 0);
 }
 
 export function evaluateGoal(profile, goal) {
@@ -71,16 +84,18 @@ export function evaluateGoal(profile, goal) {
   const { rate: annualReturn, tier } = assumedAnnualReturn(targetMonths, profile);
   const monthlyRate = monthlyRateFromAnnual(annualReturn);
 
-  const requiredMonthlySaving = requiredPayment(targetAmount, targetMonths, monthlyRate);
+  const lump = startingCapital(profile);
+  const requiredMonthlySaving = requiredPayment(targetAmount, lump, targetMonths, monthlyRate);
   const monthlySurplus = currentMonthlySavingCapacity - requiredMonthlySaving;
   const feasible = monthlySurplus >= 0;
 
-  const monthsNeededAtCurrentPaceRaw = monthsToReach(targetAmount, currentMonthlySavingCapacity, monthlyRate);
-  const projectedAmountAtDeadline = futureValueOfSavings(currentMonthlySavingCapacity, targetMonths, monthlyRate);
+  const monthsNeededAtCurrentPaceRaw = monthsToReach(targetAmount, lump, currentMonthlySavingCapacity, monthlyRate);
+  const projectedAmountAtDeadline = futureValue(lump, currentMonthlySavingCapacity, targetMonths, monthlyRate);
 
   return {
     targetAmount,
     targetMonths,
+    startingCapital: Math.round(lump),
     currentMonthlySavingCapacity: Math.round(currentMonthlySavingCapacity),
     requiredMonthlySaving: Math.round(requiredMonthlySaving),
     monthlySurplus: Math.round(monthlySurplus),
@@ -92,5 +107,6 @@ export function evaluateGoal(profile, goal) {
         ? Math.ceil(monthsNeededAtCurrentPaceRaw)
         : null,
     projectedAmountAtDeadline: Math.round(projectedAmountAtDeadline),
+    projectedFromExistingAssets: Math.round(lump * Math.pow(1 + monthlyRate, targetMonths)),
   };
 }
