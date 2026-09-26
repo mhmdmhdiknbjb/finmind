@@ -111,11 +111,19 @@ export function dispersionPromptBlock(cur, opt) {
 نکته: «سهم ریسک» با «سهم سرمایه» فرق دارد و اختلافشان مهم است؛ اگر یک کلاس سهم ریسکش بسیار بیشتر از سهم سرمایه‌اش است، به کاربر بگو.`;
 }
 
+// names ONLY the unpriced classes the user really holds — a fixed "cash/real estate/other" phrase here made the model
+// talk about real estate for portfolios that had none
+function unpricedNote(cur) {
+  const unpriced = ["cash_deposit", "bond", "real_estate", "vehicle", "other_assets"];
+  const held = labelledShares(cur.allocation.byClass).filter((c) => unpriced.includes(c.key)).map((c) => c.label);
+  return held.length ? `(بقیه‌ی دارایی، یعنی ${held.join("، ")}، تاریخچه‌ی قیمتی ندارد)` : "(تمام دارایی کاربر قیمت‌دار است)";
+}
+
 /** Persian block for promptRisk: realised past risk + historical (not predicted) ranges. */
 export function riskPromptBlock(cur) {
   if (!cur) return "";
   if (!cur.hasMarketAssets) {
-    return `\n### ریسک واقعی بازار\nکاربر هیچ دارایی قیمت‌داری (ارز، طلا، سهام، صندوق، رمزارز) ندارد؛ برای ریسک بازار داده‌ای در دسترس نیست. عددی نساز.`;
+    return `\n### ریسک واقعی بازار\nکاربر هیچ دارایی‌ای که قیمت بازاری داشته باشد ندارد؛ برای ریسک بازار داده‌ای در دسترس نیست. عددی نساز و از دارایی‌ای که در فهرست دارایی‌های کاربر نیست نام نبر.`;
   }
   const s = cur.risk.sleeve;
   const f = cur.forward;
@@ -130,7 +138,7 @@ export function riskPromptBlock(cur) {
   const anyMl = ["26w", "52w"].some((h) => isMl(h, "ret") || isMl(h, "maxDrawdown") || isMl(h, "retVsUsd"));
   return `
 ### ریسک واقعی گذشته‌ی بخش قیمت‌دار (داده‌ی هفتگی واقعی بازار ایران تا ${cur.asOf} — عیناً به‌کار ببر، عدد جدید نساز)
-سهم بخش قیمت‌دار از کل دارایی: ${pct(cur.modeledShare)} (بقیه نقد/ملک/سایر است و تاریخچه‌ی قیمتی ندارد)
+سهم بخش قیمت‌دار از کل دارایی: ${pct(cur.modeledShare)} ${unpricedNote(cur)}
 نوسان سالانه‌ی ۱ ساله: ${pct(s.annVol1y)}${s.annVol3y === null ? "" : ` | ۳ ساله: ${pct(s.annVol3y)}`} | بیشینه ریزش ۱ ساله: ${pct(s.maxDrawdown1y)}${s.maxDrawdown3y === null ? "" : ` | ۳ ساله: ${pct(s.maxDrawdown3y)}`}
 بدترین هفته‌ها (میانگین ۳ هفته‌ی بدتر از ۵۲): ${pct(s.cvar95Weekly1y)} | بتا نسبت به دلار: ${s.betaUsd1y.toFixed(2)} | بازده ۱ ساله نسبت به دلار: ${pct(s.returnVsUsd1y)}
 بازه‌ی ۲۶ هفته: ${rng("26w")}

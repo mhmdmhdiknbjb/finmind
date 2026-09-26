@@ -379,10 +379,14 @@ export function analyzePortfolio(holdings, profile = {}) {
   const wealthVol = past ? past.annVol1y * modeledShare : 0;
   const riskScore = riskScoreFromVol(wealthVol);
 
+  // name only the unpriced classes actually held: a fixed "cash, real estate, other" text made readers (and the LLM)
+  // believe a cash+gold portfolio contained real estate
+  const UNPRICED_LABELS = { cash_deposit: "نقد و سپرده", bond: "اوراق", real_estate: "ملک", vehicle: "خودرو", other_assets: "سایر" };
+  const unpricedNames = Object.entries(UNPRICED_LABELS).filter(([k]) => (broadShare[k] || 0) > 0.0005).map(([, l]) => l).join("، ");
   const warnings = [];
   if (!hasMarket) warnings.push("هیچ دارایی قیمت‌داری (ارز، طلا، سهام، صندوق، رمزارز) برای محاسبه‌ی ریسک بازار ثبت نشده است.");
   if (hasMarket && modeledShare < 0.999) {
-    warnings.push(`${round((1 - modeledShare) * 100, 1)}٪ از دارایی (نقد، ملک، سایر) تاریخچه‌ی قیمتی ندارد؛ عددهای نوسان و ریزش فقط بخش قیمت‌دار (${round(modeledShare * 100, 1)}٪) را پوشش می‌دهند.`);
+    warnings.push(`${round((1 - modeledShare) * 100, 1)}٪ از دارایی (${unpricedNames || "سایر"}) تاریخچه‌ی قیمتی ندارد؛ عددهای نوسان و ریزش فقط بخش قیمت‌دار (${round(modeledShare * 100, 1)}٪) را پوشش می‌دهند.`);
   }
   if (w.fund) warnings.push("نوع صندوق مشخص نیست؛ به‌صورت ترکیب مساوی صندوق سهامی و درآمد ثابت مدل شده است.");
   if (w.stock) warnings.push("سهام بدون نماد ثبت شده؛ به‌صورت سبد هم‌وزن ۳۰ سهم پرمعامله مدل شده است.");

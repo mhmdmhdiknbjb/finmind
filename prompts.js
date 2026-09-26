@@ -33,6 +33,7 @@ function assetLine(a, i) {
   const label = a.label ? a.label + " — " : "";
   const kind = kindOf(a);
   if (a.category === "gold" && kind?.live) {
+    if (!(Number(a.amount) > 0) && Number(a.quantity) > 0) return `${i + 1}. ${label}${kind.label} — ${fmtNum(a.quantity)} ${UNIT_LABELS[kind.unit]} — ارزش تومانی به‌دلیل در دسترس نبودن قیمت آنی محاسبه نشد (عددی برایش نساز)`;
     return `${i + 1}. ${label}${kind.label} — ${fmtNum(a.quantity)} ${UNIT_LABELS[kind.unit]} — معادل ${fmtNum(a.amount)} تومان به قیمت آنی`;
   }
   if (kind && a.category !== "gold") {
@@ -116,8 +117,10 @@ function jsonInstruction(schemaDescription) {
   return `\n\n### دستور خروجی\nفقط و فقط یک JSON معتبر و تک‌خطی یا چندخطی مطابق دقیقاً همین ساختار زیر برگردان. هیچ متن، توضیح، یا Markdown خارج از JSON ننویس و از code fence استفاده نکن:\n${schemaDescription}`;
 }
 
+// only categories with weight: listing "سهام: 0٪ ، ملک: 0٪" invites the model to write about assets the portfolio lacks
 function formatPct(w) {
-  return ASSET_ORDER_FOR_PROMPT.map((k) => `${categoryLabel(k)}: ${Math.round((w[k] || 0) * 1000) / 10}٪`).join("، ");
+  const rows = ASSET_ORDER_FOR_PROMPT.filter((k) => (w[k] || 0) > 0.0005);
+  return rows.length ? rows.map((k) => `${categoryLabel(k)}: ${Math.round((w[k] || 0) * 1000) / 10}٪`).join("، ") : "—";
 }
 
 const ASSET_ORDER_FOR_PROMPT = ["cash", "gold", "currency", "stock", "fund", "realestate", "crypto", "other"];

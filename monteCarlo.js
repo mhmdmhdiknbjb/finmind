@@ -117,7 +117,7 @@ function clampIdx(x, lo, hi) {
 }
 
 /**
- * shocks: { category: annualReturnShock } for one or more asset classes,
+ * shocks: { category: priceChangeFraction } for one or more asset classes (-0.2 = falls 20%),
  * e.g. { currency: 0.30 } for "dollar up 30%".
  */
 export function simulateShock(profile, shocks, trials = 8000) {
@@ -126,7 +126,11 @@ export function simulateShock(profile, shocks, trials = 8000) {
   const shockedIdx = shockedKeys.map((k) => ASSET_ORDER.indexOf(k));
   const freeIdx = ASSET_ORDER.map((_, i) => i).filter((i) => !shockedIdx.includes(i));
 
-  const mu = ASSET_ORDER.map((k) => ASSET_STATS[k].expectedReturn);
+  // A scenario is an instantaneous SHOCK, so every asset is measured as a change from where it stands now: the shocked
+  // classes move by exactly the stated amount and the others by their correlation-implied spillover. mu = 0 (deviations)
+  // matters: with the expected annual returns (cash +23%, gold +35%, ...) the unshocked assets' interest/drift got added
+  // to the shock, and "gold -20%" on a 54% gold portfolio came out as -10.9% + 10.7% (cash drift) = -0.2%.
+  const mu = ASSET_ORDER.map(() => 0);
   const x1 = shockedIdx.map((i) => shocks[ASSET_ORDER[i]]);
   const mu1 = shockedIdx.map((i) => mu[i]);
   const mu2 = freeIdx.map((i) => mu[i]);

@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { fetchLiveRates } from "./marketFeed.js";
 import { kindOf, isQuantityAsset } from "./public/assetCatalog.js";
 
@@ -14,6 +17,18 @@ import { kindOf, isQuantityAsset } from "./public/assetCatalog.js";
  * asset types in it.
  */
 
+// Last good rates are also kept on disk: after a restart while the feed is down there is no in-memory cache, and gold /
+// currency / crypto holdings would then be valued at 0 (the model saw "no gold"; risk and liquidity silently dropped it).
+const RATES_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), "data", "last_rates.json");
+
+function readSavedRates() {
+  try {
+    return JSON.parse(fs.readFileSync(RATES_FILE, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
 const CACHE_MS = 10 * 60 * 1000;
 let cache = null; // { rates, fetchedAt }
 
@@ -22,9 +37,20 @@ export async function getLiveRates() {
   try {
     const rates = await fetchLiveRates();
     cache = { rates, fetchedAt: Date.now() };
+    try {
+      fs.mkdirSync(path.dirname(RATES_FILE), { recursive: true });
+      fs.writeFileSync(RATES_FILE, JSON.stringify(rates), "utf-8");
+    } catch {
+      /* the disk copy is only a fallback */
+    }
     return rates;
   } catch (err) {
     if (cache) return cache.rates;
+    const saved = readSavedRates();
+    if (saved) {
+      console.warn("[rates] live feed failed, using the last saved rates:", String(err.message).slice(0, 100));
+      return saved;
+    }
     throw err;
   }
 }
