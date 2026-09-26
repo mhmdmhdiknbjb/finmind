@@ -50,11 +50,11 @@
 
               <div class="risk-meters">
                 <div class="meter-row">
-                  <div class="meter-label">ریسک فعلی <b id="riskCurrentVal">0</b></div>
+                  <div class="meter-label">ریسک نوسان فعلی <b id="riskCurrentVal">0</b></div>
                   <div class="meter-track"><div class="meter-fill meter-current" id="riskCurrentBar"></div></div>
                 </div>
                 <div class="meter-row">
-                  <div class="meter-label">ریسک پیشنهادی <b id="riskSuggestedVal">0</b></div>
+                  <div class="meter-label">ریسک نوسان پیشنهادی <b id="riskSuggestedVal">0</b></div>
                   <div class="meter-track"><div class="meter-fill meter-suggested" id="riskSuggestedBar"></div></div>
                 </div>
                 <div class="risk-badges">
@@ -64,6 +64,12 @@
               </div>
             </div>
             <div class="banner banner-adjust hidden" id="behaviorBanner"></div>
+
+            <div id="compositeBlock" class="hidden">
+              <h4 class="tag-neu">شاخص ریسک ترکیبی <span class="profile-summary" id="compositeScore"></span></h4>
+              <div class="stat-row" id="compositeStats"></div>
+              <p class="summary-text" id="compositeNote"></p>
+            </div>
 
             <div id="marketRiskBlock" class="hidden">
               <h4 class="tag-neu">ریسک واقعی گذشته‌ی بخش قیمت‌دار <span class="profile-summary" id="marketRiskAsOf"></span></h4>

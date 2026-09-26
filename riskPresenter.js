@@ -72,6 +72,8 @@ export function riskPayload(cur, opt) {
     hasMarketAssets: cur.hasMarketAssets,
     modeledShare: r(cur.modeledShare),
     wealthVolatility1y: r(cur.risk.wealthVol1y),
+    composite: cur.risk.composite,
+    suggestedComposite: opt ? opt.risk.composite : null,
     suggestedWealthVolatility1y: opt ? r(opt.risk.wealthVol1y) : null,
     sleeve: s && {
       annVolatility1y: r(s.annVol1y),
@@ -140,6 +142,7 @@ export function riskPromptBlock(cur) {
 ### ریسک واقعی گذشته‌ی بخش قیمت‌دار (داده‌ی هفتگی واقعی بازار ایران تا ${cur.asOf} — عیناً به‌کار ببر، عدد جدید نساز)
 سهم بخش قیمت‌دار از کل دارایی: ${pct(cur.modeledShare)} ${unpricedNote(cur)}
 نوسان سالانه‌ی ۱ ساله: ${pct(s.annVol1y)}${s.annVol3y === null ? "" : ` | ۳ ساله: ${pct(s.annVol3y)}`} | بیشینه ریزش ۱ ساله: ${pct(s.maxDrawdown1y)}${s.maxDrawdown3y === null ? "" : ` | ۳ ساله: ${pct(s.maxDrawdown3y)}`}
+شاخص ریسک ترکیبی: ${cur.risk.composite.score} از ۱۰۰ (${cur.risk.composite.level}) — اجزا (هرکدام ۰ تا ۱۰۰): نوسان ${cur.risk.composite.components.volatility}، افت ${cur.risk.composite.components.drawdown}، دم بد ${cur.risk.composite.components.tail}، تمرکز ${cur.risk.composite.components.concentration}، نقدشوندگی‌ضعیف ${cur.risk.composite.components.illiquidity}، فرسایش نقد ${cur.risk.composite.components.cashErosion}. «امتیاز ریسک ۱۰۰‌تایی» بالا فقط ریسک نوسان بازار است؛ این شاخص تمرکز، افت، نقدشوندگی و فرسایش پول نقد را هم می‌سنجد.
 بدترین هفته‌ها (میانگین ۳ هفته‌ی بدتر از ۵۲): ${pct(s.cvar95Weekly1y)} | بتا نسبت به دلار: ${s.betaUsd1y.toFixed(2)} | بازده ۱ ساله نسبت به دلار: ${pct(s.returnVsUsd1y)}
 بازه‌ی ۲۶ هفته: ${rng("26w")}
 بازه‌ی ۵۲ هفته: ${rng("52w")}${volLine}

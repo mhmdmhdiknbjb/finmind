@@ -120,6 +120,11 @@ function clampIdx(x, lo, hi) {
  * shocks: { category: priceChangeFraction } for one or more asset classes (-0.2 = falls 20%),
  * e.g. { currency: 0.30 } for "dollar up 30%".
  */
+// Parametric modelling choices (no data source defines them): the scenario is read over 3 months, and the stated
+// shock size is uncertain with a relative standard deviation of 25%.
+export const SCENARIO_HORIZON_YEARS = 0.25;
+export const SHOCK_SEVERITY_SD = 0.25;
+
 export function simulateShock(profile, shocks, trials = 8000) {
   const n = ASSET_ORDER.length;
   const shockedKeys = Object.keys(shocks).filter((k) => ASSET_ORDER.includes(k));
@@ -140,16 +145,20 @@ export function simulateShock(profile, shocks, trials = 8000) {
   const Sigma22 = freeIdx.map((i) => freeIdx.map((j) => COVARIANCE[i][j]));
   const Sigma12 = transpose(Sigma21);
 
+  // Scenario horizon: the shock is a short-run event, so the spread of everything it does not determine is the spread
+  // over SCENARIO_HORIZON_YEARS, not over a full year (the covariance matrix is annual). Without this, unrelated assets
+  // (cash, stocks) carried their whole-year volatility and the portfolio band said nothing about the scenario itself.
+  const HZ = SCENARIO_HORIZON_YEARS;
   let condMean2 = mu2;
-  let condCov2 = Sigma22;
+  let condCov2 = Sigma22.map((row) => row.map((v) => v * HZ));
+  // spillover coefficients: the expected move of each free asset per unit of the shocked assets' moves (linear)
+  let spill = null;
 
   if (shockedIdx.length > 0 && freeIdx.length > 0) {
     const Sigma11Inv = matInverse(Sigma11);
-    const diff = subVec(x1, mu1).map((v) => [v]);
-    const meanAdj = matMul(Sigma21, matMul(Sigma11Inv, diff)).map((r) => r[0]);
-    condMean2 = addVec(mu2, meanAdj);
+    spill = matMul(Sigma21, Sigma11Inv); // (free x shocked)
     const covAdj = matMul(Sigma21, matMul(Sigma11Inv, Sigma12));
-    condCov2 = Sigma22.map((row, i) => row.map((v, j) => v - covAdj[i][j]));
+    condCov2 = Sigma22.map((row, i) => row.map((v, j) => (v - covAdj[i][j]) * HZ));
   }
 
   const L = freeIdx.length > 0 ? cholesky(condCov2) : [];
@@ -161,12 +170,18 @@ export function simulateShock(profile, shocks, trials = 8000) {
 
   for (let t = 0; t < trials; t++) {
     const full = new Array(n);
-    for (let k = 0; k < shockedIdx.length; k++) full[shockedIdx[k]] = x1[k];
+    // the size of the shock is itself uncertain ("gold -20%" may end at -15% or -26%): one severity factor per trial,
+    // shared by all shocked classes so a multi-asset scenario keeps its internal proportions
+    const severity = shockedIdx.length ? Math.max(0.1, 1 + SHOCK_SEVERITY_SD * randn()) : 1;
+    // a price cannot fall by more than 100%; a total loss (-100%) is already the extreme, so it gets no severity spread
+    const xs = x1.map((v) => (v <= -1 ? -1 : Math.max(-1, v * severity)));
+    for (let k = 0; k < shockedIdx.length; k++) full[shockedIdx[k]] = xs[k];
 
     if (freeIdx.length > 0) {
       const z = freeIdx.map(() => randn());
       for (let i = 0; i < freeIdx.length; i++) {
         let sample = condMean2[i];
+        if (spill) for (let k = 0; k < xs.length; k++) sample += spill[i][k] * xs[k];
         for (let j = 0; j <= i; j++) sample += L[i][j] * z[j];
         full[freeIdx[i]] = sample;
       }
@@ -207,6 +222,8 @@ export function simulateShock(profile, shocks, trials = 8000) {
     shocks,
     trials,
     total,
+    horizonMonths: SCENARIO_HORIZON_YEARS * 12,
+    shockSeveritySd: SHOCK_SEVERITY_SD,
     portfolio: {
       p15Percent: Math.round(portfolioPct.p15 * 1000) / 10,
       p50Percent: Math.round(portfolioPct.p50 * 1000) / 10,

@@ -46,6 +46,7 @@ function renderRiskWidget(data) {
   $("riskDiffBadge").textContent = `اختلاف: ${diff > 0 ? "+" : ""}${Math.round(diff)}`;
 
   renderMarketRisk(data.marketRisk);
+  renderComposite(data.marketRisk);
 
   fillListLive("riskReasons", data.reasons);
   fillListLive("riskBehavioral", data.behavioralFactors);
@@ -70,6 +71,31 @@ function chip(label, value) {
   div.className = "stat-chip";
   div.innerHTML = `<span class="stat-label">${label}</span><span class="stat-value">${value}</span>`;
   return div;
+}
+
+const COMPOSITE_LABELS = {
+  volatility: "نوسان بازار",
+  drawdown: "افت از اوج",
+  tail: "هفته‌های بد",
+  concentration: "تمرکز",
+  illiquidity: "ضعف نقدشوندگی",
+  cashErosion: "فرسایش نقد",
+};
+
+/** شاخص ترکیبی: نوسان + افت + دم بد + تمرکز + نقدشوندگی + فرسایش نقد (the volatility gauge above is only the first part). */
+function renderComposite(mr) {
+  const block = $("compositeBlock");
+  const c = mr && mr.composite;
+  if (!c) {
+    block.classList.add("hidden");
+    return;
+  }
+  block.classList.remove("hidden");
+  $("compositeScore").textContent = c.score + " از ۱۰۰ (" + c.level + ")";
+  const wrap = $("compositeStats");
+  wrap.innerHTML = "";
+  Object.entries(COMPOSITE_LABELS).forEach(([k, label]) => wrap.appendChild(chip(label + " (وزن " + Math.round((c.weights[k] || 0) * 100) + "٪)", ltr(c.components[k]))));
+  $("compositeNote").textContent = "عدد بالای «ریسک نوسان» فقط نوسان قیمت را می‌سنجد؛ این شاخص تمرکز، افت، هفته‌های بد، نقدشوندگی و فرسایش پول نقد را هم با وزن‌های ثابت ترکیب می‌کند.";
 }
 
 /** ریسک واقعی: numbers measured on real weekly market data (portfolioRisk.js) — hidden when there is nothing priced. */

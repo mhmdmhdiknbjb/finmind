@@ -247,6 +247,9 @@ export function optimizePortfolio(profile) {
   const upperBound = Object.fromEntries(ASSET_ORDER.map((k) => [k, ASSET_STATS[k].upperBound]));
   lowerBound.realestate = reCurrent * 0.8;
   upperBound.realestate = Math.min(1, reCurrent * 1.2 + 0.1);
+  // "other" (vehicles, insurance, collectibles...) is not something a portfolio suggestion can tell anyone to buy:
+  // the reference mix may keep or shrink what is held, never grow it
+  upperBound.other = Math.min(upperBound.other, curWeights.other || 0);
 
   // Never suggest growing real estate into a toman amount too small to be
   // an actual property. If the portfolio can't clear MIN_PROPERTY_VALUE_TOMAN
@@ -259,65 +262,137 @@ export function optimizePortfolio(profile) {
     upperBound.realestate = reCurrent;
   }
 
-  // Dmat = lambda * Sigma, ridge-regularized for numerical positive-definiteness.
-  const Dmat = oneIndexedMatrix(n, n);
-  for (let i = 1; i <= n; i++) {
-    for (let j = 1; j <= n; j++) {
-      Dmat[i][j] = lambda * COVARIANCE[i - 1][j - 1] + (i === j ? 1e-6 : 0);
-    }
-  }
-
-  const dvec = oneIndexedVector(n);
-  for (let i = 1; i <= n; i++) dvec[i] = ASSET_STATS[ASSET_ORDER[i - 1]].expectedReturn;
+  // Emergency cash floor, independent of risk tolerance: 3 months of expenses (6 with dependents or debt). It is a hard
+  // lower bound on the cash weight. The old constraint only bounded the liquidity-WEIGHTED score, which gold/stock alone
+  // satisfy, so a risk-tolerance-10 user was told to hold 0% cash.
+  const nDependents = Number(profile.personal?.childrenCount) || 0;
+  const cashMonths = nDependents > 0 || (Number(profile.existingDebt) || 0) > 0 ? 6 : 3;
+  let cashFloor = total > 0 ? clamp(((Number(profile.monthlyExpenses) || 0) * cashMonths) / total, 0.05, 0.5) : 0.05;
+  const othersLower = ASSET_ORDER.filter((k) => k !== "cash").reduce((s, k) => s + lowerBound[k], 0);
+  cashFloor = Math.max(0, Math.min(cashFloor, 1 - othersLower)); // never make the program infeasible
+  lowerBound.cash = cashFloor;
 
   const liq = ASSET_ORDER.map((k) => ASSET_STATS[k].liquidity);
+  const cov = COVARIANCE;
 
-  // Columns: [equality: sum=1] [lower bounds x n] [upper bounds x n] [liquidity floor]
-  const nCols = 1 + n + n + 1;
-  const Amat = oneIndexedMatrix(n, nCols);
-  const bvec = oneIndexedVector(nCols);
+  /** One mean-variance solve for the expected-return vector `mu`. Returns weights or null when the solver gives up. */
+  function solveFor(mu) {
+    // Dmat = lambda * Sigma, ridge-regularized for numerical positive-definiteness.
+    const Dmat = oneIndexedMatrix(n, n);
+    for (let i = 1; i <= n; i++) for (let j = 1; j <= n; j++) Dmat[i][j] = lambda * cov[i - 1][j - 1] + (i === j ? 1e-6 : 0);
+    const dvec = oneIndexedVector(n);
+    for (let i = 1; i <= n; i++) dvec[i] = mu[i - 1];
 
-  let col = 1;
-  for (let i = 1; i <= n; i++) Amat[i][col] = 1;
-  bvec[col] = 1;
-  col++;
-
-  for (let k = 0; k < n; k++) {
-    for (let i = 1; i <= n; i++) Amat[i][col] = i - 1 === k ? 1 : 0;
-    bvec[col] = lowerBound[ASSET_ORDER[k]];
+    // Columns: [equality: sum=1] [lower bounds x n] [upper bounds x n] [liquidity floor]
+    const nCols = 1 + n + n + 1;
+    const Amat = oneIndexedMatrix(n, nCols);
+    const bvec = oneIndexedVector(nCols);
+    let col = 1;
+    for (let i = 1; i <= n; i++) Amat[i][col] = 1;
+    bvec[col] = 1;
     col++;
+    for (let k = 0; k < n; k++) {
+      for (let i = 1; i <= n; i++) Amat[i][col] = i - 1 === k ? 1 : 0;
+      bvec[col] = lowerBound[ASSET_ORDER[k]];
+      col++;
+    }
+    for (let k = 0; k < n; k++) {
+      for (let i = 1; i <= n; i++) Amat[i][col] = i - 1 === k ? -1 : 0;
+      bvec[col] = -upperBound[ASSET_ORDER[k]];
+      col++;
+    }
+    for (let i = 1; i <= n; i++) Amat[i][col] = liq[i - 1];
+    bvec[col] = reqLiquid;
+
+    const result = solveQP(Dmat, dvec, Amat, bvec, 1);
+    if (result.message) return { weights: null, message: result.message };
+    const w = ASSET_ORDER.map((_, i) => Math.max(0, result.solution[i + 1]));
+    const sum = w.reduce((s, v) => s + v, 0) || 1;
+    return { weights: w.map((v) => v / sum), message: null };
   }
 
-  for (let k = 0; k < n; k++) {
-    for (let i = 1; i <= n; i++) Amat[i][col] = i - 1 === k ? -1 : 0;
-    bvec[col] = -upperBound[ASSET_ORDER[k]];
-    col++;
-  }
+  // 1) the plain solve with the planning expected returns (kept as the fallback and as the "point" solution)
+  const base = solveFor(ASSET_ORDER.map((k) => ASSET_STATS[k].expectedReturn));
 
-  for (let i = 1; i <= n; i++) Amat[i][col] = liq[i - 1];
-  bvec[col] = reqLiquid;
-
-  const result = solveQP(Dmat, dvec, Amat, bvec, 1);
-
+  // 2) resampled efficiency (Michaud): expected returns are not known to 3 decimals; with 3 years of data their standard
+  // error is sigma/sqrt(3). Solve the same program for many plausible return vectors drawn with the REAL covariance and
+  // average the weights. Point-estimate mean-variance sends the whole answer to whichever class has the highest assumed
+  // return (a corner at the caps, e.g. exactly 50% stock / 15% crypto / 0% cash); the average is a smooth, diversified
+  // point that still satisfies every constraint (they are linear, so any average of feasible solutions is feasible).
   let optimalWeights;
-  if (result.message) {
-    // Infeasible or numerically degenerate (can happen with very tight,
-    // conflicting constraints) — fall back to the current allocation
-    // rather than surface a broken optimizer result.
+  let solverMessage = null;
+  if (!base.weights) {
+    // Infeasible or numerically degenerate (very tight, conflicting constraints): fall back to the current
+    // allocation rather than surface a broken optimizer result.
     optimalWeights = { ...curWeights };
+    solverMessage = base.message;
   } else {
-    optimalWeights = {};
-    for (let i = 0; i < n; i++) optimalWeights[ASSET_ORDER[i]] = Math.max(0, result.solution[i + 1]);
-    const sum = Object.values(optimalWeights).reduce((s, v) => s + v, 0) || 1;
-    for (const k of ASSET_ORDER) optimalWeights[k] = optimalWeights[k] / sum;
+    const draws = resampledReturns(RESAMPLES);
+    const acc = new Array(n).fill(0);
+    let ok = 0;
+    for (const mu of draws) {
+      const r = solveFor(mu);
+      if (!r.weights) continue;
+      r.weights.forEach((v, i) => (acc[i] += v));
+      ok++;
+    }
+    const avg = ok >= RESAMPLES / 2 ? acc.map((v) => v / ok) : base.weights;
+    optimalWeights = Object.fromEntries(ASSET_ORDER.map((k, i) => [k, avg[i]]));
   }
 
   return {
     current: withMarketRisk({ weights: curWeights, total, ...portfolioStats(curWeights) }, profile, total),
     optimal: withMarketRisk({ weights: optimalWeights, ...portfolioStats(optimalWeights) }, profile, total, optimalWeights),
-    params: { riskAversion: lambda, requiredLiquidFraction: reqLiquid, realestateBand: [lowerBound.realestate, upperBound.realestate] },
-    solverMessage: result.message || null,
+    params: { riskAversion: lambda, requiredLiquidFraction: reqLiquid, cashFloor, cashFloorMonths: cashMonths, realestateBand: [lowerBound.realestate, upperBound.realestate], resamples: RESAMPLES },
+    solverMessage,
   };
+}
+
+/* ---- resampled expected returns -------------------------------------------------------------------------------- */
+
+const RESAMPLES = 200;
+const RETURN_HISTORY_YEARS = 3; // the market pack holds ~3 years of weekly returns: the mean is only that well known
+
+/** Deterministic PRNG (mulberry32): the same portfolio always gets the same suggestion, never a flickering one. */
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function choleskyLower(A) {
+  const n = A.length;
+  const L = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j <= i; j++) {
+      let sum = A[i][j] + (i === j ? 1e-9 : 0);
+      for (let k = 0; k < j; k++) sum -= L[i][k] * L[j][k];
+      L[i][j] = i === j ? Math.sqrt(Math.max(sum, 1e-12)) : sum / L[j][j];
+    }
+  }
+  return L;
+}
+
+let resampledCache = null;
+function resampledReturns(count) {
+  if (resampledCache && resampledCache.length === count) return resampledCache;
+  const n = ASSET_ORDER.length;
+  const L = choleskyLower(COVARIANCE);
+  const rand = seededRandom(20260926);
+  const normal = () => Math.sqrt(-2 * Math.log(rand() || 1e-12)) * Math.cos(2 * Math.PI * rand());
+  const mu0 = ASSET_ORDER.map((k) => ASSET_STATS[k].expectedReturn);
+  const draws = [];
+  for (let s = 0; s < count; s++) {
+    const z = Array.from({ length: n }, normal);
+    draws.push(mu0.map((m, i) => m + L[i].reduce((acc, l, j) => acc + l * z[j], 0) / Math.sqrt(RETURN_HISTORY_YEARS)));
+  }
+  resampledCache = draws;
+  return draws;
 }
 
 /**

@@ -319,6 +319,10 @@ app.post(
       title: req.body.title,
       targetAmount: Number(req.body.targetAmount) || 0,
       targetMonths: Number(req.body.targetMonths) || 0,
+      // optional: yearly price growth of what the goal buys (%); empty = the engine's default assumption
+      ...(req.body.priceGrowthPercent !== undefined && req.body.priceGrowthPercent !== "" && req.body.priceGrowthPercent !== null && Number.isFinite(Number(req.body.priceGrowthPercent))
+        ? { priceGrowthPercent: Math.min(300, Math.max(0, Number(req.body.priceGrowthPercent))) }
+        : {}),
     };
     profile.goals = [...(profile.goals || []), goal];
     saveProfile(req.userId, profile);
@@ -511,6 +515,8 @@ app.post(
           p85Amount: mc.portfolio.p85Amount,
         },
         trials: mc.trials,
+        horizonMonths: mc.horizonMonths,
+        shockSeveritySd: mc.shockSeveritySd,
         explanation: explanation.explanation,
         recommendation: explanation.recommendation,
       });

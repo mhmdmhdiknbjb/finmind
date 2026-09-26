@@ -379,6 +379,25 @@ export function analyzePortfolio(holdings, profile = {}) {
   const wealthVol = past ? past.annVol1y * modeledShare : 0;
   const riskScore = riskScoreFromVol(wealthVol);
 
+  // ---- composite risk index (0..100). riskScore above is the MARKET-VOLATILITY score (kept as is: it is the number the
+  // Python calculator defines and tools/verify_risk_engine.mjs checks). It says nothing about a portfolio that is one asset,
+  // illiquid, or mostly rial cash losing value, so those dimensions are scored separately and combined with fixed weights.
+  const ms = modeledShare;
+  const composite = (() => {
+    const comp = {
+      volatility: riskScore,
+      drawdown: past ? 100 * clip((Math.abs(past.maxDrawdown1y) * ms) / 0.5, 0, 1) : 0,
+      tail: past ? 100 * clip((Math.abs(past.cvar95Weekly1y) * ms) / 0.08, 0, 1) : 0,
+      concentration: 100 * (1 - (0.5 * c1 + 0.5 * c2)),
+      illiquidity: 100 * (1 - liquidityScore),
+      cashErosion: 100 * clip(share.rial_cash_like / 0.6, 0, 1),
+    };
+    const W = { volatility: 0.35, drawdown: 0.15, tail: 0.1, concentration: 0.2, illiquidity: 0.1, cashErosion: 0.1 };
+    const score = Math.round(Object.keys(W).reduce((s, k) => s + W[k] * comp[k], 0));
+    const rounded = Object.fromEntries(Object.entries(comp).map(([k, v]) => [k, Math.round(v)]));
+    return { score, level: riskLevelFromScore(score), components: rounded, weights: W };
+  })();
+
   // name only the unpriced classes actually held: a fixed "cash, real estate, other" text made readers (and the LLM)
   // believe a cash+gold portfolio contained real estate
   const UNPRICED_LABELS = { cash_deposit: "نقد و سپرده", bond: "اوراق", real_estate: "ملک", vehicle: "خودرو", other_assets: "سایر" };
@@ -406,7 +425,7 @@ export function analyzePortfolio(holdings, profile = {}) {
       riskContributionByClass: rcls, topRiskClass, topRiskClassShare: topRiskShare, topHoldingRiskShare: topHoldingRisk, flags,
     },
     liquidity: { liquidityScore, emergencyMonths },
-    risk: { sleeve: past, wealthVol1y: wealthVol, riskScore, riskLevel: riskLevelFromScore(riskScore) },
+    risk: { sleeve: past, wealthVol1y: wealthVol, riskScore, riskLevel: riskLevelFromScore(riskScore), composite },
     cashErosion: { cashShareXUsd1y: (w.cash_deposit || 0) * reg.usd_ret_52w, cashShareXGold1y: (w.cash_deposit || 0) * reg.gold_ret_52w },
     forward,
     marketContext: {

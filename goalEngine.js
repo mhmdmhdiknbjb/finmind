@@ -83,9 +83,32 @@ export function evaluateGoals(profile) {
   return (profile.goals || []).map((goal) => ({ goal, result: evaluateGoal(engineProfile, goal) }));
 }
 
+/**
+ * Assumed yearly price growth of what the goal buys (a house deposit, a car, tuition...). The dataset holds no
+ * inflation or housing-price series, so this is a planning assumption, not a measurement: it is shown to the user, can be
+ * set per goal (`priceGrowthPercent`), and the result WITHOUT price growth is always reported next to it. It is
+ * deliberately of the same order as the growth assumed for the money itself (a 30% nominal return against a flat target
+ * would treat the whole return as real profit, and told users a house deposit needed 18 months instead of 60).
+ */
+export const DEFAULT_GOAL_PRICE_GROWTH = 0.3;
+
+/** First month n (0..MAX) where lump + payments reach a target that itself grows at monthly rate g; null if never. */
+function monthsToReachGrowingTarget(target, growth, lump, payment, r) {
+  const MAX = 600;
+  for (let n = 0; n <= MAX; n++) {
+    if (futureValue(lump, payment, n, r) >= target * Math.pow(1 + growth, n)) return n;
+  }
+  return null;
+}
+
 export function evaluateGoal(profile, goal) {
   const targetAmount = Math.max(0, Number(goal?.targetAmount) || 0);
   const targetMonths = Math.max(1, Math.round(Number(goal?.targetMonths) || 1));
+  const growthPct = Number.isFinite(Number(goal?.priceGrowthPercent)) && goal?.priceGrowthPercent !== "" && goal?.priceGrowthPercent != null
+    ? Math.min(300, Math.max(0, Number(goal.priceGrowthPercent)))
+    : DEFAULT_GOAL_PRICE_GROWTH * 100;
+  const priceGrowth = growthPct / 100;
+  const monthlyGrowth = monthlyRateFromAnnual(priceGrowth);
 
   const monthlyIncome = Number(profile.monthlyIncome) || 0;
   const monthlyExpenses = Number(profile.monthlyExpenses) || 0;
@@ -96,16 +119,27 @@ export function evaluateGoal(profile, goal) {
   const monthlyRate = monthlyRateFromAnnual(annualReturn);
 
   const lump = startingCapital(profile);
-  const requiredMonthlySaving = requiredPayment(targetAmount, lump, targetMonths, monthlyRate);
+
+  // what the goal will cost when the deadline arrives, in future toman
+  const targetAtDeadline = targetAmount * Math.pow(1 + monthlyGrowth, targetMonths);
+  const requiredMonthlySaving = requiredPayment(targetAtDeadline, lump, targetMonths, monthlyRate);
   const monthlySurplus = currentMonthlySavingCapacity - requiredMonthlySaving;
-  const feasible = monthlySurplus >= 0;
 
-  const monthsNeededAtCurrentPaceRaw = monthsToReach(targetAmount, lump, currentMonthlySavingCapacity, monthlyRate);
   const projectedAmountAtDeadline = futureValue(lump, currentMonthlySavingCapacity, targetMonths, monthlyRate);
+  const feasible = projectedAmountAtDeadline >= targetAtDeadline - 1;
 
+  const monthsRaw = monthsToReachGrowingTarget(targetAmount, monthlyGrowth, lump, currentMonthlySavingCapacity, monthlyRate);
+
+  // the same goal if its price stayed flat (today's toman): the optimistic reading, shown for comparison only
+  const flatMonthsRaw = monthsToReach(targetAmount, lump, currentMonthlySavingCapacity, monthlyRate);
+  const flatRequired = requiredPayment(targetAmount, lump, targetMonths, monthlyRate);
+
+  const ceilOrNull = (v) => (v !== null && Number.isFinite(v) ? Math.ceil(v) : null);
   return {
     targetAmount,
     targetMonths,
+    priceGrowthPercent: Math.round(growthPct * 10) / 10,
+    targetAtDeadline: Math.round(targetAtDeadline),
     startingCapital: Math.round(lump),
     currentMonthlySavingCapacity: Math.round(currentMonthlySavingCapacity),
     requiredMonthlySaving: Math.round(requiredMonthlySaving),
@@ -113,11 +147,13 @@ export function evaluateGoal(profile, goal) {
     feasible,
     assumedAnnualReturnPercent: Math.round(annualReturn * 1000) / 10,
     horizonTier: tier,
-    monthsNeededAtCurrentPace:
-      monthsNeededAtCurrentPaceRaw !== null && Number.isFinite(monthsNeededAtCurrentPaceRaw)
-        ? Math.ceil(monthsNeededAtCurrentPaceRaw)
-        : null,
+    monthsNeededAtCurrentPace: ceilOrNull(monthsRaw),
     projectedAmountAtDeadline: Math.round(projectedAmountAtDeadline),
     projectedFromExistingAssets: Math.round(lump * Math.pow(1 + monthlyRate, targetMonths)),
+    ifPriceStaysFlat: {
+      monthsNeededAtCurrentPace: ceilOrNull(flatMonthsRaw),
+      requiredMonthlySaving: Math.round(flatRequired),
+      feasible: projectedAmountAtDeadline >= targetAmount - 1,
+    },
   };
 }

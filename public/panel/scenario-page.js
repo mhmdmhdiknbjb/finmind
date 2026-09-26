@@ -70,7 +70,7 @@ function renderScenarioResult(data) {
   const rangeEl = $("scenarioRange");
   if (data.confidenceRange) {
     const r = data.confidenceRange;
-    rangeEl.textContent = `بازه ۷۰٪ اطمینان (شبیه‌سازی مونت‌کارلو، ${data.trials || ""} تکرار): بین ${r.p15Percent > 0 ? "+" : ""}${r.p15Percent}٪ و ${r.p85Percent > 0 ? "+" : ""}${r.p85Percent}٪`;
+    rangeEl.textContent = `بازه ۷۰٪ اطمینان (شبیه‌سازی مونت‌کارلو، ${data.trials || ""} تکرار، افق ${data.horizonMonths || 3} ماه پس از شوک؛ اندازه‌ی خود شوک هم حدود ±${Math.round((data.shockSeveritySd || 0.25) * 100)}٪ نامطمئن فرض شده): بین ${r.p15Percent > 0 ? "+" : ""}${r.p15Percent}٪ و ${r.p85Percent > 0 ? "+" : ""}${r.p85Percent}٪`;
     rangeEl.classList.remove("hidden");
   } else {
     rangeEl.classList.add("hidden");

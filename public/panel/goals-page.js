@@ -46,14 +46,22 @@ function renderGoalsList() {
             : d.monthsNeededAtCurrentPace !== null
             ? `<div>با توان پس‌انداز فعلی، رسیدن به این هدف واقعاً حدود <b>${d.monthsNeededAtCurrentPace} ماه</b> طول می‌کشد (به‌جای ${d.targetMonths} ماه خواسته‌شده)</div>`
             : "";
+        const flat = d.ifPriceStaysFlat;
+        const flatLine =
+          flat && d.priceGrowthPercent > 0
+            ? `<div style="color:var(--text-faint);font-size:11.5px;">برای مقایسه، اگر قیمت هدف ثابت می‌ماند: ${flat.monthsNeededAtCurrentPace === null ? "هرگز نمی‌رسید" : flat.monthsNeededAtCurrentPace + " ماه"}</div>`
+            : "";
         box.innerHTML = `
           <div>امکان‌پذیری: <span class="${d.feasible ? "feasible-yes" : "feasible-no"}">${d.feasible ? "قابل دستیابی است" : "با شرایط فعلی دشوار است"}</span></div>
+          <div>مبلغ هدف در سررسید (با رشد قیمت ${d.priceGrowthPercent}٪ سالانه): <b>${formatToman(d.targetAtDeadline)}</b></div>
           <div>سرمایه‌ی موجود در نظر گرفته‌شده (نقد و نیمه‌نقد): <b>${formatToman(d.startingCapital)}</b></div>
           <div>پیش‌بینی جمع‌شده تا مهلت (سرمایه‌ی موجود + پس‌انداز فعلی): <b>${formatToman(d.projectedAmountAtDeadline)}</b></div>
           <div>پس‌انداز ماهانه‌ی جدید لازم: <b>${formatToman(d.requiredMonthlySaving)}</b></div>
           <div>توان پس‌انداز فعلی: <b>${formatToman(d.currentMonthlySavingCapacity)}</b></div>
           <div>مازاد/کسری ماهانه: <b class="${d.monthlySurplus >= 0 ? "feasible-yes" : "feasible-no"}">${d.monthlySurplus >= 0 ? "+" : ""}${formatToman(d.monthlySurplus)}</b></div>
           ${paceLine}
+          ${flatLine}
+          <div style="color:var(--text-faint);font-size:11.5px;">فرض رشد قیمت هدف ${d.priceGrowthPercent}٪ سالانه است (داده‌ای برای تورم/قیمت مسکن در سیستم نیست؛ هنگام افزودن هدف می‌توانید عدد خودتان را بدهید).</div>
           <div style="color:var(--text-faint);font-size:11.5px;">${d.horizonTier} — نرخ رشد فرض‌شده برای پول این هدف: ${d.assumedAnnualReturnPercent}٪ سالانه</div>
           <ul id="goalPathList_${g.id}"></ul>
           <p id="goalSummary_${g.id}"></p>
@@ -75,16 +83,18 @@ async function addGoal() {
   const title = $("goalTitle").value.trim();
   const targetAmount = millionInputToToman($("goalAmount").value);
   const targetMonths = Number($("goalMonths").value);
+  const priceGrowthPercent = $("goalGrowth") ? $("goalGrowth").value : "";
   if (!title || !targetAmount || !targetMonths) return;
   const res = await fetch("/api/goals", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, targetAmount, targetMonths }),
+    body: JSON.stringify({ title, targetAmount, targetMonths, priceGrowthPercent }),
   });
   profile = await res.json();
   $("goalTitle").value = "";
   $("goalAmount").value = "";
   $("goalMonths").value = "";
+  if ($("goalGrowth")) $("goalGrowth").value = "";
   renderGoalsList();
 }
 

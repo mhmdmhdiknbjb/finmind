@@ -62,7 +62,7 @@ function goalStatusBlock(profile) {
         : r.monthsNeededAtCurrentPace !== null
           ? `با سرمایه‌ی موجود و پس‌انداز ماهانه‌ی فعلی حدود ${r.monthsNeededAtCurrentPace} ماه`
           : "با پس‌انداز فعلی به هدف نمی‌رسد";
-    return `«${goal.title}»: ${r.feasible ? "با شرایط فعلی در مهلت قابل دستیابی است" : "با شرایط فعلی در مهلت قابل دستیابی نیست"} — ${pace} (مهلت ${goal.targetMonths} ماه) — پیش‌بینی جمع‌شده تا مهلت ${fmtNum(r.projectedAmountAtDeadline)} تومان از مبلغ هدف ${fmtNum(r.targetAmount)}`;
+    return `«${goal.title}»: ${r.feasible ? "با شرایط فعلی در مهلت قابل دستیابی است" : "با شرایط فعلی در مهلت قابل دستیابی نیست"} — ${pace} (مهلت ${goal.targetMonths} ماه) — پیش‌بینی جمع‌شده تا مهلت ${fmtNum(r.projectedAmountAtDeadline)} تومان در برابر مبلغ هدف در سررسید ${fmtNum(r.targetAtDeadline)} (مبلغ امروز ${fmtNum(r.targetAmount)} با فرض رشد قیمت ${r.priceGrowthPercent}٪ سالانه)`;
   });
   return `\n\n### وضعیت رسیدن به اهداف (خروجی موتور اهداف، همان اعداد صفحه‌ی اهداف مالی — هر جمله درباره‌ی کافی/ناکافی بودن درآمد یا پس‌انداز برای هدف باید دقیقاً با همین‌ها هم‌خوان باشد و خلافش را نگو)\n${lines.join("\n")}`;
 }
@@ -236,6 +236,7 @@ ${buildProfileContext(profile)}
 مهلت: ${goal.targetMonths} ماه دیگر
 
 ### اعداد محاسبه‌شده توسط موتور مالی (عیناً استفاده کن، عدد جدیدی نساز)
+رشد قیمت خودِ هدف (فرض): ${computed.priceGrowthPercent}٪ سالانه؛ مبلغ هدف در سررسید با این رشد: ${fmtNum(computed.targetAtDeadline)} تومان (مبلغ امروز ${fmtNum(computed.targetAmount)}). این فرض تخمین است نه داده؛ حتماً یک‌بار در متن بگو که محاسبه با فرض رشد قیمت هدف انجام شده و اگر هدف واقعاً گران نمی‌شود نتیجه خوش‌بینانه‌تر است. اگر قیمت هدف ثابت می‌ماند: ${computed.ifPriceStaysFlat.monthsNeededAtCurrentPace === null ? "هرگز نمی‌رسید" : computed.ifPriceStaysFlat.monthsNeededAtCurrentPace + " ماه"}.
 افق زمانی: ${computed.horizonTier}
 نرخ رشد سالانه فرض‌شده برای پول این هدف: ${computed.assumedAnnualReturnPercent}٪
 سرمایه‌ی موجود کاربر که برای این هدف حساب شده (دارایی‌های نقد و نیمه‌نقد فعلی؛ ملک/خودرو حساب نشده و در صورت وجود چند هدف، همین سرمایه بین همه‌ی اهداف مشترک است): ${fmtNum(computed.startingCapital)} تومان — اگر بدون هیچ پس‌انداز جدیدی نگه داشته شود با نرخ رشد فرض‌شده تا مهلت به ${fmtNum(computed.projectedFromExistingAssets)} تومان می‌رسد
@@ -321,6 +322,7 @@ export function promptScenarioExplain(profile, scenarioTitle, computed) {
 ${buildProfileContext(profile)}
 
 ### نتیجه شبیه‌سازی مونت‌کارلو برای سناریوی «${scenarioTitle}» (محاسبه‌شده با ${computed.trials} تکرار روی توزیع نرمال چندمتغیره شرطی، نه حدس — این اعداد را عیناً به‌کار ببر)
+افق بازه‌ها: ${computed.horizonMonths} ماه پس از شوک؛ اندازه‌ی خود شوک هم نامطمئن فرض شده (انحراف معیار نسبی ${Math.round(computed.shockSeveritySd * 100)}٪). دارایی‌هایی که شوک مستقیم ندارند فقط از راه همبستگی با دارایی شوک‌خورده اثر می‌گیرند و بازه‌ی آن‌ها نوسان همین افق کوتاه است نه یک سال.
 اثر روی هر دارایی کاربر:
 ${assetLines}
 
