@@ -13,6 +13,13 @@ export const CATEGORY_COLORS = {
   realestate: "#f472b6",
   crypto: "#f87171",
   other: "#94a3b8",
+  metals: "#cbd5e1",
+  bond: "#38bdf8",
+  vehicle: "#a3a3a3",
+  business: "#facc15",
+  insurance: "#4ade80",
+  collectibles: "#e879f9",
+  receivable: "#fb7185",
 };
 
 

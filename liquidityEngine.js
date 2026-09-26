@@ -1,4 +1,5 @@
 import { ASSET_ORDER, ASSET_STATS, currentWeights } from "./optimizer.js";
+import { ASSET_KINDS } from "./public/assetCatalog.js";
 
 /**
  * Deterministic liquidity classification.
@@ -21,6 +22,14 @@ const TIER_BY_CATEGORY = {
   stock: { tier: "semiLiquid", monthsToLiquidate: 0.5, note: "تسویه T+2 و محدودیت‌های دامنه نوسان بورس تهران می‌تواند فروش کامل را کند کند" },
   other: { tier: "semiLiquid", monthsToLiquidate: 1, note: "بسته به نوع دارایی متغیر است؛ فرض میانه در نظر گرفته شده" },
   realestate: { tier: "illiquid", monthsToLiquidate: 6, note: "فروش ملک در ایران معمولاً چند ماه طول می‌کشد" },
+  // finer categories (public/assetCatalog.js) get their own tier instead of being lumped into «سایر»
+  metals: { tier: "semiLiquid", monthsToLiquidate: 0.5, note: "نقره و فلزات معمولاً با اسپرد و چند روز زمان فروش نقد می‌شوند" },
+  bond: { tier: "semiLiquid", monthsToLiquidate: 1, note: "اوراق بدهی در بازار ثانویه قابل فروش‌اند ولی عمق معاملات محدود است" },
+  vehicle: { tier: "illiquid", monthsToLiquidate: 2, note: "فروش خودرو معمولاً چند هفته تا چند ماه زمان می‌برد و به قیمت روز بازار بستگی دارد" },
+  business: { tier: "illiquid", monthsToLiquidate: 12, note: "سهم غیربورسی یا کسب‌وکار بازار ثانویه‌ی روشنی ندارد؛ نقد شدنش ماه‌ها تا سال‌ها طول می‌کشد" },
+  insurance: { tier: "illiquid", monthsToLiquidate: 12, note: "بیمه و پس‌انداز بازنشستگی با جریمه یا محدودیت قابل برداشت است" },
+  collectibles: { tier: "illiquid", monthsToLiquidate: 6, note: "کالاهای کلکسیونی و تجهیزات باید خریدار پیدا کنند؛ قیمت فروش نامطمئن است" },
+  receivable: { tier: "illiquid", monthsToLiquidate: 6, note: "زمان وصول طلب، چک یا ودیعه به طرف مقابل بستگی دارد" },
 };
 
 function clamp(x, lo, hi) {
@@ -33,12 +42,21 @@ function clamp(x, lo, hi) {
  * the liquid+near-liquid portion can't cover a stated liquidity need.
  */
 export function computeLiquidity(profile) {
-  const { weights, total } = currentWeights(profile.assets);
+  const { total } = currentWeights(profile.assets);
 
-  const breakdown = ASSET_ORDER.filter((k) => (weights[k] || 0) > 0.0001).map((k) => {
-    const amount = (weights[k] || 0) * total;
-    return { category: k, amount, percent: (weights[k] || 0) * 100, ...TIER_BY_CATEGORY[k] };
-  });
+  // grouped by the FINE category (خودرو، اوراق بدهی، ...) so each gets its own liquidity tier
+  const amounts = {};
+  for (const a of profile.assets || []) {
+    const cat = TIER_BY_CATEGORY[a.category] ? a.category : ASSET_KINDS[a.category]?.engine || "other";
+    amounts[cat] = (amounts[cat] || 0) + (Number(a.amount) || 0);
+  }
+  const order = [...ASSET_ORDER, ...Object.keys(TIER_BY_CATEGORY).filter((k) => !ASSET_ORDER.includes(k))];
+  const breakdown = order.filter((k) => (amounts[k] || 0) > 0 && total > 0 && amounts[k] / total > 0.0001).map((k) => ({
+    category: k,
+    amount: amounts[k],
+    percent: (amounts[k] / total) * 100,
+    ...TIER_BY_CATEGORY[k],
+  }));
 
   const tierTotals = { liquid: 0, semiLiquid: 0, illiquid: 0 };
   for (const b of breakdown) tierTotals[b.tier] += b.amount;

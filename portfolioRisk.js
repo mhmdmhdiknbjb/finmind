@@ -49,6 +49,7 @@ const HOLDING_TYPES = {
   realestate_fund: { cls: "fund", realAsset: 1 },
   bond_govt: { cls: "bond", cashLike: 1 },
   bond_corp: { cls: "bond", cashLike: 1 },
+  bond_housing_cert: { cls: "bond", cashLike: 1 },
   vehicle: { cls: "vehicle", realAsset: 1 },
   real_estate: { cls: "real_estate", realAsset: 1 },
   other_assets: { cls: "other_assets" },
@@ -81,7 +82,7 @@ export function holdingTypeOf(asset) {
       if (s === "USDT" || s === "USDC") return "crypto_stable";
       return "crypto_alt";
     }
-    case "stock": return "stock";
+    case "stock": return kindOf(asset)?.type || "stock";
     case "fund": return kindOf(asset)?.type || "fund";
     case "realestate": return "real_estate";
     default: return kindOf(asset)?.type || "other_assets";

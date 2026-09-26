@@ -9,8 +9,8 @@
  *    deterministic engines used everywhere else in the app) or come frozen from market_pack.json.
  *  - The STACK model was trained on 26 fine-grained asset subclasses. FinMind's asset kinds
  *    (public/assetCatalog.js) now cover most of them (coins, silver, gold/leveraged/real-estate/commodity
- *    funds, government/corporate bonds, vehicles); the few with no FinMind equivalent (equity_index,
- *    bond_housing_cert) stay at weight 0 — a genuine approximation, not a bug.
+ *    funds, government/corporate/housing bonds, vehicles); the one with no FinMind equivalent
+ *    (equity_index) stays at weight 0 — a genuine approximation, not a bug.
  *  - profile_horizon_years falls back to the same age-based heuristic the synthetic training data used
  *    (workflow/pipeline/04_synthetic_portfolios.py) when the user hasn't filled in the new horizon field.
  */
@@ -87,7 +87,7 @@ export function buildBaseFeatures(profile, analysis, pack) {
     w_equity_index: 0, w_crypto_alt: wGet("crypto_alt"), w_stock: wGet("stock"),
     w_equity_fund: wGet("equity_fund") + 0.5 * wGet("fund"), w_leveraged_fund: wGet("leveraged_fund"),
     w_fixed_income_fund: wGet("fixed_income_fund") + 0.5 * wGet("fund"),
-    w_realestate_fund: wGet("realestate_fund"), w_commodity_fund: wGet("commodity_fund"), w_bond_govt: wGet("bond_govt"), w_bond_corp: wGet("bond_corp"), w_bond_housing_cert: 0,
+    w_realestate_fund: wGet("realestate_fund"), w_commodity_fund: wGet("commodity_fund"), w_bond_govt: wGet("bond_govt"), w_bond_corp: wGet("bond_corp"), w_bond_housing_cert: wGet("bond_housing_cert"),
     w_cash_deposit: wGet("cash_deposit"), w_real_estate: wGet("real_estate"), w_vehicle: wGet("vehicle"),
     w_other_assets: wGet("other_assets"),
   });

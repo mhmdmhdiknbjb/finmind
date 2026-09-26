@@ -202,6 +202,7 @@ function addAssetRow(asset = { category: "cash", label: "", amount: "" }) {
       sel.className = "js-kind";
       const wanted = initial?.category === cat ? initial.kind || def.default : def.default;
       def.kinds.forEach((k) => {
+        if (k.hidden && k.id !== wanted) return; // legacy kinds only show for rows that already use them
         const opt = document.createElement("option");
         opt.value = k.id;
         opt.textContent = k.label;

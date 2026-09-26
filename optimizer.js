@@ -2,6 +2,7 @@ import { solveQP } from "quadprog";
 import { categoryStats, getMarketPack } from "./marketData.js";
 import { analyzePortfolio, holdingsFromAssets, holdingsFromCategoryWeights } from "./portfolioRisk.js";
 import { stackForwardRanges } from "./stackForward.js";
+import { engineCategoryOf } from "./public/assetCatalog.js";
 
 /**
  * Phase 1 — Portfolio optimization engine (Markowitz mean-variance, localized for Iran).
@@ -140,7 +141,7 @@ export function currentWeights(assets) {
   const totals = Object.fromEntries(ASSET_ORDER.map((k) => [k, 0]));
   let total = 0;
   for (const a of assets || []) {
-    const cat = ASSET_ORDER.includes(a.category) ? a.category : "other";
+    const cat = engineCategoryOf(a); // fine categories (اوراق بدهی، خودرو، ...) roll up to one of ASSET_ORDER
     const amt = Number(a.amount) || 0;
     totals[cat] += amt;
     total += amt;
