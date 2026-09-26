@@ -84,6 +84,10 @@ export function riskPayload(cur, opt) {
       maxDrawdown3y: r(s.maxDrawdown3y),
     },
     forward: cur.forward,
+    // ML forecast of the volatility the next 26 / 52 weeks will actually have (null when no validated model)
+    forwardVol: cur.forwardVol
+      ? Object.fromEntries(Object.entries(cur.forwardVol).map(([k, v]) => [k, { horizonWeeks: v.horizonWeeks, point: r(v.point), p10: r(v.p10), p90: r(v.p90), trailing: r(v.trailing) }]))
+      : null,
     cashErosion: { vsUsd1y: r(cur.cashErosion.cashShareXUsd1y), vsGold1y: r(cur.cashErosion.cashShareXGold1y) },
     warnings: cur.warnings,
   };
@@ -118,6 +122,11 @@ export function riskPromptBlock(cur) {
   const isMl = (h, t) => f[h][t].source === "ml_stack";
   const cell = (h, t, label) => `${label} ${pct(f[h][t].p10)} تا ${pct(f[h][t].p90)} (میانه ${pct(f[h][t].p50)})${isMl(h, t) ? " [مدل اعتبارسنجی‌شده]" : " [نوسان‌محور تاریخی]"}`;
   const rng = (h) => [cell(h, "ret", "بازده اسمی:"), cell(h, "maxDrawdown", "بیشینه ریزش:"), cell(h, "retVsUsd", "بازده نسبت به دلار:")].join(" | ");
+  const fv = cur.forwardVol;
+  const volLine = fv
+    ? `
+نوسان سالانه‌ی پیش‌بینی‌شده برای آینده [مدل اعتبارسنجی‌شده، برآورد نه تضمین]: ۲۶ هفته‌ی آینده ${fv["26w"] ? `${pct(fv["26w"].point)} (بازه‌ی محتمل ${pct(fv["26w"].p10)} تا ${pct(fv["26w"].p90)})` : "نامشخص"} | ۵۲ هفته‌ی آینده ${fv["52w"] ? `${pct(fv["52w"].point)} (بازه‌ی محتمل ${pct(fv["52w"].p10)} تا ${pct(fv["52w"].p90)})` : "نامشخص"} — در برابر نوسان اندازه‌گیری‌شده‌ی گذشته: ${pct(s.annVol1y)}`
+    : "";
   const anyMl = ["26w", "52w"].some((h) => isMl(h, "ret") || isMl(h, "maxDrawdown") || isMl(h, "retVsUsd"));
   return `
 ### ریسک واقعی گذشته‌ی بخش قیمت‌دار (داده‌ی هفتگی واقعی بازار ایران تا ${cur.asOf} — عیناً به‌کار ببر، عدد جدید نساز)
@@ -125,7 +134,7 @@ export function riskPromptBlock(cur) {
 نوسان سالانه‌ی ۱ ساله: ${pct(s.annVol1y)}${s.annVol3y === null ? "" : ` | ۳ ساله: ${pct(s.annVol3y)}`} | بیشینه ریزش ۱ ساله: ${pct(s.maxDrawdown1y)}${s.maxDrawdown3y === null ? "" : ` | ۳ ساله: ${pct(s.maxDrawdown3y)}`}
 بدترین هفته‌ها (میانگین ۳ هفته‌ی بدتر از ۵۲): ${pct(s.cvar95Weekly1y)} | بتا نسبت به دلار: ${s.betaUsd1y.toFixed(2)} | بازده ۱ ساله نسبت به دلار: ${pct(s.returnVsUsd1y)}
 بازه‌ی ۲۶ هفته: ${rng("26w")}
-بازه‌ی ۵۲ هفته: ${rng("52w")}
+بازه‌ی ۵۲ هفته: ${rng("52w")}${volLine}
 محدودیت: ${cur.warnings.length ? cur.warnings.join(" ") : "ندارد"}
 نکته: ردیف‌های «[نوسان‌محور تاریخی]» فقط از نوسان تاریخی ساخته شده‌اند و پیش‌بینی نیستند — با عبارت «بازه‌ی محتمل تاریخی» بیان کن.${anyMl ? " ردیف‌های «[مدل اعتبارسنجی‌شده]» خروجی یک مدل آماری (شبیه‌سازی تاریخی + تصحیح یادگیری ماشین) هستند که روی داده‌ی نگه‌داشته‌شده تست و فقط در همین دو مورد تأیید شده — هنوز هم تضمین نیستند، ولی می‌توانی با عبارت «برآورد مدل» به‌جای صرفاً «تاریخی» به آن‌ها اشاره کنی." : ""}`;
 }

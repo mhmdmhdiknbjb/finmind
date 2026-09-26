@@ -40,7 +40,7 @@ export function seriesArrays(pack = getMarketPack()) {
 }
 
 /** Bump when the risk/dispersion maths changes so cached widget results are recomputed once. */
-export const ENGINE_VERSION = 1;
+export const ENGINE_VERSION = 2; // 2: forward-volatility ML forecast added to the risk analysis
 
 /** Identifies the maths + market data behind stored numbers (used in the widget snapshot fingerprint). */
 export function marketDataVersion() {

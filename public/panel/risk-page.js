@@ -93,6 +93,14 @@ function renderMarketRisk(m) {
     chip("بتا نسبت به دلار", ltr(s.betaUsd1y)),
     chip("بازده نسبت به دلار (۱ سال)", pct1(s.returnVsUsd1y))
   );
+  const fv = m.forwardVol;
+  if (fv) {
+    for (const [k, label] of [["26w", "۲۶ هفته"], ["52w", "۵۲ هفته"]]) {
+      if (!fv[k]) continue;
+      const c = chip(`نوسان پیش‌بینی‌شده (${label} آینده) <span class="ml-tag" title="مدل یادگیری ماشین اعتبارسنجی‌شده؛ برآورد است نه تضمین. بازه‌ی محتمل: ${pct0(fv[k].p10)} تا ${pct0(fv[k].p90)}">مدل</span>`, pct1(fv[k].point));
+      stats.append(c);
+    }
+  }
   if (s.annVolatility3y !== null) stats.append(chip("نوسان سالانه (۳ سال)", pct1(s.annVolatility3y)));
   if (s.maxDrawdown3y !== null) stats.append(chip("بیشینه ریزش (۳ سال)", pct1(s.maxDrawdown3y)));
 

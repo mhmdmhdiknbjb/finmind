@@ -87,6 +87,11 @@ reg = mk.REG.loc[asof]
 regime = {k: (float(v) if isinstance(v, (int, float, np.floating)) and not isinstance(v, bool) else bool(v) if isinstance(v, (bool, np.bool_)) else v)
           for k, v in reg.items() if k != "asof_jalali"}
 
+usd_toman = float(mk.usd_week.loc[asof])
+if not np.isfinite(usd_toman):
+    # a NaN would be written as a bare NaN token, which is not valid JSON — refuse instead of shipping a broken pack
+    sys.exit("usd_toman is NaN at the as-of week: refusing to export a broken market pack")
+
 meta_model = json.load(open(WF / "clean" / "models" / "model_meta.json", encoding="utf-8"))
 fhs_config = json.load(open(WF / "clean" / "models" / "fhs_config.json", encoding="utf-8"))
 pack = {
@@ -98,7 +103,7 @@ pack = {
         "source": "workflow dataset (tgju.org + tsetmc.com weekly returns, cleaned by pipeline/02-03)",
         "stock_basket_members": top30,
         "crypto_alt_basket_members": alts_ok,
-        "usd_toman": float(mk.usd_week.loc[asof]),
+        "usd_toman": usd_toman,
     },
     "dates": dates,
     "series": series,
@@ -146,7 +151,25 @@ for target, data in STACK_TARGETS.items():
     (stack_dir / fname).write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
     stack_index[target] = fname
     print(f"wrote {stack_dir / fname}  ({(stack_dir / fname).stat().st_size / 1024:.1f} KB)")
-(stack_dir / "index.json").write_text(json.dumps({"targets": stack_index, "feature_order": meta_model["features"]}, ensure_ascii=False, indent=1), encoding="utf-8")
+# ---- forward-VOLATILITY models (pipeline/10_train_vol_model.py): only horizons that passed its eligibility tests
+vol_index = {}
+vol_meta_path = WF / "clean" / "models" / "vol_model_meta.json"
+if vol_meta_path.exists():
+    import lightgbm as lgb  # noqa: E402
+    vol_meta = json.load(open(vol_meta_path, encoding="utf-8"))
+    for H in (26, 52):
+        vm = vol_meta["models"].get(f"vol_{H}w", {})
+        if vm.get("method") != "STACK":
+            continue
+        booster = lgb.Booster(model_file=str(WF / "clean" / "models" / f"vol_{H}w_stack.txt"))
+        fname = f"vol_{H}w.json"
+        payload = {"method": "STACK", "horizon": H, "booster": booster.dump_model(), "resid_q": vm["resid_q"],
+                   "metrics": {k: vm[k] for k in vm if k.startswith(("val_", "test_", "n_"))}}
+        (stack_dir / fname).write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+        vol_index[str(H)] = fname
+        print(f"wrote {stack_dir / fname}  ({(stack_dir / fname).stat().st_size / 1024:.1f} KB)")
+
+(stack_dir / "index.json").write_text(json.dumps({"targets": stack_index, "vol": vol_index, "feature_order": meta_model["features"]}, ensure_ascii=False, indent=1), encoding="utf-8")
 
 out = Path(args.out)
 out.parent.mkdir(parents=True, exist_ok=True)

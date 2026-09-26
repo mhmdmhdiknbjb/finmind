@@ -25,6 +25,20 @@ const STACK_TARGETS = {
   t_max_drawdown_52w: { fhsTarget: "max_drawdown", horizon: 52 },
 };
 
+let _volCache = null;
+/** Forward-volatility models (pipeline/10_train_vol_model.py) that passed their eligibility tests: { "26": {...}, "52": {...} } */
+function loadVolModels() {
+  if (_volCache) return _volCache;
+  _volCache = {};
+  const indexPath = path.join(STACK_DIR, "index.json");
+  if (!fs.existsSync(indexPath)) return _volCache;
+  const index = JSON.parse(fs.readFileSync(indexPath, "utf8"));
+  for (const [h, file] of Object.entries(index.vol || {})) {
+    _volCache[h] = JSON.parse(fs.readFileSync(path.join(STACK_DIR, file), "utf8"));
+  }
+  return _volCache;
+}
+
 let _modelsCache = null;
 function loadModels() {
   if (_modelsCache) return _modelsCache;
@@ -47,14 +61,42 @@ function loadModels() {
  * market assets — matches the FHS/STACK "unavailable" fallback: the caller keeps using B2 in that case).
  */
 export function stackForwardRanges(profile, analysis, pack) {
-  if (!analysis.hasMarketAssets) return {};
+  return stackForecasts(profile, analysis, pack).ranges;
+}
+
+/**
+ * One FHS simulation feeds both ML products: the STACK quantile ranges above and the forward-VOLATILITY model
+ * (annualised vol expected over the next 26 / 52 weeks: point forecast + a range from the model's validation
+ * residuals). Returns { ranges, vol } — each empty/null when nothing eligible is available.
+ */
+export function stackForecasts(profile, analysis, pack) {
+  const none = { ranges: {}, vol: null };
+  if (!analysis.hasMarketAssets) return none;
   const models = loadModels();
+  const volModels = loadVolModels();
   const targetsToRun = Object.keys(STACK_TARGETS).filter((t) => models[t]?.method === "STACK");
-  if (!targetsToRun.length) return {};
+  if (!targetsToRun.length && !Object.keys(volModels).length) return none;
 
   const sim = runFHS(pack, analysis.allocation.seriesWeights, { S: 1000, seed: 11 });
-  if (!sim) return {};
+  if (!sim) return none;
   const baseX = buildBaseFeatures(profile, analysis, pack);
+
+  let vol = null;
+  for (const [h, vm] of Object.entries(volModels)) {
+    const fhsVol = sim[`${h}w`].volMedian;
+    if (!(fhsVol > 0)) continue;
+    const logPred = Math.log(fhsVol) + predictLightGBM(vm.booster, { ...baseX, [`fhs_vol_${h}w`]: fhsVol });
+    const rq = vm.resid_q;
+    (vol ||= {})[`${h}w`] = {
+      horizonWeeks: Number(h),
+      point: Math.exp(logPred),
+      p10: Math.exp(logPred + rq["0.1"]),
+      p90: Math.exp(logPred + rq["0.9"]),
+      fhsBaseline: fhsVol,
+      trailing: baseX.y_port_ann_vol_1y,
+      skillVsBestReference: vm.metrics?.test_skill_vs_best_ref ?? null,
+    };
+  }
 
   const out = {};
   for (const target of targetsToRun) {
@@ -74,5 +116,5 @@ export function stackForwardRanges(profile, analysis, pack) {
     qs.sort((a, b) => a - b); // 07_train_risk_model.py re-sorts too: 3 independent quantile models can cross
     out[target] = { p10: qs[0], p50: qs[1], p90: qs[2] };
   }
-  return out;
+  return { ranges: out, vol };
 }

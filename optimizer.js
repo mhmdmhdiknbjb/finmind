@@ -1,7 +1,7 @@
 import { solveQP } from "quadprog";
 import { categoryStats, getMarketPack } from "./marketData.js";
 import { analyzePortfolio, holdingsFromAssets, holdingsFromCategoryWeights } from "./portfolioRisk.js";
-import { stackForwardRanges } from "./stackForward.js";
+import { stackForecasts } from "./stackForward.js";
 import { engineCategoryOf } from "./public/assetCatalog.js";
 
 /**
@@ -336,14 +336,16 @@ function applyStackForwardRanges(profile, analysis) {
   if (!analysis.forward) return;
   let stacked;
   try {
-    stacked = stackForwardRanges(profile, analysis, getMarketPack());
+    stacked = stackForecasts(profile, analysis, getMarketPack());
   } catch (e) {
     console.error("stackForwardRanges failed, keeping B2 baseline:", e.message);
     return;
   }
   const q = (v) => ({ p10: round4(v.p10), p50: round4(v.p50), p90: round4(v.p90), source: "ml_stack" });
-  if (stacked.t_ret_vs_usd_26w) analysis.forward["26w"].retVsUsd = q(stacked.t_ret_vs_usd_26w);
-  if (stacked.t_max_drawdown_52w) analysis.forward["52w"].maxDrawdown = q(stacked.t_max_drawdown_52w);
+  if (stacked.ranges.t_ret_vs_usd_26w) analysis.forward["26w"].retVsUsd = q(stacked.ranges.t_ret_vs_usd_26w);
+  if (stacked.ranges.t_max_drawdown_52w) analysis.forward["52w"].maxDrawdown = q(stacked.ranges.t_max_drawdown_52w);
+  // forward-looking volatility (ML): shown next to — never instead of — the measured trailing volatility
+  if (stacked.vol) analysis.forwardVol = stacked.vol;
 }
 
 function withMarketRisk(stats, profile, total, categoryWeights) {

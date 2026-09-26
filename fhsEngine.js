@@ -148,7 +148,7 @@ export function runFHS(pack, Wm, { S = 1000, seed = 11, injectedIdx = null } = {
   const nb = Math.ceil(Hmax / L);
   const rng = injectedIdx ? null : makeRng(seed + pos);
 
-  const samples = { 26: { ret: [], max_drawdown: [], ret_vs_usd: [] }, 52: { ret: [], max_drawdown: [], ret_vs_usd: [] } };
+  const samples = { 26: { ret: [], max_drawdown: [], ret_vs_usd: [], vol: [] }, 52: { ret: [], max_drawdown: [], ret_vs_usd: [], vol: [] } };
 
   for (let s = 0; s < S; s++) {
     let idx;
@@ -166,11 +166,13 @@ export function runFHS(pack, Wm, { S = 1000, seed = 11, injectedIdx = null } = {
       }
     }
 
-    let cumLog = 0, cumLogUsd = 0, peak = 1, minDD = 0;
+    let cumLog = 0, cumLogUsd = 0, peak = 1, minDD = 0, sum = 0, sumSq = 0;
     for (let h = 0; h < Hmax; h++) {
       let p_ = 0;
       for (const c of cols) p_ += Wn[c] * Zuse[c][idx[h]] * sigPos[c];
       p_ = Math.max(p_, -0.95);
+      sum += p_;
+      sumSq += p_ * p_;
       const usdRet = Math.max(Zuse["fx_usd"][idx[h]] * sigPos["fx_usd"], -0.95);
       cumLog += Math.log1p(p_);
       cumLogUsd += Math.log1p(usdRet);
@@ -185,6 +187,8 @@ export function runFHS(pack, Wm, { S = 1000, seed = 11, injectedIdx = null } = {
         samples[hh].ret.push(ret);
         samples[hh].max_drawdown.push(minDD);
         samples[hh].ret_vs_usd.push((1 + ret) / (1 + usdCum) - 1);
+        // annualised sample std (ddof=1) of the first hh simulated weekly portfolio returns — the input of the forward-vol model
+        samples[hh].vol.push(Math.sqrt(Math.max((sumSq - (sum * sum) / hh) / (hh - 1), 0)) * Math.sqrt(52));
       }
     }
   }
@@ -196,6 +200,7 @@ export function runFHS(pack, Wm, { S = 1000, seed = 11, injectedIdx = null } = {
       const sorted = [...samples[h][t]].sort((a, b) => a - b);
       out[`${h}w`][t] = { p10: quantile(sorted, TAUS[0]), p50: quantile(sorted, TAUS[1]), p90: quantile(sorted, TAUS[2]) };
     }
+    out[`${h}w`].volMedian = quantile([...samples[h].vol].sort((a, b) => a - b), 0.5);
   }
   return out;
 }

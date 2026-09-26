@@ -3,6 +3,7 @@
   "t_ret_vs_usd_26w": "t_ret_vs_usd_26w.json",
   "t_max_drawdown_52w": "t_max_drawdown_52w.json"
  },
+ "vol": {},
  "feature_order": [
   "profile_age",
   "profile_n_dependents",
