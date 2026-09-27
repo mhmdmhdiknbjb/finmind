@@ -25,13 +25,16 @@
         </div>
         <div class="card-body">
           <div class="loading" id="liquidityLoading">در حال تحلیل نقدینگی...</div>
-          <div id="liquidityContent" class="hidden two-col">
-            <div>
-              <div class="chart-wrap chart-wrap-sm"><canvas id="liquidityDonut"></canvas></div>
-            </div>
-            <div>
-              <div class="chart-wrap chart-wrap-sm"><canvas id="liquidityBar"></canvas></div>
-              <div id="liquidityWarnings" class="banner-stack"></div>
+          <div id="liquidityContent" class="hidden">
+            <p class="profile-summary" style="margin-bottom:10px;">این صفحه با قاعده‌ی ثابتی محاسبه می‌شود (نه از داده‌ی تاریخی بازار مثل صفحه‌ی ریسک)، برای همین تاریخ داده ندارد؛ همین که دارایی‌هایت تغییر کند به‌روز می‌شود. نمودار سمت راست همان سه دسته‌ی نمودار سمت چپ را روی محور زمان می‌گستراند — «نقد سریع» یعنی پولی که تا ۱ ماه هم در دسترس است، پس در ستون «فوری» و «تا ۱ ماه» هر دو دیده می‌شود.</p>
+            <div class="two-col">
+              <div>
+                <div class="chart-wrap chart-wrap-sm"><canvas id="liquidityDonut"></canvas></div>
+              </div>
+              <div>
+                <div class="chart-wrap chart-wrap-sm"><canvas id="liquidityBar"></canvas></div>
+                <div id="liquidityWarnings" class="banner-stack"></div>
+              </div>
             </div>
           </div>
         </div>

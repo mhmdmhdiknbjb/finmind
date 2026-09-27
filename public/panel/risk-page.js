@@ -43,7 +43,11 @@ function renderRiskWidget(data) {
   $("riskGaugeLevel").textContent = data.riskLevel || "—";
   setRiskGauge(data.currentRiskScore);
   const diff = data.difference ?? (data.currentRiskScore - data.suggestedRiskScore);
-  $("riskDiffBadge").textContent = `اختلاف: ${diff > 0 ? "+" : ""}${Math.round(diff)}`;
+  const diffRounded = Math.round(diff);
+  $("riskDiffBadge").textContent =
+    diffRounded === 0
+      ? "اختلاف: ۰ (سبدت با ترکیب مرجع مدل هم‌ریسک است)"
+      : `اختلاف: ${diffRounded > 0 ? "+" : ""}${diffRounded} واحد از ۱۰۰ (سبد فعلی‌ات ${diffRounded > 0 ? "پرریسک‌تر" : "کم‌ریسک‌تر"} از ترکیب مرجع مدل است)`;
 
   renderMarketRisk(data.marketRisk);
   renderComposite(data.marketRisk);
@@ -66,9 +70,10 @@ function renderRiskWidget(data) {
 const pct1 = (x) => ltr(Number.isFinite(x) ? (x * 100).toFixed(1) + "٪" : "—");
 const pct0 = (x) => ltr(Number.isFinite(x) ? Math.round(x * 100) + "٪" : "—");
 
-function chip(label, value) {
+function chip(label, value, hint) {
   const div = document.createElement("div");
   div.className = "stat-chip";
+  if (hint) div.title = hint;
   div.innerHTML = `<span class="stat-label">${label}</span><span class="stat-value">${value}</span>`;
   return div;
 }
@@ -80,6 +85,15 @@ const COMPOSITE_LABELS = {
   concentration: "تمرکز",
   illiquidity: "ضعف نقدشوندگی",
   cashErosion: "فرسایش نقد",
+};
+
+const COMPOSITE_HINTS = {
+  volatility: "میزان بالا/پایین‌رفتن قیمت بخش قیمت‌دار سبدت طی یک سال گذشته؛ همان «امتیاز نوسان» زیر بخش «ریسک واقعی گذشته».",
+  drawdown: "در بدترین حالت طی یک سال گذشته، سبدت از اوج خودش چقدر افت کرده — همان «بیشینه ریزش» پایین‌تر در همین صفحه.",
+  tail: "میانگین بدترین ۳ هفته از ۵۲ هفته‌ی گذشته (ریسک دم/CVaR) — همان مفهوم «میانگین ۳ هفته‌ی بدتر» در جدول پایین، فقط نام دیگر همان چیز.",
+  concentration: "چقدر ریسک سبدت (نه سرمایه‌ات) روی یک یا چند دارایی متمرکز است؛ پول در نقد امن این را بالا نمی‌برد، پول در یک دارایی پرنوسان بله.",
+  illiquidity: "چقدر از سبدت به‌کندی و با هزینه به پول نقد تبدیل می‌شود — نسخه‌ای از همان موضوع صفحه‌ی «نقدینگی من»، نه همان عدد.",
+  cashErosion: "پولی که فقط نقد/سپرده نگه‌داشته شده و در برابر تورم/رشد طلا و ارز ارزش واقعی‌اش کم می‌شود.",
 };
 
 /** شاخص ترکیبی: نوسان + افت + دم بد + تمرکز + نقدشوندگی + فرسایش نقد (the volatility gauge above is only the first part). */
@@ -95,7 +109,7 @@ function renderComposite(mr) {
   $("compositeScore").textContent = "= " + c.score + " از ۱۰۰ (" + c.level + ")";
   const wrap = $("compositeStats");
   wrap.innerHTML = "";
-  Object.entries(COMPOSITE_LABELS).forEach(([k, label]) => wrap.appendChild(chip(label + " (وزن " + Math.round((c.weights[k] || 0) * 100) + "٪)", ltr(c.components[k]))));
+  Object.entries(COMPOSITE_LABELS).forEach(([k, label]) => wrap.appendChild(chip(label + " (وزن " + Math.round((c.weights[k] || 0) * 100) + "٪)", ltr(c.components[k]), COMPOSITE_HINTS[k])));
   $("compositeNote").textContent = "ریسک سبد فقط نوسان قیمت نیست؛ این عدد نوسان، افت، هفته‌های بد، تمرکز، ضعف نقدشوندگی و فرسایش پول نقد را با وزن‌های ثابت ترکیب می‌کند — برای همین حتی سبدی با نوسان کم اما تمرکز بالا می‌تواند امتیاز ریسک بالایی بگیرد.";
 }
 
@@ -115,8 +129,8 @@ function renderMarketRisk(m) {
   stats.append(
     chip("نوسان سالانه (۱ سال)", pct1(s.annVolatility1y)),
     chip("بیشینه ریزش (۱ سال)", pct1(s.maxDrawdown1y)),
-    chip("میانگین ۳ هفته‌ی بدتر", pct1(s.cvar95Weekly1y)),
-    chip("بتا نسبت به دلار", ltr(s.betaUsd1y)),
+    chip("میانگین ۳ هفته‌ی بدتر", pct1(s.cvar95Weekly1y), "ریسک دم (CVaR): میانگین بدترین ۳ هفته از ۵۲ هفته‌ی گذشته. همان چیزی که در «تفکیک اجزای شاخص ریسک» بالا «هفته‌های بد» نام دارد."),
+    chip("بتا نسبت به دلار", ltr(s.betaUsd1y), "اگر دلار ۱٪ حرکت کند، این بخش از سبدت به‌طور میانگین چند درصد حرکت می‌کند. ۱ یعنی هم‌جهت و هم‌اندازه با دلار؛ بیشتر از ۱ یعنی حساس‌تر، کمتر یعنی مستقل‌تر یا برعکس (منفی)."),
     chip("بازده نسبت به دلار (۱ سال)", pct1(s.returnVsUsd1y))
   );
   const fv = m.forwardVol;

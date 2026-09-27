@@ -305,7 +305,7 @@ li::marker { color: var(--text-faint); }
 .range-table small { color: var(--text-faint); }
 .ml-tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: rgba(139,92,246,0.15); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.35); margin-inline-start: 4px; cursor: help; }
 
-.risk-badges { display: flex; gap: 8px; margin: 4px 0 12px; }
+.risk-badges { display: flex; gap: 8px; margin: 4px 0 12px; flex-wrap: wrap; }
 .badge { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--accent-2); color: #061019; }
 .badge-outline { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-weight: 600; }
 

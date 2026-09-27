@@ -4,8 +4,8 @@ import { iconBadge } from "../icons.js";
 
 const NAV_CARDS = [
   { href: "profile.html", icon: "user", tone: "violet", title: "اطلاعات شخصی و دارایی‌ها", desc: "ویرایش اطلاعات، دارایی‌ها و اهداف پایه‌ات." },
-  { href: "assets.html", icon: "chartBar", tone: "indigo", title: "تحلیل ترکیب دارایی‌ها", desc: "مقایسه سبد فعلی با پیشنهاد موتور بهینه‌سازی." },
-  { href: "risk.html", icon: "target", tone: "rose", title: "ریسک‌سنجی", desc: "ریسک واقعی سبدت، با یادگیری از رفتار خودت." },
+  { href: "assets.html", icon: "chartBar", tone: "indigo", title: "تحلیل ترکیب دارایی‌ها", desc: "مقایسه سبد فعلی با یک ترکیب مرجع؛ ترکیب مرجع را یک مدل ریاضی (میانگین-واریانس روی داده‌ی واقعی بازار) حساب می‌کند، نه هوش مصنوعی." },
+  { href: "risk.html", icon: "target", tone: "rose", title: "ریسک‌سنجی", desc: "ریسک واقعی سبدت از روی داده‌ی بازار؛ با گذشت زمان و ثبت تصمیم‌هایت در «دستیار قبل از تصمیم»، ریسک‌پذیری مؤثرت هم همین‌جا دقیق‌تر می‌شود." },
   { href: "liquidity.html", icon: "droplet", tone: "sky", title: "نقدینگی من", desc: "چقدر پول فوری و تا چه بازه‌ای در دسترست هست." },
   { href: "goals.html", icon: "flag", tone: "teal", title: "اهداف مالی", desc: "مسیر رسیدن به هر هدف مالی را بسنج." },
   { href: "scenario.html", icon: "wind", tone: "violet", title: "شبیه‌ساز سناریو", desc: "اثر نوسانات بازار روی دارایی‌هات را ببین." },
@@ -42,7 +42,7 @@ async function init() {
   const parts = [];
   if (p.age) parts.push(`${p.age} ساله`);
   if (p.gender) parts.push(p.gender);
-  parts.push(`ریسک‌پذیری ${profile.riskTolerance ?? 5}/۱۰`);
+  parts.push(`ریسک‌پذیری اعلامی خودت ${profile.riskTolerance ?? 5}/۱۰`);
   parts.push(`${(profile.assets || []).length} دارایی ثبت‌شده`);
   parts.push(`${(profile.goals || []).length} هدف مالی`);
   $("dashProfileSummary").textContent = parts.join(" — ");

@@ -68,12 +68,19 @@ function renderScenarioResult(data) {
   totalEl.className = "scenario-total " + (pct >= 0 ? "pos" : "neg");
 
   const rangeEl = $("scenarioRange");
+  const noteEl = $("scenarioEngineNote");
   if (data.confidenceRange) {
     const r = data.confidenceRange;
-    rangeEl.textContent = `بازه ۷۰٪ اطمینان (شبیه‌سازی مونت‌کارلو، ${data.trials || ""} تکرار، افق ${data.horizonMonths || 3} ماه پس از شوک؛ اندازه‌ی خود شوک هم حدود ±${Math.round((data.shockSeveritySd || 0.25) * 100)}٪ نامطمئن فرض شده): بین ${r.p15Percent > 0 ? "+" : ""}${r.p15Percent}٪ و ${r.p85Percent > 0 ? "+" : ""}${r.p85Percent}٪`;
+    rangeEl.innerHTML =
+      `از ۱۰۰ حالت ممکن، ۷۰ تای وسط نتیجه‌شان بین <b>${r.p15Percent > 0 ? "+" : ""}${r.p15Percent}٪</b> و <b>${r.p85Percent > 0 ? "+" : ""}${r.p85Percent}٪</b> افتاده — نتیجه‌ی «معمولی‌تر»، نه بدترین یا بهترین حالت ممکن.` +
+      ` <span class="profile-summary" style="font-size:11px;">(${data.trials || ""} تکرار محاسباتی، افق ${data.horizonMonths || 3} ماه پس از شوک؛ اندازه‌ی خود شوک هم حدود ±${Math.round((data.shockSeveritySd || 0.25) * 100)}٪ نامطمئن فرض شده)</span>`;
     rangeEl.classList.remove("hidden");
+    if (noteEl) noteEl.textContent = "";
   } else {
     rangeEl.classList.add("hidden");
+    if (noteEl)
+      noteEl.textContent =
+        "این سناریو یک شوک قیمتی روی یک دارایی مشخص نیست (مثلاً تغییر درآمد شخصی)، پس مدل آماری مونت‌کارلو روی آن قابل‌اجرا نیست؛ در عوض دستیار هوش مصنوعی تحلیل کیفی می‌نویسد — قابل استناد کمتر از بازه‌های عددی بالاست و افق زمانی مشخصی هم ندارد.";
   }
   const engineTag = $("scenarioEngineTag");
   if (engineTag) engineTag.textContent = data.confidenceRange ? "مونت‌کارلو" : "تحلیل کیفی";

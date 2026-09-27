@@ -51,24 +51,28 @@ function renderGoalsList() {
           flat && d.priceGrowthPercent > 0
             ? `<div style="color:var(--text-faint);font-size:11.5px;">برای مقایسه، اگر قیمت هدف ثابت می‌ماند: ${flat.monthsNeededAtCurrentPace === null ? "هرگز نمی‌رسید" : flat.monthsNeededAtCurrentPace + " ماه"}</div>`
             : "";
+        const feasibilityLine = !d.feasible
+          ? `<div>امکان‌پذیری: <span class="feasible-no">با شرایط فعلی دشوار است</span></div>`
+          : d.marginTier === "tight"
+            ? `<div>امکان‌پذیری: <span class="feasible-yes">قابل دستیابی است</span> — اما <span class="feasible-no" title="فقط چند درصد فضای مانور در پس‌انداز/مهلت باقی است">⚠ با حاشیه‌ی امنیت بسیار کم (لبه‌ی تیغ)</span>: کوچک‌ترین افزایش هزینه یا تأخیر می‌تواند آن را از دسترس خارج کند.</div>`
+            : d.marginTier === "moderate"
+              ? `<div>امکان‌پذیری: <span class="feasible-yes">قابل دستیابی است</span> <span style="color:var(--text-dim)">(با حاشیه‌ی امنیت متوسط)</span></div>`
+              : `<div>امکان‌پذیری: <span class="feasible-yes">قابل دستیابی است</span></div>`;
         box.innerHTML = `
-          <div>امکان‌پذیری: <span class="${d.feasible ? "feasible-yes" : "feasible-no"}">${d.feasible ? "قابل دستیابی است" : "با شرایط فعلی دشوار است"}</span>${
-            d.marginTier === "tight"
-              ? ' <span class="feasible-no" title="فقط چند درصد فضای مانور در پس‌انداز/مهلت باقی است">⚠ لبه‌ی تیغ — حاشیه‌ی امنیت بسیار کم</span>'
-              : d.marginTier === "moderate"
-                ? ' <span style="color:var(--text-dim)">(حاشیه‌ی امنیت متوسط)</span>'
-                : ""
-          }</div>
+          ${feasibilityLine}
+          <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-dim);">هزینه‌ی هدف</h5>
           <div>مبلغ هدف در سررسید (با رشد قیمت ${d.priceGrowthPercent}٪ سالانه): <b>${formatToman(d.targetAtDeadline)}</b></div>
+          <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-dim);">آنچه از قبل داری</h5>
           <div>سرمایه‌ی موجود در نظر گرفته‌شده (نقد و نیمه‌نقد): <b>${formatToman(d.startingCapital)}</b></div>
-          <div>پیش‌بینی جمع‌شده تا مهلت (سرمایه‌ی موجود + پس‌انداز فعلی): <b>${formatToman(d.projectedAmountAtDeadline)}</b></div>
-          <div>پس‌انداز ماهانه‌ی جدید لازم: <b>${formatToman(d.requiredMonthlySaving)}</b></div>
-          <div>توان پس‌انداز فعلی: <b>${formatToman(d.currentMonthlySavingCapacity)}</b></div>
-          <div>مازاد/کسری ماهانه: <b class="${d.monthlySurplus >= 0 ? "feasible-yes" : "feasible-no"}">${d.monthlySurplus >= 0 ? "+" : ""}${formatToman(d.monthlySurplus)}</b></div>
+          <div>پیش‌بینی جمع‌شده تا مهلت (همین سرمایه + پس‌انداز ماهانه‌ی فعلی، هر دو با رشد فرض‌شده): <b>${formatToman(d.projectedAmountAtDeadline)}</b></div>
+          <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-dim);">پس‌انداز ماهانه — این دو را با هم مقایسه کن</h5>
+          <div>۱) لازم برای این هدف: <b>${formatToman(d.requiredMonthlySaving)}</b></div>
+          <div>۲) توانِ فعلی‌ات (درآمد منهای هزینه): <b>${formatToman(d.currentMonthlySavingCapacity)}</b></div>
+          <div>مازاد/کسری بین این دو: <b class="${d.monthlySurplus >= 0 ? "feasible-yes" : "feasible-no"}">${d.monthlySurplus >= 0 ? "+" : ""}${formatToman(d.monthlySurplus)}</b></div>
           ${paceLine}
           ${flatLine}
-          <div style="color:var(--text-faint);font-size:11.5px;">فرض رشد قیمت هدف ${d.priceGrowthPercent}٪ سالانه است (داده‌ای برای تورم/قیمت مسکن در سیستم نیست؛ هنگام افزودن هدف می‌توانید عدد خودتان را بدهید).</div>
-          <div style="color:var(--text-faint);font-size:11.5px;">${d.horizonTier} — نرخ رشد فرض‌شده برای پول این هدف: ${d.assumedAnnualReturnPercent}٪ سالانه</div>
+          <div style="color:var(--text-faint);font-size:11.5px;margin-top:10px;">فرض رشد قیمت هدف ${d.priceGrowthPercent}٪ سالانه است (داده‌ای برای تورم/قیمت مسکن در سیستم نیست؛ هنگام افزودن هدف می‌توانید عدد خودتان را بدهید).</div>
+          <div style="color:var(--text-faint);font-size:11.5px;">${d.horizonTier} — نرخ رشد فرض‌شده <b>برای پول همین هدف</b> (نه برای قیمت خودِ هدف؛ آن یکی همان ${d.priceGrowthPercent}٪ بالاست): ${d.assumedAnnualReturnPercent}٪ سالانه</div>
           <ul id="goalPathList_${g.id}"></ul>
           <p id="goalSummary_${g.id}"></p>
         `;

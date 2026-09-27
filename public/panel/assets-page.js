@@ -81,11 +81,30 @@ function renderDispersion(d) {
   const stats = $("dispersionStats");
   stats.innerHTML = "";
   const score = ltr(d.suggestedDiversificationScore === null ? `${d.diversificationScore} از ۱۰۰` : `${d.diversificationScore} → ${d.suggestedDiversificationScore}`);
-  stats.appendChild(statChip("امتیاز تنوع (فعلی → پیشنهادی)", score));
-  stats.appendChild(statChip("تعداد مؤثر کلاس دارایی", ltr(d.effectiveNClass)));
+  stats.appendChild(
+    statChip(
+      "امتیاز تنوع (فعلی → پیشنهادی)",
+      score,
+      "این با «امتیاز ریسک» فرق دارد: فقط می‌سنجد سرمایه‌ات بین چند دارایی کم‌همبسته پخش شده، نه اینکه آن دارایی‌ها خودشان چقدر پرنوسان‌اند. عدد اول وضعیت الان، دومی وضعیت با ترکیب پیشنهادی."
+    )
+  );
+  stats.appendChild(
+    statChip(
+      "تعداد مؤثر کلاس دارایی",
+      ltr(d.effectiveNClass),
+      "اگر سرمایه‌ات دقیقاً بین N کلاس دارایی مساوی پخش بود این عدد برابر N می‌شد؛ تمرکز روی یک یا چند کلاس آن را کمتر از تعداد واقعی کلاس‌هایت نشان می‌دهد. عدد اعشاری یعنی پخش‌شدگی نابرابر بین کلاس‌ها. بیشتر بهتر است."
+    )
+  );
   stats.appendChild(statChip("بزرگ‌ترین قلم", pct1(d.top1Share)));
   stats.appendChild(statChip("سه قلم بزرگ", pct1(d.top3Share)));
-  if (d.avgPairwiseCorr !== null) stats.appendChild(statChip("همبستگی متوسط دارایی‌ها", ltr(d.avgPairwiseCorr.toFixed(2))));
+  if (d.avgPairwiseCorr !== null)
+    stats.appendChild(
+      statChip(
+        "همبستگی متوسط دارایی‌ها",
+        ltr(d.avgPairwiseCorr.toFixed(2)),
+        "بین ۱- (کاملاً برعکسِ هم حرکت می‌کنند) تا ۱ (کاملاً هم‌جهت). نزدیک صفر یا منفی یعنی دارایی‌هایت واقعاً همدیگر را پوشش می‌دهند؛ نزدیک ۱ یعنی همه با هم بالا/پایین می‌روند و ریسک واقعی سبد بیشتر از ظاهرِ متنوع‌بودنش است."
+      )
+    );
 
   const labels = d.capitalShareByClass.map((c) => c.label);
   const riskByKey = Object.fromEntries(d.riskShareByClass.map((c) => [c.key, c.share]));
@@ -143,7 +162,13 @@ function renderStatChips(elId, stats) {
   wrap.appendChild(statChip("نوسان سالانه", formatPercent(stats.volatility * 100)));
   // Same 0-100 score shown on صفحه‌ی ریسک‌سنجی (identical formula, identical
   // number) so the two pages never look like they disagree about risk.
-  wrap.appendChild(statChip("امتیاز ریسک (از ۱۰۰)", stats.riskScore));
+  wrap.appendChild(
+    statChip(
+      "امتیاز ریسک (از ۱۰۰)",
+      stats.riskScore,
+      "همان «امتیاز ریسک» صفحه‌ی ریسک‌سنجی، عیناً همین عدد؛ ربطی به ریسک‌پذیری اعلامی یا مؤثرت (که در مقیاس ۱ تا ۱۰ است) ندارد."
+    )
+  );
   // Two different measures, labelled as such so the two pages never look like they disagree:
   //  - the weighted score: mean of each holding's liquidity factor (also a constraint of the optimizer)
   //  - the tiers: the same fast / semi-liquid / illiquid split shown on صفحه‌ی نقدینگی
