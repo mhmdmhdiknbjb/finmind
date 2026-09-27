@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { PORT } from "./config.js";
 import { loadProfile, saveProfile } from "./store.js";
 import { callLLM, callLLMJSON } from "./llm.js";
-import { validateExtraction, overdrawn, overdrawnMessage, answersQuestion, validateText, collectStrings, stripBadSentences, answerFactual, fallbackReply } from "./grounding.js";
+import { validateExtraction, overdrawn, overdrawnMessage, enforceGoalMarginFraming, answersQuestion, validateText, collectStrings, stripBadSentences, answerFactual, fallbackReply } from "./grounding.js";
 import {
   promptAssets,
   promptRisk,
@@ -388,9 +388,12 @@ app.post(
         const profile = await loadResolvedProfile(req.userId, { refresh: !!req.body?.force });
         const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
         const computed = optimizePortfolio(profileForOpt);
-        const explanation = await groundedJSON(promptAssets(profile, computed), profile, {
+        const rawExplanation = await groundedJSON(promptAssets(profile, computed), profile, {
           fallback: () => ({ concentrationWarning: null, strengths: [], weaknesses: [], suggestions: [], summary: NO_TEXT_NOTE }),
         });
+        // a wafer-thin-margin goal being "reachable" must never read as a plain strength: enforced here rather than
+        // left to the model, since the instruction alone in the prompt was seen to not be followed
+        const explanation = enforceGoalMarginFraming(rawExplanation, profile);
         return {
           totalAssets: computed.current.total,
           allocation: allocationArray(computed.current.weights, computed.current.total),

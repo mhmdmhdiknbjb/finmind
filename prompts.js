@@ -62,9 +62,18 @@ function goalStatusBlock(profile) {
         : r.monthsNeededAtCurrentPace !== null
           ? `با سرمایه‌ی موجود و پس‌انداز ماهانه‌ی فعلی حدود ${r.monthsNeededAtCurrentPace} ماه`
           : "با پس‌انداز فعلی به هدف نمی‌رسد";
-    return `«${goal.title}»: ${r.feasible ? "با شرایط فعلی در مهلت قابل دستیابی است" : "با شرایط فعلی در مهلت قابل دستیابی نیست"} — ${pace} (مهلت ${goal.targetMonths} ماه) — پیش‌بینی جمع‌شده تا مهلت ${fmtNum(r.projectedAmountAtDeadline)} تومان در برابر مبلغ هدف در سررسید ${fmtNum(r.targetAtDeadline)} (مبلغ امروز ${fmtNum(r.targetAmount)} با فرض رشد قیمت ${r.priceGrowthPercent}٪ سالانه)`;
+    // `feasible: true` can still be a razor's edge (a wafer-thin monthly/time margin): a goal like that must never be
+    // narrated as a plain, unqualified "strength" — always name the margin so the user knows how little room there is
+    const MARGIN_TEXT = {
+      infeasible: "—",
+      covered_by_capital: "بدون وابستگی به پس‌انداز ماهانه، چون سرمایه‌ی موجود به‌تنهایی کافی است",
+      tight: `حاشیه‌ی امنیت بسیار کم و لبه‌ی تیغ (فقط ${r.savingMarginPercent ?? r.monthsMarginPercent}٪ فضای مانور در پس‌انداز/مهلت) — هرگز این را ساده یا بدون هشدار «نقطه‌قوت» معرفی نکن؛ صریح بگو کوچک‌ترین افزایش هزینه یا کاهش درآمد یا تأخیر می‌تواند این هدف را از دسترس خارج کند`,
+      moderate: `حاشیه‌ی امنیت متوسط (حدود ${r.savingMarginPercent ?? r.monthsMarginPercent}٪ فضای مانور)`,
+      comfortable: `حاشیه‌ی امنیت خوب (حدود ${r.savingMarginPercent ?? r.monthsMarginPercent}٪ فضای مانور)`,
+    };
+    return `«${goal.title}»: ${r.feasible ? "با شرایط فعلی در مهلت قابل دستیابی است" : "با شرایط فعلی در مهلت قابل دستیابی نیست"} — ${pace} (مهلت ${goal.targetMonths} ماه) — پیش‌بینی جمع‌شده تا مهلت ${fmtNum(r.projectedAmountAtDeadline)} تومان در برابر مبلغ هدف در سررسید ${fmtNum(r.targetAtDeadline)} (مبلغ امروز ${fmtNum(r.targetAmount)} با فرض رشد قیمت ${r.priceGrowthPercent}٪ سالانه) — ${MARGIN_TEXT[r.marginTier]}`;
   });
-  return `\n\n### وضعیت رسیدن به اهداف (خروجی موتور اهداف، همان اعداد صفحه‌ی اهداف مالی — هر جمله درباره‌ی کافی/ناکافی بودن درآمد یا پس‌انداز برای هدف باید دقیقاً با همین‌ها هم‌خوان باشد و خلافش را نگو)\n${lines.join("\n")}`;
+  return `\n\n### وضعیت رسیدن به اهداف (خروجی موتور اهداف، همان اعداد صفحه‌ی اهداف مالی — هر جمله درباره‌ی کافی/ناکافی بودن درآمد یا پس‌انداز برای هدف، یا هر جمله‌ای که یک هدف را «نقطه‌قوت»/دستاورد ساده معرفی می‌کند، باید دقیقاً با همین‌ها و همین حاشیه‌ی امنیت هم‌خوان باشد)\n${lines.join("\n")}`;
 }
 
 export function buildProfileContext(profile) {

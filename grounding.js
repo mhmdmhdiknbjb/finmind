@@ -400,3 +400,46 @@ export function answerSpend(profile, message) {
   }
   return `اگر ${fmt(amt)} تومان از «${CAT_NAME[cat]}» خرج شود، از ${fmt(held)} تومان فعلی ${fmt(held - amt)} تومان می‌ماند و مجموع دارایی‌های شما از ${fmt(total)} به ${fmt(total - amt)} تومان می‌رسد. (فقط محاسبه است، نه توصیه.)`;
 }
+
+/* ---------------------------------------------- goal margin-of-safety framing */
+
+// a "tight" goal (see goalEngine.js's marginTier) being reachable is a fact, but calling it a plain, unqualified
+// strength hides that the margin is wafer-thin — this was seen verbatim in the assets widget's `strengths` even
+// after the goal-status block already told the model the margin, so it is now enforced deterministically here
+// rather than left to the model to comply with the instruction.
+const GOAL_MENTION_GENERIC = /(هدف مالی|اهداف مالی|اهداف شما|رسیدن به هدف|دستیابی به هدف|قابل دستیابی|هدف[^.]{0,20}(محقق|برآورده))/;
+const MARGIN_CAUTION_WORDS = /(حاشیه|تنگ|لبه|احتیاط|اندک|ناچیز|حساس|شکننده|ریسک)/;
+
+function mentionsTightGoal(sentence, tightGoals) {
+  if (tightGoals.some((g) => g.title && sentence.includes(g.title))) return true;
+  return GOAL_MENTION_GENERIC.test(sentence);
+}
+
+/**
+ * Moves any `strengths` entry that praises a goal's reachability without naming its thin margin into `weaknesses`
+ * with the caution appended (server-authored, not asked of the model); appends the same caution to `summary` if it
+ * does the same. No-op when no goal is currently at marginTier "tight". Used by the assets widget after generation.
+ */
+export function enforceGoalMarginFraming(explanation, profile) {
+  const tightGoals = evaluateGoals(profile)
+    .filter(({ result: r }) => r.marginTier === "tight")
+    .map(({ goal }) => goal);
+  if (!tightGoals.length || !explanation || typeof explanation !== "object") return explanation;
+
+  const caution = `— با این حال حاشیه‌ی امنیت این هدف بسیار کم است؛ کوچک‌ترین افزایش هزینه، کاهش درآمد یا تأخیر در پس‌انداز می‌تواند آن را از دسترس خارج کند.`;
+  const strengths = [];
+  const moved = [];
+  for (const s of explanation.strengths || []) {
+    if (typeof s === "string" && mentionsTightGoal(s, tightGoals) && !MARGIN_CAUTION_WORDS.test(s)) {
+      moved.push(`${s} ${caution}`);
+    } else {
+      strengths.push(s);
+    }
+  }
+  const summary =
+    typeof explanation.summary === "string" && mentionsTightGoal(explanation.summary, tightGoals) && !MARGIN_CAUTION_WORDS.test(explanation.summary)
+      ? `${explanation.summary} ${caution}`
+      : explanation.summary;
+
+  return { ...explanation, strengths, weaknesses: [...(explanation.weaknesses || []), ...moved], summary };
+}

@@ -135,6 +135,29 @@ export function evaluateGoal(profile, goal) {
   const flatRequired = requiredPayment(targetAmount, lump, targetMonths, monthlyRate);
 
   const ceilOrNull = (v) => (v !== null && Number.isFinite(v) ? Math.ceil(v) : null);
+
+  /**
+   * A goal can be `feasible: true` on a razor's edge (e.g. 98.5% of monthly capacity committed, one month of slack
+   * out of 60) — technically reachable, but one small cost increase or income dip makes it not. `feasible` alone
+   * hid that from every narrative text, which then called a wafer-thin margin a plain "strength". Two margins:
+   *  - savingMarginPercent: how much of the required monthly saving is spare capacity (null when the lump alone
+   *    covers the goal — requiredMonthlySaving is 0 and the ratio is undefined, not "infinite margin").
+   *  - monthsMargin / monthsMarginPercent: how much slack the deadline itself has.
+   * marginTier is the single field prompts/validators key off: "infeasible" | "tight" | "moderate" | "comfortable"
+   * | "covered_by_capital" (already funded by what the user owns, no ongoing saving needed at all).
+   */
+  const savingMarginPercent = feasible && requiredMonthlySaving > 0 ? Math.round((monthlySurplus / requiredMonthlySaving) * 1000) / 10 : null;
+  const monthsNeeded = ceilOrNull(monthsRaw);
+  const monthsMargin = feasible && monthsNeeded !== null ? targetMonths - monthsNeeded : null;
+  const monthsMarginPercent = monthsMargin !== null ? Math.round((monthsMargin / targetMonths) * 1000) / 10 : null;
+
+  let marginTier;
+  if (!feasible) marginTier = "infeasible";
+  else if (requiredMonthlySaving <= 0) marginTier = "covered_by_capital";
+  else if (savingMarginPercent < 10 || (monthsMarginPercent !== null && monthsMarginPercent < 10)) marginTier = "tight";
+  else if (savingMarginPercent < 40 || (monthsMarginPercent !== null && monthsMarginPercent < 40)) marginTier = "moderate";
+  else marginTier = "comfortable";
+
   return {
     targetAmount,
     targetMonths,
@@ -145,9 +168,13 @@ export function evaluateGoal(profile, goal) {
     requiredMonthlySaving: Math.round(requiredMonthlySaving),
     monthlySurplus: Math.round(monthlySurplus),
     feasible,
+    savingMarginPercent,
+    monthsMargin,
+    monthsMarginPercent,
+    marginTier,
     assumedAnnualReturnPercent: Math.round(annualReturn * 1000) / 10,
     horizonTier: tier,
-    monthsNeededAtCurrentPace: ceilOrNull(monthsRaw),
+    monthsNeededAtCurrentPace: monthsNeeded,
     projectedAmountAtDeadline: Math.round(projectedAmountAtDeadline),
     projectedFromExistingAssets: Math.round(lump * Math.pow(1 + monthlyRate, targetMonths)),
     ifPriceStaysFlat: {

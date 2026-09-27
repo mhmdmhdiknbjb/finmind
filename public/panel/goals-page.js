@@ -52,7 +52,13 @@ function renderGoalsList() {
             ? `<div style="color:var(--text-faint);font-size:11.5px;">برای مقایسه، اگر قیمت هدف ثابت می‌ماند: ${flat.monthsNeededAtCurrentPace === null ? "هرگز نمی‌رسید" : flat.monthsNeededAtCurrentPace + " ماه"}</div>`
             : "";
         box.innerHTML = `
-          <div>امکان‌پذیری: <span class="${d.feasible ? "feasible-yes" : "feasible-no"}">${d.feasible ? "قابل دستیابی است" : "با شرایط فعلی دشوار است"}</span></div>
+          <div>امکان‌پذیری: <span class="${d.feasible ? "feasible-yes" : "feasible-no"}">${d.feasible ? "قابل دستیابی است" : "با شرایط فعلی دشوار است"}</span>${
+            d.marginTier === "tight"
+              ? ' <span class="feasible-no" title="فقط چند درصد فضای مانور در پس‌انداز/مهلت باقی است">⚠ لبه‌ی تیغ — حاشیه‌ی امنیت بسیار کم</span>'
+              : d.marginTier === "moderate"
+                ? ' <span style="color:var(--text-dim)">(حاشیه‌ی امنیت متوسط)</span>'
+                : ""
+          }</div>
           <div>مبلغ هدف در سررسید (با رشد قیمت ${d.priceGrowthPercent}٪ سالانه): <b>${formatToman(d.targetAtDeadline)}</b></div>
           <div>سرمایه‌ی موجود در نظر گرفته‌شده (نقد و نیمه‌نقد): <b>${formatToman(d.startingCapital)}</b></div>
           <div>پیش‌بینی جمع‌شده تا مهلت (سرمایه‌ی موجود + پس‌انداز فعلی): <b>${formatToman(d.projectedAmountAtDeadline)}</b></div>
