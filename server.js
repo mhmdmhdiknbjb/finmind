@@ -53,12 +53,47 @@ import {
 // hundred thousand toman from one page to the next. `refresh` (the widgets' force button) takes a new snapshot.
 const RATE_PIN_MS = 60 * 60 * 1000;
 const ratePins = new Map();
+
+// Persisted to disk (not just kept in memory): a bare in-memory pin is silently forgotten on every server
+// restart/crash, so the very first request after a restart re-fetches a fresh live quote — and if gold/USD moved
+// even slightly since the last pin, every price-sensitive number derived from that user's holdings (total assets,
+// category weights, and therefore the risk score's concentration/cash-erosion terms) shifts, even though nothing
+// the user did changed. That produced a real, reported instability: the same risk-tolerance re-tested minutes/
+// restarts apart came back with a different score. The file makes the hourly pin survive a restart.
+function ratePinFile(userId) {
+  return path.join(__dirname, "data", "users", userId, "rate_pin.json");
+}
+function readRatePinFile(userId) {
+  try {
+    return JSON.parse(fs.readFileSync(ratePinFile(userId), "utf-8"));
+  } catch {
+    return null;
+  }
+}
+function writeRatePinFile(userId, pin) {
+  try {
+    fs.mkdirSync(path.dirname(ratePinFile(userId)), { recursive: true });
+    fs.writeFileSync(ratePinFile(userId), JSON.stringify(pin), "utf-8");
+  } catch {
+    /* the disk copy is only a durability layer; an in-memory pin still works within the same process */
+  }
+}
+
 async function pinnedRatesFor(userId, refresh) {
-  const pin = ratePins.get(userId);
+  let pin = ratePins.get(userId);
+  if (!pin) {
+    const onDisk = readRatePinFile(userId);
+    if (onDisk) {
+      pin = onDisk;
+      ratePins.set(userId, pin);
+    }
+  }
   if (!refresh && pin && Date.now() - pin.at < RATE_PIN_MS) return pin.rates;
   try {
     const rates = await getLiveRates();
-    ratePins.set(userId, { rates, at: Date.now() });
+    pin = { rates, at: Date.now() };
+    ratePins.set(userId, pin);
+    writeRatePinFile(userId, pin);
     return rates;
   } catch {
     return pin ? pin.rates : undefined; // no feed: resolveProfileAssets falls back on its own handling
