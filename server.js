@@ -594,7 +594,7 @@ app.post(
     for (let i = 0; i < 3; i++) {
       const extraction = await callLLMJSON(promptDecisionExtract(profile, decision) + feedback, { effort: "medium" });
       assetChanges = Array.isArray(extraction.assetChanges) ? extraction.assetChanges : [];
-      extractionProblems = validateExtraction(decision.description, decision.amount, assetChanges);
+      extractionProblems = validateExtraction(decision.description, decision.amount, assetChanges, profile);
       logDecisionExtraction(req.userId, { description: decision.description, amount: decision.amount || null, attempt: i + 1, assetChanges, problems: extractionProblems });
       if (!extractionProblems.length) break;
       feedback = "\n\n### اصلاح لازم\nاستخراج قبلی تو با متن کاربر نمی‌خواند:\n- " + extractionProblems.join("\n- ") + "\nدوباره استخراج کن؛ فقط دسته‌ها و مبلغ‌هایی که خود کاربر در متن گفته.";
@@ -660,7 +660,7 @@ async function extractOptionForCompare(userId, profile, option, compareIndex) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const extraction = await callLLMJSON(promptDecisionExtract(profile, option) + feedback, { effort: "medium" });
     assetChanges = Array.isArray(extraction.assetChanges) ? extraction.assetChanges : [];
-    extractionProblems = validateExtraction(option.description, option.amount, assetChanges);
+    extractionProblems = validateExtraction(option.description, option.amount, assetChanges, profile);
     logDecisionExtraction(userId, { compareIndex, description: option.description, amount: option.amount || null, attempt: attempt + 1, assetChanges, problems: extractionProblems });
     if (!extractionProblems.length) break;
     feedback = "\n\n### اصلاح لازم\nاستخراج قبلی تو با متن کاربر نمی‌خواند:\n- " + extractionProblems.join("\n- ") + "\nدوباره استخراج کن؛ فقط دسته‌ها و مبلغ‌هایی که خود کاربر در متن گفته.";
@@ -747,11 +747,34 @@ app.post(
       };
     });
 
+    // A valid ranking must be a permutation covering every option exactly once — anything else (empty, short,
+    // duplicate indices) was seen from a confused model even when every option itself was correctly computed, and
+    // rendered as a blank line instead of a defensible order. Fall back to a fixed rule: feasible options first
+    // (lower risk first), infeasible ones last — never leave the user with no order at all.
+    const isValidRanking = Array.isArray(explanation.ranking) && new Set(explanation.ranking).size === options.length && options.every((_, i) => explanation.ranking.includes(i));
+    const defaultRanking = options
+      .map((o, i) => i)
+      .sort((a, b) => {
+        const oa = options[a];
+        const ob = options[b];
+        if (oa.feasible !== ob.feasible) return oa.feasible ? -1 : 1;
+        return (oa.riskScore ?? 999) - (ob.riskScore ?? 999);
+      });
+
+    // seen once: the model claimed "no actionable option" in `recommendation` while every option was actually
+    // feasible:true with real numbers — a narrative contradiction of the server's own computed facts, not a made-up
+    // number, so validateText's grounding check doesn't catch it. Override only that specific contradiction.
+    const anyFeasible = options.some((o) => o.feasible);
+    const claimsNoneFeasible = /(قابل[‌\s]اجرا\s*(نیستند|نیست)|هیچ[‌\s]?(گزینه|کدام)[^.]{0,30}(عملیاتی|قابل|وجود\s*ندارد)|امکان[^.]{0,20}توصیه[^.]{0,15}وجود\s*ندارد)/.test(explanation.recommendation || "");
+    const recommendation = anyFeasible && claimsNoneFeasible
+      ? `گزینه‌ی «${options[defaultRanking[0]].label}» بر اساس ریسک و نقدینگی محاسبه‌شده، در حال حاضر با وضعیت شما سازگارتر به نظر می‌رسد؛ برای جزئیات به دلایل زیر نگاه کن.`
+      : explanation.recommendation || "";
+
     res.json({
       before,
       options,
-      ranking: Array.isArray(explanation.ranking) ? explanation.ranking : options.map((_, i) => i),
-      recommendation: explanation.recommendation || "",
+      ranking: isValidRanking ? explanation.ranking : defaultRanking,
+      recommendation,
       reasoning: Array.isArray(explanation.reasoning) ? explanation.reasoning : [],
     });
   })

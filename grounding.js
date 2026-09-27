@@ -340,34 +340,76 @@ const EXTRACT_TERMS = {
   currency: ["ارز", "دلار", "یورو", "درهم", "پوند"],
   stock: ["سهام", "سهم", "بورس"],
   fund: ["صندوق"],
-  realestate: ["ملک", "املاک", "خانه", "منزل", "مسکن", "آپارتمان", "زمین", "ویلا"],
+  realestate: ["ملک", "املاک", "خانه", "خونه", "منزل", "مسکن", "آپارتمان", "زمین", "ویلا"],
   crypto: ["رمزارز", "کریپتو", "بیت", "اتریوم", "تتر", "کوین"],
 };
 const RELATIVE_AMOUNT = /(نیمی|نصف|همه|تمام|کل\s|درصد|٪|%|یک‌?سوم|یک‌?چهارم|ثلث|بخشی)/;
 
+// Short/medium stems ("\u0627\u0631\u0632" must not match "\u0627\u0631\u0632\u0634", but MUST match "\u0627\u0631\u0632\u0645"/"\u067E\u0648\u0644\u0645\u0648") need a suffix-tolerant boundary
+// instead of a strict word boundary: Persian possessive/plural endings attach directly with no space (\u067E\u0648\u0644+\u0645="\u067E\u0648\u0644\u0645").
+// Consonant-final words take \u0645/\u062A/\u0634/\u0645\u0627\u0646/\u062A\u0627\u0646/\u0634\u0627\u0646 (+ \u0647\u0627/\u0647\u0627\u06CC forms); vowel-final words (ending\u200C \u062F\u0631 \u0627/\u0648) take the glide
+// forms \u06CC\u0645/\u06CC\u062A/\u06CC\u0634/\u06CC\u0645\u0627\u0646/\u06CC\u062A\u0627\u0646/\u06CC\u0634\u0627\u0646. This was seen missing "\u06A9\u0644 \u067E\u0648\u0644\u0645 \u0631\u0648..." entirely \u2014 mentions() said "\u0646\u0642\u062F" wasn't in
+// the text, when "\u067E\u0648\u0644\u0645" (my money) obviously is a cash reference; the whole extraction then went unvalidated.
+const CONSONANT_SUFFIXES = "\u0645|\u062A|\u0634|\u0645\u0627\u0646|\u062A\u0627\u0646|\u0634\u0627\u0646|\u0627\u0645|\u0627\u062A|\u0627\u0634|\u0647\u0627|\u0647\u0627\u06CC|\u0647\u0627\u06CC\u0645|\u0647\u0627\u06CC\u062A|\u0647\u0627\u06CC\u0634"; // \u0645 \u062A \u0634 \u0645\u0627\u0646 \u062A\u0627\u0646 \u0634\u0627\u0646 \u0627\u0645 \u0627\u062A \u0627\u0634 \u0647\u0627 \u0647\u0627\u06CC \u0647\u0627\u06CC\u0645 \u0647\u0627\u06CC\u062A \u0647\u0627\u06CC\u0634
+const VOWEL_SUFFIXES = "\u06CC\u0645|\u06CC\u062A|\u06CC\u0634|\u06CC\u0645\u0627\u0646|\u06CC\u062A\u0627\u0646|\u06CC\u0634\u0627\u0646|\u0647\u0627|\u0647\u0627\u06CC|\u0647\u0627\u06CC\u0645"; // \u06CC\u0645 \u06CC\u062A \u06CC\u0634 \u06CC\u0645\u0627\u0646 \u06CC\u062A\u0627\u0646 \u06CC\u0634\u0627\u0646 \u0647\u0627 \u0647\u0627\u06CC \u0647\u0627\u06CC\u0645
+
 function mentions(text, cat) {
-  // very short stems (\u00AB\u0627\u0631\u0632\u00BB must not match \u00AB\u0627\u0631\u0632\u0634\u00BB) only match as a whole word or with a plural / possessive ending
-  return (EXTRACT_TERMS[cat] || []).some((t) => new RegExp(`(?<![\u0600-\u06FF])${t}${t.length <= 2 || t === "\u0627\u0631\u0632" ? "(?:(?![\u0600-\u06FF])|\u0647\u0627|\u0647\u0627\u06CC|\u0647\u0627\u06CC\u0645|\u0627\u0645)" : ""}`).test(text));
+  return (EXTRACT_TERMS[cat] || []).some((t) => {
+    if (t.length > 4) return new RegExp(`(?<![\u0600-\u06FF])${t}`).test(text); // long enough that a bare prefix match is safe
+    const endsInVowel = /[\u0627\u0648]$/.test(t); // \u0627 or \u0648
+    const suffixes = endsInVowel ? VOWEL_SUFFIXES : CONSONANT_SUFFIXES;
+    return new RegExp(`(?<![\u0600-\u06FF])${t}(?:(?![\u0600-\u06FF])|${suffixes})`).test(text);
+  });
 }
+
+// "کل"/"همه"/"تمام" (ALL of a holding) is the one relative wording whose intended amount IS verifiable — it must be
+// ~the whole balance of that category, not the vaguer fractions (نیمی/نصف/بخشی/درصد/یک‌سوم...) whose exact split we
+// have no way to check. Kept separate from RELATIVE_AMOUNT (which still exempts every relative wording from the
+// literal "amount appears in the text" check below — this is an ADDITIONAL check only for the "all of it" case).
+const ALL_AMOUNT = /(همه|تمام|کل\s)/; // همه | تمام | کل(space)
 
 /**
  * The decision widget's free-text -> structured-change step is a model call and was seen (once in two runs) turning
- * «۳۰۰ میلیون از سپرده‌ام را خرج کنم» into «۲۰۰ میلیون در سهام». A change is accepted only when its class is named in the
- * user's text and its amount appears in it (unless the text is relative: «نصف طلا»).
+ * «۳۰۰ میلیون از سپرده‌ام را خرج کنم» into «۲۰۰ میلیون در سهام», and once (with a possessive-suffix bug now fixed —
+ * see mentions() above) turning «کل پولم را تبدیل به طلا کنم» into a 100,000-toman transfer despite the user actually
+ * holding hundreds of millions. A change is accepted only when its class is named in the user's text and its amount
+ * appears in it (unless the text is relative: «نصف طلا») — and when the text says "all of it", the amount must
+ * actually be close to the full holding in that category, not just any number.
  */
-export function validateExtraction(text, amount, changes) {
+export function validateExtraction(text, amount, changes, profile) {
   const t = String(text || "");
   const problems = [];
+  // An empty extraction is legitimate for a non-investment question ("promptDecisionExtract" is told to return []
+  // for those) — but if the text plainly names an asset class or a money amount, an empty result is far more likely
+  // a failed/garbled extraction (seen during LLM provider outages) than a genuine "nothing to change" decision; force
+  // a retry instead of silently showing an identical before/after as if nothing was wrong.
+  if (!changes?.length && t.trim().length > 5) {
+    const mentionedCat = Object.keys(EXTRACT_TERMS).find((cat) => mentions(t, cat));
+    if (mentionedCat || extractMoney(t).length) {
+      problems.push(`متن ظاهراً یک تصمیم مالی واقعی است (اشاره به ${mentionedCat ? "«" + (CAT_NAME[mentionedCat] || mentionedCat) + "»" : "یک مبلغ"} دارد) ولی هیچ تغییری در دارایی‌ها استخراج نشد`);
+    }
+  }
   const stated = [...extractMoney(t), ...(amount ? [Number(amount)] : [])];
   const relative = RELATIVE_AMOUNT.test(t);
+  const isAll = ALL_AMOUNT.test(t);
+  const held = profile ? holdings(profile).byEngine : {};
   for (const c of changes || []) {
     const d = Math.abs(num(c.amountDelta));
     if (!c.category || !d) continue;
     if (c.category !== "other" && !mentions(t, c.category)) {
       problems.push(`دسته‌ی «${CAT_NAME[c.category] || c.category}» در متن کاربر اصلاً نیامده است`);
+      continue;
     }
     if (!relative && stated.length && !stated.some((v) => Math.abs(v - d) <= Math.max(v * 0.015, 1000))) {
       problems.push(`مبلغ ${fmt(d)} تومان در متن کاربر نیامده است (مبلغ‌های متن: ${stated.map(fmt).join("، ")})`);
+      continue;
+    }
+    // only when the user actually holds something there — a zero/near-zero holding is overdrawn()'s job to report
+    if (isAll && c.amountDelta < 0 && num(held[c.category]) > 1000) {
+      const full = num(held[c.category]);
+      if (Math.abs(d - full) > Math.max(full * 0.2, 5000)) {
+        problems.push(`کاربر گفته «همه/کل» ولی مبلغ استخراج‌شده (${fmt(d)} تومان) با کل موجودی او در «${CAT_NAME[c.category] || c.category}» (${fmt(full)} تومان) فرق زیادی دارد`);
+      }
     }
   }
   return problems;
