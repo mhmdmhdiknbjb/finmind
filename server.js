@@ -437,9 +437,12 @@ app.post(
         const profile = await loadResolvedProfile(req.userId, { refresh: !!req.body?.force });
         const { profile: profileForOpt, riskInfo } = profileWithEffectiveRisk(req.userId, profile);
         const computed = optimizePortfolio(profileForOpt);
-        const explanation = await groundedJSON(promptRisk(profile, computed), profile, {
+        const rawExplanation = await groundedJSON(promptRisk(profile, computed), profile, {
           fallback: () => ({ reasons: [], behavioralFactors: [], suggestions: [], summary: NO_TEXT_NOTE }),
         });
+        // same margin-of-safety backstop as the assets widget (see grounding.js) — a tight-margin goal mentioned
+        // here in reasons/suggestions/summary must not read as unqualified good news either
+        const explanation = enforceGoalMarginFraming(rawExplanation, profile);
         return {
           currentRiskScore: computed.current.riskScore,
           suggestedRiskScore: computed.optimal.riskScore,
@@ -500,10 +503,13 @@ app.post(
     const { profile: profileForOpt } = profileWithEffectiveRisk(req.userId, profile);
     const goal = req.body.goal;
     const computed = evaluateGoal(profileForOpt, goal);
-    const explanation = await groundedJSON(promptGoal(profile, goal, computed), profile, {
+    const rawExplanation = await groundedJSON(promptGoal(profile, goal, computed), profile, {
       goalFeasible: computed.feasible,
       fallback: () => ({ suggestedPath: [], risks: [], summary: NO_TEXT_NOTE }),
     });
+    // same margin-of-safety backstop as the assets widget (see grounding.js) — covers both this goal (if it is
+    // itself tight) and any other tight-margin goal mentioned in passing (e.g. "your other goal stays on track")
+    const explanation = enforceGoalMarginFraming(rawExplanation, profile);
     res.json({ ...computed, suggestedPath: explanation.suggestedPath, risks: explanation.risks, summary: explanation.summary });
   })
 );
@@ -623,10 +629,13 @@ app.post(
     };
 
     // Step 3: LLM only narrates/recommends based on the numbers computed above.
-    const explanation = await groundedJSON(promptDecisionExplain(profile, decision, computed), profile, {
+    const rawExplanation = await groundedJSON(promptDecisionExplain(profile, decision, computed), profile, {
       checkCategories: false,
       fallback: () => ({ decisionSummary: NO_TEXT_NOTE, goalImpact: "", recommendation: null, reasoning: [] }),
     });
+    // same margin-of-safety backstop as the assets widget (see grounding.js) — goalImpact is exactly where a tight
+    // goal's reachability could otherwise be narrated as plain good news
+    const explanation = enforceGoalMarginFraming(rawExplanation, profile);
 
     res.json({
       decisionSummary: explanation.decisionSummary,
@@ -786,6 +795,10 @@ app.post("/api/chat", requireAuth, (req, res) => {
         fullReply = text;
       }
     }
+    // same margin-of-safety backstop as every JSON widget (see grounding.js) — chat is the one place this instruction
+    // had zero deterministic backing before, even though a user is more likely to ask "am I on track for my goal?"
+    // here than anywhere else in the app
+    fullReply = enforceGoalMarginFraming(fullReply, profile);
     for (const chunk of fullReply.match(/\S+\s*/g) || [fullReply]) {
       res.write(`data: ${JSON.stringify({ type: "delta", text: chunk })}
 

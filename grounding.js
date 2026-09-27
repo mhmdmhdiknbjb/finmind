@@ -410,6 +410,15 @@ export function answerSpend(profile, message) {
 // strength hides that the margin is wafer-thin — this was seen verbatim in the assets widget's `strengths` even
 // after the goal-status block already told the model the margin, so it is now enforced deterministically here
 // rather than left to the model to comply with the instruction.
+//
+// BUG FIX: this used to be hardcoded to the assets widget's `strengths`/`summary` field names and called only from
+// the assets route. The exact same failure mode (the model not reliably following the margin-of-safety instruction)
+// can happen in ANY widget's prose — risk's `reasons`/`suggestions`, goal's own `suggestedPath`/`summary`,
+// decision's `goalImpact`, chat's free-text reply — none of which had this backstop, only the soft prompt
+// instruction. This is now generic: it walks every string leaf of whatever JSON shape it's given (so the same
+// function works for every widget's schema, and for a plain chat string), and only special-cases a `strengths`
+// array (moving an offending item to `weaknesses` instead of just annotating it, since an assets-widget "point of
+// strength" that then admits it's fragile reads as self-contradictory sitting there).
 const GOAL_MENTION_GENERIC = /(هدف مالی|اهداف مالی|اهداف شما|رسیدن به هدف|دستیابی به هدف|قابل دستیابی|هدف[^.]{0,20}(محقق|برآورده))/;
 const MARGIN_CAUTION_WORDS = /(حاشیه|تنگ|لبه|احتیاط|اندک|ناچیز|حساس|شکننده|ریسک)/;
 
@@ -418,31 +427,57 @@ function mentionsTightGoal(sentence, tightGoals) {
   return GOAL_MENTION_GENERIC.test(sentence);
 }
 
+function annotateIfNeeded(s, tightGoals, caution) {
+  if (typeof s !== "string" || !s.trim()) return s;
+  if (mentionsTightGoal(s, tightGoals) && !MARGIN_CAUTION_WORDS.test(s)) return `${s} ${caution}`;
+  return s;
+}
+
+function walkAnnotate(v, tightGoals, caution) {
+  if (typeof v === "string") return annotateIfNeeded(v, tightGoals, caution);
+  if (Array.isArray(v)) return v.map((x) => walkAnnotate(x, tightGoals, caution));
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walkAnnotate(x, tightGoals, caution)]));
+  return v;
+}
+
 /**
- * Moves any `strengths` entry that praises a goal's reachability without naming its thin margin into `weaknesses`
- * with the caution appended (server-authored, not asked of the model); appends the same caution to `summary` if it
- * does the same. No-op when no goal is currently at marginTier "tight". Used by the assets widget after generation.
+ * Appends the margin-of-safety caution to any string (anywhere in `explanation`'s shape — a top-level string, a
+ * string field, or a string inside an array) that praises a tight-margin goal's reachability without already
+ * naming the margin. Works for every widget's JSON schema and for a plain chat reply string. No-op when no goal is
+ * currently at marginTier "tight". `explanation` may be a string (chat) or an object (every JSON widget).
  */
 export function enforceGoalMarginFraming(explanation, profile) {
   const tightGoals = evaluateGoals(profile)
     .filter(({ result: r }) => r.marginTier === "tight")
     .map(({ goal }) => goal);
-  if (!tightGoals.length || !explanation || typeof explanation !== "object") return explanation;
+  if (!tightGoals.length || explanation == null) return explanation;
 
   const caution = `— با این حال حاشیه‌ی امنیت این هدف بسیار کم است؛ کوچک‌ترین افزایش هزینه، کاهش درآمد یا تأخیر در پس‌انداز می‌تواند آن را از دسترس خارج کند.`;
-  const strengths = [];
-  const moved = [];
-  for (const s of explanation.strengths || []) {
-    if (typeof s === "string" && mentionsTightGoal(s, tightGoals) && !MARGIN_CAUTION_WORDS.test(s)) {
-      moved.push(`${s} ${caution}`);
-    } else {
-      strengths.push(s);
-    }
-  }
-  const summary =
-    typeof explanation.summary === "string" && mentionsTightGoal(explanation.summary, tightGoals) && !MARGIN_CAUTION_WORDS.test(explanation.summary)
-      ? `${explanation.summary} ${caution}`
-      : explanation.summary;
 
-  return { ...explanation, strengths, weaknesses: [...(explanation.weaknesses || []), ...moved], summary };
+  if (typeof explanation === "string") return annotateIfNeeded(explanation, tightGoals, caution);
+  if (typeof explanation !== "object") return explanation;
+
+  // special-case only the assets-widget shape: an offending `strengths` item moves to `weaknesses` instead of
+  // just getting the caution appended in place, so it stops sitting under a "points of strength" heading.
+  let strengths = explanation.strengths;
+  let weaknesses = explanation.weaknesses;
+  if (Array.isArray(strengths)) {
+    const kept = [];
+    const moved = [];
+    for (const s of strengths) {
+      if (typeof s === "string" && mentionsTightGoal(s, tightGoals) && !MARGIN_CAUTION_WORDS.test(s)) moved.push(`${s} ${caution}`);
+      else kept.push(s);
+    }
+    strengths = kept;
+    if (moved.length) weaknesses = [...(Array.isArray(weaknesses) ? weaknesses : []), ...moved];
+  }
+
+  const out = { ...explanation };
+  for (const [k, v] of Object.entries(explanation)) {
+    if (k === "strengths" || k === "weaknesses") continue;
+    out[k] = walkAnnotate(v, tightGoals, caution);
+  }
+  if (strengths !== undefined) out.strengths = strengths;
+  if (weaknesses !== undefined) out.weaknesses = weaknesses;
+  return out;
 }

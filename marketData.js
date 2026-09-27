@@ -39,8 +39,9 @@ export function seriesArrays(pack = getMarketPack()) {
   return out;
 }
 
-/** Bump when the risk/dispersion maths changes so cached widget results are recomputed once. */
-export const ENGINE_VERSION = 9; // 9: composite concentration term uses risk-contribution share, not capital share (fixes inverted risk-tolerance ordering); 8: the PRIMARY risk score is now the composite index, not pure volatility; 7: resampled optimizer + cash floor, composite risk, scenario horizon, goal price growth; 6: liquidity notes, pinned prices; 5: goal verdicts in prompts, liquidity tiers on the assets page; 4: risk-warning text names only held classes; 3: LLM texts are grounded/validated (older cached texts may contain fabricated facts); 2: forward-volatility ML forecast added to the risk analysis
+/** Bump whenever the risk/dispersion maths OR the LLM prompts/grounding logic changes, so cached widget text is
+ * recomputed once instead of silently serving old (possibly fabricated) wording to existing users forever. */
+export const ENGINE_VERSION = 10; // 10: EXEMPT hallucination-guard fix + not-held-category block + margin-of-safety enforcement generalized across widgets (this commit itself forgot to bump the version, which was the actual reason the fix didn't reach existing users — see snapshotStore.js); 9: composite concentration term uses risk-contribution share, not capital share (fixes inverted risk-tolerance ordering); 8: the PRIMARY risk score is now the composite index, not pure volatility; 7: resampled optimizer + cash floor, composite risk, scenario horizon, goal price growth; 6: liquidity notes, pinned prices; 5: goal verdicts in prompts, liquidity tiers on the assets page; 4: risk-warning text names only held classes; 3: LLM texts are grounded/validated (older cached texts may contain fabricated facts); 2: forward-volatility ML forecast added to the risk analysis
 
 /** Identifies the maths + market data behind stored numbers (used in the widget snapshot fingerprint). */
 export function marketDataVersion() {

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { marketDataVersion } from "./marketData.js";
+import { marketDataVersion, ENGINE_VERSION } from "./marketData.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const USERS_DATA_DIR = path.join(__dirname, "data", "users");
@@ -64,6 +64,15 @@ export function computeFingerprint(rawProfile, behaviorState) {
     // the risk/dispersion maths and the market data behind them: a new engine version or a refreshed
     // market pack must recompute stored results instead of serving numbers from the old method
     marketData: marketDataVersion(),
+    // CLARITY FIX: marketDataVersion() already embeds ENGINE_VERSION in its string (see marketData.js), so bumping
+    // ENGINE_VERSION *does* invalidate this fingerprint — that part of the mechanism was never broken. The actual
+    // bug was that the EXEMPT-hallucination-guard commit changed prompts.js/grounding.js (real, user-visible LLM
+    // output changes) WITHOUT bumping ENGINE_VERSION, so every existing user's cached widget text (fabricated
+    // numbers included) kept being served forever. This explicit field doesn't change the fingerprint's behavior;
+    // it exists so the dependency is not hidden inside a function named for "market data" — the very next person
+    // editing SYSTEM_PREAMBLE, a prompt* function, or grounding.js's validation/EXEMPT logic can see right here
+    // that they must bump ENGINE_VERSION (marketData.js) for it to take effect for existing users.
+    engineVersion: ENGINE_VERSION,
   });
 }
 
