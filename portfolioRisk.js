@@ -383,12 +383,24 @@ export function analyzePortfolio(holdings, profile = {}) {
   // Python calculator defines and tools/verify_risk_engine.mjs checks). It says nothing about a portfolio that is one asset,
   // illiquid, or mostly rial cash losing value, so those dimensions are scored separately and combined with fixed weights.
   const ms = modeledShare;
+  // Concentration as a RISK term must be concentration of RISK (variance), not of capital: c1/c2 above are
+  // diversificationScore's capital-based HHI/top1, so a portfolio that is mostly safe cash was scored as
+  // "concentrated" exactly like one that is mostly crypto, and since a higher risk-tolerance's optimal mix here
+  // holds LESS cash (so it looks capital-diversified), the composite fell as risk tolerance rose — the opposite
+  // of what a risk score must do. `topRiskShare`/`rcls` are the share of variance one class contributes (already
+  // computed above, only inside `if (hasMarket)`), which correctly treats a concentrated safe holding as low-risk.
+  const rcVals = rcls ? Object.values(rcls).filter((v) => Number.isFinite(v) && v > 0) : [];
+  const hhiRC = rcVals.reduce((s, v) => s + v * v, 0);
+  const concentrationRisk = hasMarket
+    ? 100 * (1 - (0.5 * Math.min(hhiRC > 0 ? 1 / hhiRC / 6 : 0, 1) + 0.5 * clip((1 - (topRiskShare ?? 1)) / 0.8, 0, 1)))
+    : 0; // no priced holding: no risk to concentrate (a concentrated safe/illiquid position is scored by illiquidity/cashErosion instead)
+
   const composite = (() => {
     const comp = {
       volatility: riskScore,
       drawdown: past ? 100 * clip((Math.abs(past.maxDrawdown1y) * ms) / 0.5, 0, 1) : 0,
       tail: past ? 100 * clip((Math.abs(past.cvar95Weekly1y) * ms) / 0.08, 0, 1) : 0,
-      concentration: 100 * (1 - (0.5 * c1 + 0.5 * c2)),
+      concentration: concentrationRisk,
       illiquidity: 100 * (1 - liquidityScore),
       cashErosion: 100 * clip(share.rial_cash_like / 0.6, 0, 1),
     };
