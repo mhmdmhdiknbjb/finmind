@@ -99,7 +99,7 @@ export function buildProfileContext(profile) {
   const canonicalNumbers = `
 
 ### اعداد رسمی و ثابت وضعیت فعلی سبد دارایی (محاسبه‌شده با موتور ریسک روی داده‌ی واقعی بازار و موتور نقدشوندگی — دقیقاً همین اعداد در همه‌ی صفحات و پاسخ‌های برنامه استفاده می‌شود؛ اگر جایی درباره‌ی ریسک یا نقدینگی فعلی کاربر صحبت می‌کنی، همیشه عیناً همین اعداد را بگو، هرگز عدد دیگری نساز یا دوباره حدس نزن)
-ریسک فعلی سبد: ${riskComputed.riskScore} از ۱۰۰ (سطح: ${riskComputed.riskLevel})
+ریسک فعلی سبد (شاخص ترکیبی: نوسان + افت + دم بد + تمرکز + نقدشوندگی + فرسایش نقد، نه صرفاً نوسان قیمت): ${riskComputed.riskScore} از ۱۰۰ (سطح: ${riskComputed.riskLevel})
 نقدینگی سریع: ${liquidityComputed.liquidPercent}٪ | نیمه‌نقد: ${liquidityComputed.semiLiquidPercent}٪ | غیرنقد: ${liquidityComputed.illiquidPercent}٪`;
 
   return `### پروفایل کاربر
@@ -174,8 +174,8 @@ export function promptRisk(profile, computed) {
 
 ${buildProfileContext(profile)}
 
-### خروجی موتور ریسک (نوسان و ریزش اندازه‌گیری‌شده روی داده‌ی هفتگی واقعی بازار ایران، نه توسط تو — این اعداد قطعی هستند)
-ریسک فعلی سبد: ${computed.current.riskScore} از ۱۰۰ (سطح: ${computed.current.riskLevel}) — نوسان سالانه محاسبه‌شده: ${(computed.current.volatility * 100).toFixed(1)}٪
+### خروجی موتور ریسک (شاخصی ترکیبی از نوسان، افت، دم بد، تمرکز، نقدشوندگی و فرسایش نقد — نه صرفاً نوسان قیمت — اندازه‌گیری‌شده روی داده‌ی هفتگی واقعی بازار ایران، نه توسط تو — این اعداد قطعی هستند)
+ریسک فعلی سبد: ${computed.current.riskScore} از ۱۰۰ (سطح: ${computed.current.riskLevel}) — نوسان بازار به‌تنهایی (زیرمجموعه‌ی همین شاخص، فقط بخش قیمت‌دار): ${(computed.current.volatility * 100).toFixed(1)}٪ سالانه، امتیاز نوسان ${computed.current.volatilityScore} از ۱۰۰
 ریسک پیشنهادی (بر اساس ریسک‌پذیری اعلامی کاربر و بهینه‌سازی میانگین-واریانس با قید نقدشوندگی): ${computed.optimal.riskScore} از ۱۰۰ (سطح: ${computed.optimal.riskLevel})
 اختلاف: ${computed.optimal.riskScore - computed.current.riskScore}
 ${riskPromptBlock(computed.current.analysis)}

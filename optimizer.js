@@ -435,11 +435,19 @@ function withMarketRisk(stats, profile, total, categoryWeights) {
   });
   if (!analysis) return stats;
   applyStackForwardRanges(profile, analysis);
+  // `riskScore`/`riskLevel` are THE canonical numbers shown everywhere (gauge, chips, notifications, every prompt) as
+  // "ریسک سبد دارایی". They used to be pure market volatility rescaled to 0-100 — a user 100% in one illiquid, highly
+  // concentrated asset could score close to a diversified portfolio of similar volatility. They are now
+  // analysis.risk.composite (volatility + drawdown + tail risk + concentration + illiquidity + cash erosion, see
+  // portfolioRisk.js). The pure-volatility number is kept as `volatilityScore`/`volatilityLevel` (it is also exactly
+  // composite.components.volatility) for anywhere that specifically means market-price risk, not portfolio risk.
   return {
     ...stats,
     volatility: analysis.risk.wealthVol1y,
-    riskScore: analysis.risk.riskScore,
-    riskLevel: analysis.risk.riskLevel,
+    riskScore: analysis.risk.composite.score,
+    riskLevel: analysis.risk.composite.level,
+    volatilityScore: analysis.risk.riskScore,
+    volatilityLevel: analysis.risk.riskLevel,
     analysis,
   };
 }

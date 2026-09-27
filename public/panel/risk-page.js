@@ -91,11 +91,12 @@ function renderComposite(mr) {
     return;
   }
   block.classList.remove("hidden");
-  $("compositeScore").textContent = c.score + " از ۱۰۰ (" + c.level + ")";
+  // this IS the number in the gauge above — the breakdown just shows what it's made of
+  $("compositeScore").textContent = "= " + c.score + " از ۱۰۰ (" + c.level + ")";
   const wrap = $("compositeStats");
   wrap.innerHTML = "";
   Object.entries(COMPOSITE_LABELS).forEach(([k, label]) => wrap.appendChild(chip(label + " (وزن " + Math.round((c.weights[k] || 0) * 100) + "٪)", ltr(c.components[k]))));
-  $("compositeNote").textContent = "عدد بالای «ریسک نوسان» فقط نوسان قیمت را می‌سنجد؛ این شاخص تمرکز، افت، هفته‌های بد، نقدشوندگی و فرسایش پول نقد را هم با وزن‌های ثابت ترکیب می‌کند.";
+  $("compositeNote").textContent = "ریسک سبد فقط نوسان قیمت نیست؛ این عدد نوسان، افت، هفته‌های بد، تمرکز، ضعف نقدشوندگی و فرسایش پول نقد را با وزن‌های ثابت ترکیب می‌کند — برای همین حتی سبدی با نوسان کم اما تمرکز بالا می‌تواند امتیاز ریسک بالایی بگیرد.";
 }
 
 /** ریسک واقعی: numbers measured on real weekly market data (portfolioRisk.js) — hidden when there is nothing priced. */
