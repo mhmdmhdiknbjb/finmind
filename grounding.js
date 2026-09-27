@@ -167,7 +167,10 @@ const FOREIGN_SCRIPT = /[Ѐ-ӿ฀-๿぀-ヿ一-鿿가-힯]|[A-Za-z]{7,}/;
 
 /* ------------------------------------------------------------- validation */
 
-const EXEMPT = /(ندار(?:ید|د|ی|م)|نیست|نیستند|فاقد|بدون|نداشتن|نمی‌?دار|هیچ|اگر|چنانچه|در صورت|افزودن|اضافه|ورود|وارد|گزینه|بررسی|سناریو|فرضی|مقایسه|ترکیب مرجع|ترکیب پیشنهادی|پیشنهادی|بهینه|مثلا|معمولاً|به‌?طور کلی|ثبت نشده|ثبت‌شده‌ای)/;
+// "گزینه"/"بررسی" were removed from this list: SYSTEM_PREAMBLE explicitly tells the model to phrase every suggestion
+// as "گزینه‌های قابل بررسی", so keeping those two words here exempted almost the entire suggestions/considerations
+// field from the notHeld check — precisely where a hallucinated "افزایش سهم ملک" is most likely to appear.
+const EXEMPT = /(ندار(?:ید|د|ی|م)|نیست|نیستند|فاقد|بدون|نداشتن|نمی‌?دار|هیچ|اگر|چنانچه|در صورت|افزودن|اضافه|ورود|وارد|سناریو|فرضی|مقایسه|ترکیب مرجع|ترکیب پیشنهادی|پیشنهادی|بهینه|مثلا|معمولاً|به‌?طور کلی|ثبت نشده|ثبت‌شده‌ای)/;
 
 const wordRe = (term) => new RegExp(`(?<![\\u0600-\\u06FF])${term}(?![\\u0600-\\u06FF])`);
 const TERM_RES = Object.fromEntries(Object.entries(CAT_TERMS).map(([c, ts]) => [c, ts.map(wordRe)]));

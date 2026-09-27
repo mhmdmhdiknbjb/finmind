@@ -2,7 +2,7 @@ import { optimizePortfolio } from "./optimizer.js";
 import { dispersionPromptBlock, riskPromptBlock } from "./riskPresenter.js";
 import { computeLiquidity } from "./liquidityEngine.js";
 
-import { factsBlock } from "./grounding.js";
+import { factsBlock, notHeld } from "./grounding.js";
 import { evaluateGoals } from "./goalEngine.js";
 import { CATEGORY_LABELS, ASSET_KINDS, UNIT_LABELS, kindOf } from "./public/assetCatalog.js";
 
@@ -23,7 +23,9 @@ const SYSTEM_PREAMBLE = `تو دستیار تحلیل مالی «چقدر» هس
 - اعداد ترکیب «پیشنهادی/بهینه» که در ورودی می‌آید خروجی یک مدل ریاضی برای مقایسه و فهم است، نه توصیه‌ی معامله؛ اگر به آن ارجاع می‌دهی صراحتاً بگو «ترکیب مرجع مدل» و آن را به دستور خرید/فروش یا مبلغ قابل‌اجرا تبدیل نکن.
 - اگر کاربر مستقیم پرسید «چقدر بخرم/بفروشم؟» یا «کدام را بخرم؟»، مؤدبانه توضیح بده که نمی‌توانی عدد یا دستور معامله بدهی، سپس عوامل مؤثر در تصمیمش را از روی داده‌های خودش تحلیل کن و در صورت لزوم پیشنهاد کن برای تصمیم نهایی با یک مشاور مالی مجاز مشورت کند.
 
-قانون کیفیت ملاحظات: هر ملاحظه باید شخصی‌سازی‌شده باشد — با ارجاع مستقیم به داده‌ی واقعی همین کاربر (سنش، هدفش، مهلت هدفش، نیاز نقدینگی‌اش، ریسک‌پذیری‌اش، سهم و ریسک دارایی‌هایش) — ولی از جنس تحلیل و گزینه‌های قابل بررسی باشد، نه دستور معامله. جمله‌های کلی و قابل‌کپی‌برای‌هرکسی مثل «سبد خود را متنوع کنید» یا «پس‌انداز کنید» بدون ارجاع به داده‌های همین کاربر ممنوع است؛ اگر یک ملاحظه را بدون تغییر می‌شد به هر کاربر دیگری هم گفت، دوباره بنویسش.`;
+قانون کیفیت ملاحظات: هر ملاحظه باید شخصی‌سازی‌شده باشد — با ارجاع مستقیم به داده‌ی واقعی همین کاربر (سنش، هدفش، مهلت هدفش، نیاز نقدینگی‌اش، ریسک‌پذیری‌اش، سهم و ریسک دارایی‌هایش) — ولی از جنس تحلیل و گزینه‌های قابل بررسی باشد، نه دستور معامله. جمله‌های کلی و قابل‌کپی‌برای‌هرکسی مثل «سبد خود را متنوع کنید» یا «پس‌انداز کنید» بدون ارجاع به داده‌های همین کاربر ممنوع است؛ اگر یک ملاحظه را بدون تغییر می‌شد به هر کاربر دیگری هم گفت، دوباره بنویسش.
+
+قانون سخت‌گیرانه‌ی ضدهذیان (اولویت بالاتر از سبک نوشتن): قبل از نوشتن هر جمله که یک عدد، درصد، یا نام دسته‌ی دارایی در آن هست، از خودت بپرس «این عدد/دسته دقیقاً کجای بلوک‌های بالا (پروفایل کاربر، خروجی موتورها، اعداد رسمی) آمده؟». اگر جواب «هیچ‌جا، ولی به‌نظر منطقی می‌رسد» است، آن جمله را ننویس یا آن را کاملاً کیفی و بدون عدد/دسته‌ی مشخص بنویس. ساختن عددی که «تقریباً درست به‌نظر می‌رسد» (مثلاً نقدینگی را با یک درصد نزدیک ولی نادرست بیان کردن) از عدد کاملاً غلط هم بدتر است، چون کاربر آن را باور می‌کند. کلماتی مثل «بررسی»، «گزینه»، «پیشنهادی» تو را از این قانون معاف نمی‌کنند — این‌ها فقط سبک نوشتن‌اند، نه مجوز ساختن واقعیت جدید.`;
 
 function fmtNum(n) {
   if (n === null || n === undefined || n === "") return "نامشخص";
@@ -53,6 +55,21 @@ function assetLine(a, i) {
 }
 
 /** Per-goal verdicts from goalEngine.js (the same function as the goals page): the only source for "is my saving enough for my goal". */
+/**
+ * Second line of defense against the "کاهش سهم ملک/سهام" hallucination (a model claiming ownership of a class the
+ * user doesn't hold, usually while phrasing it as a "قابل بررسی" suggestion). grounding.js's factsBlock already
+ * states this negative list once at the end of the context; models are weak at inferring absence from a list they
+ * have to scan, and strong at obeying an explicit negative list — so it is repeated here, right after the goal
+ * status, with a rule that closes the exact loophole a hallucination used ("reducing" or "redistributing" something
+ * that isn't held is different from proposing it as a brand-new option).
+ */
+function notHeldCategoriesBlock(profile) {
+  const missing = notHeld(profile);
+  if (!missing.length) return "";
+  const labels = missing.map((c) => categoryLabel(c)).join("، ");
+  return `\n\n### دسته‌های دارایی که این کاربر اصلاً ندارد (قانون سخت‌گیرانه: هرگز از این دسته‌ها به‌عنوان دارایی موجود کاربر حرف نزن — نه در reasons، نه در suggestions، نه در هیچ رشته‌ی دیگر — حتی برای پیشنهاد «کاهش سهم» یا «توزیع مجدد»؛ اگر می‌خواهی به یکی از این‌ها اشاره کنی فقط می‌توانی به‌صراحت بگویی کاربر این دسته را اصلاً ندارد یا آن را به‌عنوان یک گزینه‌ی کاملاً جدید برای افزودن مطرح کنی، نه برای کاهش یا توزیع مجدد چیزی که وجود ندارد)\n${labels}`;
+}
+
 function goalStatusBlock(profile) {
   if (!(profile.goals || []).length) return "";
   const lines = evaluateGoals(profile).map(({ goal, result: r }) => {
@@ -134,10 +151,15 @@ export function buildProfileContext(profile) {
 ${assetLines}${liveRatesLine}
 
 ### اهداف مالی ثبت‌شده
-${goalLines}${goalStatusBlock(profile)}${canonicalNumbers}
+${goalLines}${goalStatusBlock(profile)}${notHeldCategoriesBlock(profile)}${canonicalNumbers}
 
 ${factsBlock(profile)}`;
 }
+
+// appended to the task instructions of the two widgets a "دارایی نداشته" hallucination has actually been observed
+// in (assets, risk): asks for one explicit self-check pass against the negative list and the official numbers
+// before the JSON is emitted, on top of the server-side validator that catches what slips through anyway.
+const SELF_CHECK_INSTRUCTION = `پیش از فرستادن JSON نهایی، هر رشته‌ی reasons/suggestions/weaknesses/strengths را یک‌بار در ذهنت با بلوک «دسته‌های دارایی که کاربر اصلاً ندارد» و با اعداد رسمی بالا مقایسه کن؛ اگر هر رشته اسم یک دسته‌ی نداشته را به‌عنوان دارایی موجود آورده یا عددی دارد که در بلوک‌های بالا نیست، آن رشته را حذف یا بازنویسی کن، بعد JSON را بفرست.`;
 
 function jsonInstruction(schemaDescription) {
   return `\n\n### دستور خروجی\nفقط و فقط یک JSON معتبر و تک‌خطی یا چندخطی مطابق دقیقاً همین ساختار زیر برگردان. هیچ متن، توضیح، یا Markdown خارج از JSON ننویس و از code fence استفاده نکن:\n${schemaDescription}`;
@@ -169,7 +191,8 @@ ${buildProfileContext(profile)}
 ${dispersionPromptBlock(computed.current.analysis, computed.optimal.analysis)}
 
 ### وظیفه
-فقط بر اساس همین اعداد محاسبه‌شده (نه با ساختن عدد جدید)، توضیح بده که چرا ترکیب فعلی این نقاط قوت/ضعف را دارد و چرا موتور بهینه‌سازی این ترکیب پیشنهادی را داده (مثلاً برای کاهش تمرکز، افزایش تنوع، یا تامین نقدینگی لازم). اگر تمرکز روی یک دارایی بیش از حد است هشدار بده. فیلد suggestions در این خروجی «ملاحظات و گزینه‌های قابل بررسی» است: تحلیل کیفی و جهت‌های کلی (مثلاً کاهش تمرکز، افزایش تنوع، تامین نقدینگی) با مزیت/هزینه‌ی هرکدام — نه دستور خرید/فروش و نه مبلغ/گرم/درصد قابل‌اجرا.${jsonInstruction(`{
+فقط بر اساس همین اعداد محاسبه‌شده (نه با ساختن عدد جدید)، توضیح بده که چرا ترکیب فعلی این نقاط قوت/ضعف را دارد و چرا موتور بهینه‌سازی این ترکیب پیشنهادی را داده (مثلاً برای کاهش تمرکز، افزایش تنوع، یا تامین نقدینگی لازم). اگر تمرکز روی یک دارایی بیش از حد است هشدار بده. فیلد suggestions در این خروجی «ملاحظات و گزینه‌های قابل بررسی» است: تحلیل کیفی و جهت‌های کلی (مثلاً کاهش تمرکز، افزایش تنوع، تامین نقدینگی) با مزیت/هزینه‌ی هرکدام — نه دستور خرید/فروش و نه مبلغ/گرم/درصد قابل‌اجرا.
+${SELF_CHECK_INSTRUCTION}${jsonInstruction(`{
   "concentrationWarning": string or null,
   "strengths": [string],
   "weaknesses": [string],
@@ -190,7 +213,8 @@ ${buildProfileContext(profile)}
 ${riskPromptBlock(computed.current.analysis)}
 
 ### وظیفه
-فقط بر اساس همین اعداد محاسبه‌شده (آن‌ها را دوباره حدس نزن یا تغییر نده)، توضیح بده این ریسک از کجا می‌آید (کدام دارایی‌ها و چه تمرکزی باعثش شده)، چه رفتار یا سوگیری اقتصادی/روانی ممکن است پشت این ترکیب باشد، و چه جهت‌های کلی‌ای می‌تواند اختلاف با ریسک مرجع مدل را کم کند. فیلد suggestions «ملاحظات و گزینه‌های قابل بررسی» است: کیفی، با مزیت/هزینه، بدون دستور معامله و بدون مقدار قابل‌اجرا.${jsonInstruction(`{
+فقط بر اساس همین اعداد محاسبه‌شده (آن‌ها را دوباره حدس نزن یا تغییر نده)، توضیح بده این ریسک از کجا می‌آید (کدام دارایی‌ها و چه تمرکزی باعثش شده)، چه رفتار یا سوگیری اقتصادی/روانی ممکن است پشت این ترکیب باشد، و چه جهت‌های کلی‌ای می‌تواند اختلاف با ریسک مرجع مدل را کم کند. فیلد suggestions «ملاحظات و گزینه‌های قابل بررسی» است: کیفی، با مزیت/هزینه، بدون دستور معامله و بدون مقدار قابل‌اجرا.
+${SELF_CHECK_INSTRUCTION}${jsonInstruction(`{
   "reasons": [string],
   "behavioralFactors": [string],
   "suggestions": [string],
