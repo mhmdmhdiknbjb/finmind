@@ -56,6 +56,7 @@ export function computeFingerprint(rawProfile, behaviorState) {
   return JSON.stringify({
     assets: rawProfile.assets || [],
     riskTolerance: rawProfile.riskTolerance ?? 5,
+    investmentObjective: rawProfile.investmentObjective || "balanced",
     monthlyIncome: rawProfile.monthlyIncome ?? null,
     monthlyExpenses: rawProfile.monthlyExpenses ?? null,
     existingDebt: rawProfile.existingDebt ?? null,

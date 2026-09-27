@@ -25,6 +25,8 @@ const SYSTEM_PREAMBLE = `تو دستیار تحلیل مالی «چقدر» هس
 
 قانون کیفیت ملاحظات: هر ملاحظه باید شخصی‌سازی‌شده باشد — با ارجاع مستقیم به داده‌ی واقعی همین کاربر (سنش، هدفش، مهلت هدفش، نیاز نقدینگی‌اش، ریسک‌پذیری‌اش، سهم و ریسک دارایی‌هایش) — ولی از جنس تحلیل و گزینه‌های قابل بررسی باشد، نه دستور معامله. جمله‌های کلی و قابل‌کپی‌برای‌هرکسی مثل «سبد خود را متنوع کنید» یا «پس‌انداز کنید» بدون ارجاع به داده‌های همین کاربر ممنوع است؛ اگر یک ملاحظه را بدون تغییر می‌شد به هر کاربر دیگری هم گفت، دوباره بنویسش.
 
+قانون هم‌راستایی با هدف سرمایه‌گذاری: «هدف اصلی سرمایه‌گذاری اعلامی کاربر» که در پروفایل بالا آمده (حداکثر بازدهی/متعادل/حفظ اصل سرمایه/نقدشوندگی بالا) باید هر suggestion، ملاحظه، یا ارزیابی تناسبی که می‌نویسی را جهت‌دهی کند — پیشنهادهایت هرگز نباید با این هدف در تضاد آشکار باشند بدون آنکه آن تضاد را صریحاً بگویی. اگر عدد یا ترکیب پیشنهادی موتور با این هدف نمی‌خواند (مثلاً هدف «حفظ اصل سرمایه» است ولی ریسک پیشنهادی هنوز بالاست، یا هدف «نقدشوندگی بالا» است ولی سهم دارایی غیرنقد زیاد مانده)، این تضاد را پنهان نکن — صریح بگو چرا این‌طور شده و کاربر باید چه چیزی را بسنجد.
+
 قانون سخت‌گیرانه‌ی ضدهذیان (اولویت بالاتر از سبک نوشتن): قبل از نوشتن هر جمله که یک عدد، درصد، یا نام دسته‌ی دارایی در آن هست، از خودت بپرس «این عدد/دسته دقیقاً کجای بلوک‌های بالا (پروفایل کاربر، خروجی موتورها، اعداد رسمی) آمده؟». اگر جواب «هیچ‌جا، ولی به‌نظر منطقی می‌رسد» است، آن جمله را ننویس یا آن را کاملاً کیفی و بدون عدد/دسته‌ی مشخص بنویس. ساختن عددی که «تقریباً درست به‌نظر می‌رسد» (مثلاً نقدینگی را با یک درصد نزدیک ولی نادرست بیان کردن) از عدد کاملاً غلط هم بدتر است، چون کاربر آن را باور می‌کند. کلماتی مثل «بررسی»، «گزینه»، «پیشنهادی» تو را از این قانون معاف نمی‌کنند — این‌ها فقط سبک نوشتن‌اند، نه مجوز ساختن واقعیت جدید.`;
 
 function fmtNum(n) {
@@ -93,6 +95,13 @@ function goalStatusBlock(profile) {
   return `\n\n### وضعیت رسیدن به اهداف (خروجی موتور اهداف، همان اعداد صفحه‌ی اهداف مالی — هر جمله درباره‌ی کافی/ناکافی بودن درآمد یا پس‌انداز برای هدف، یا هر جمله‌ای که یک هدف را «نقطه‌قوت»/دستاورد ساده معرفی می‌کند، باید دقیقاً با همین‌ها و همین حاشیه‌ی امنیت هم‌خوان باشد)\n${lines.join("\n")}`;
 }
 
+const INVESTMENT_OBJECTIVE_LABELS = {
+  max_return: "حداکثر بازدهی (پذیرش ریسک بیشتر برای بازده بیشتر)",
+  balanced: "متعادل (تعادل بین ریسک و بازده)",
+  capital_preservation: "حفظ اصل سرمایه (اولویت با جلوگیری از افت ارزش)",
+  high_liquidity: "نقدشوندگی بالا (اولویت با در دسترس بودن سریع پول)",
+};
+
 export function buildProfileContext(profile) {
   const p = profile.personal || {};
   const totalAssets = (profile.assets || []).reduce((s, a) => s + (Number(a.amount) || 0), 0);
@@ -138,6 +147,7 @@ export function buildProfileContext(profile) {
 سطح تجربه سرمایه‌گذاری: ${profile.investmentExperience || "نامشخص"}
 واکنش احتمالی به افت ۲۰٪ ارزش دارایی‌ها (خوداظهاری): ${profile.emotionalRiskReaction || "نامشخص"}
 میزان ریسک‌پذیری اعلامی کاربر (مقیاس ۱ تا ۱۰): ${profile.riskTolerance ?? 5}
+هدف اصلی سرمایه‌گذاری اعلامی کاربر: ${INVESTMENT_OBJECTIVE_LABELS[profile.investmentObjective] || INVESTMENT_OBJECTIVE_LABELS.balanced}
 درآمد ماهانه: ${fmtNum(profile.monthlyIncome)} تومان
 هزینه ماهانه: ${fmtNum(profile.monthlyExpenses)} تومان
 بدهی/اقساط وام فعلی: ${fmtNum(profile.existingDebt)} تومان
@@ -428,6 +438,45 @@ ${decision.amount ? `مبلغ مرتبط: ${fmtNum(decision.amount)} تومان`
   "decisionSummary": string,
   "goalImpact": string,
   "recommendation": "پیشنهاد می‌شود" or "با احتیاط" or "پیشنهاد نمی‌شود",
+  "reasoning": [string]
+}`)}`;
+}
+
+/**
+ * Multi-option decision comparison (2-5 hypothetical decisions at once). `before` and each feasible
+ * option's `riskScore`/`liquidPercent` are computed by the SAME optimizer.js/liquidityEngine.js pipeline
+ * as the single-decision widget (server.js's /api/widgets/decision-compare) — the model is only asked for
+ * pros/cons/fitWithObjective/ranking/recommendation/reasoning; it must NOT restate or recompute riskScore/
+ * liquidPercent. The server overwrites those two fields on the final response regardless of what JSON the
+ * model returns (see server.js), so this is a hard guarantee against an LLM-invented number, not just an
+ * instruction the model could ignore.
+ */
+export function promptDecisionCompare(profile, before, options) {
+  const optionLines = options
+    .map((o, i) =>
+      o.feasible
+        ? `${i + 1}. «${o.label}» — بعد از این تصمیم: کل دارایی ${fmtNum(o.totalAssets)} تومان | ریسک ${o.riskScore} از ۱۰۰ | نقدینگی سریع ${o.liquidPercent}٪`
+        : `${i + 1}. «${o.label}» — غیرقابل‌اجرا: ${o.infeasibleReason}`
+    )
+    .join("\n");
+
+  return `${SYSTEM_PREAMBLE}
+
+${buildProfileContext(profile)}
+
+### وضعیت فعلی قبل از هر ${options.length} گزینه (محاسبه‌شده با همان موتور بهینه‌سازی پرتفوی و موتور نقدشوندگی که در صفحات ریسک‌سنجی و نقدینگی استفاده می‌شوند — عیناً همین اعداد را در پاسخت به‌کار ببر)
+کل دارایی ${fmtNum(before.totalAssets)} تومان | ریسک ${before.riskScore} از ۱۰۰ | نقدینگی سریع ${before.liquidPercent}٪
+
+### گزینه‌های فرضی مورد مقایسه (بعد از هر گزینه، محاسبه‌شده با همان موتورها — عدد جدیدی برایشان نساز، فقط توضیح بده)
+${optionLines}
+
+### وظیفه
+برای هر گزینه (چه قابل‌اجرا چه نه) دقیقاً یک آیتم در آرایه‌ی options بگذار، به همان ترتیب شماره‌گذاری بالا. برای گزینه‌های غیرقابل‌اجرا فقط feasible=false و infeasibleReason (بازنویسی‌شده از متن بالا) را بگذار؛ riskScore و liquidPercent را null بگذار و pros/cons را آرایه‌ی خالی و fitWithObjective را رشته‌ی خالی بگذار — چیزی درباره‌ی عددی که برایش محاسبه نشده نساز.
+برای گزینه‌های قابل‌اجرا: pros و cons را فقط بر اساس تغییر ریسک/نقدینگی/کل دارایی نسبت به «وضعیت فعلی» بالا بنویس (نه حدس)، و fitWithObjective را با ارجاع مستقیم به «هدف اصلی سرمایه‌گذاری اعلامی کاربر» در پروفایل بالا بنویس — اگر گزینه‌ای آشکارا با آن هدف در تضاد است (مثلاً هدف «حفظ اصل سرمایه» ولی این گزینه ریسک را به‌وضوح بالا می‌برد)، این تضاد را صریح بنویس، پنهانش نکن.
+فیلد ranking آرایه‌ای از ایندکس‌های گزینه‌ها (شروع از ۰) است، از بهترین به بدترین تناسب با ریسک/نقدینگی/اهداف/هدف سرمایه‌گذاری کاربر؛ گزینه‌های غیرقابل‌اجرا همیشه بعد از همه‌ی گزینه‌های قابل‌اجرا بیایند. recommendation یک جمله‌ی کوتاه فارسی است که می‌گوید کدام گزینه با وضعیت این کاربر سازگارتر است و چرا — این توصیه‌ی معامله نیست، فقط ارزیابی تناسب است. در reasoning فقط دلیل‌های تحلیلی بنویس، نه دستور معامله یا مقدار جایگزین.${jsonInstruction(`{
+  "options": [{ "label": string, "feasible": boolean, "infeasibleReason": string or null, "riskScore": number or null, "liquidPercent": number or null, "pros": [string], "cons": [string], "fitWithObjective": string }],
+  "ranking": [number],
+  "recommendation": string,
   "reasoning": [string]
 }`)}`;
 }

@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { key: "goals", href: "/panel/goals.html", icon: "flag", tone: "teal", label: "اهداف مالی" },
   { key: "scenario", href: "/panel/scenario.html", icon: "wind", tone: "violet", label: "شبیه‌ساز سناریو" },
   { key: "decision", href: "/panel/decision.html", icon: "compass", tone: "amber", label: "دستیار قبل از تصمیم" },
+  { key: "decisionCompare", href: "/panel/decision-compare.html", icon: "dice", tone: "amber", label: "مقایسه‌ی تصمیم‌ها" },
   { key: "alerts", href: "/panel/alerts.html", icon: "alertTriangle", tone: "rose", label: "هشدارهای رفتاری", badgeId: "navAlertBadge" },
   { key: "chat", href: "/panel/chat.html", icon: "chat", tone: "teal", label: "گفتگو با دستیار" },
 ];

@@ -209,6 +209,45 @@ function requiredLiquidFraction(profile, total) {
 }
 
 /**
+ * `investmentObjective` (profile.js onboarding, store.js DEFAULT_PROFILE) is a COARSE bias layered on top of the
+ * fine-grained riskTolerance-derived lambda above, not a replacement for it. riskTolerance still moves lambda
+ * continuously across its whole 1..10 range; investmentObjective multiplies that result and separately sets a
+ * MINIMUM cash-months / liquidity-floor. A high-risk-tolerance "حفظ اصل سرمایه" user is still less conservative than
+ * a low-risk-tolerance one with the same objective — riskTolerance is the dial, investmentObjective is the bias on
+ * top of it.
+ *
+ * Missing/unrecognized investmentObjective (old cached profiles, the verify_*.mjs fixtures) resolves to "balanced" —
+ * multiplier 1.0, no floor overrides — i.e. EXACTLY today's formula. This is what keeps optimizePortfolio a
+ * byte-for-byte no-op for every existing profile and every verify_*.mjs fixture.
+ */
+const OBJECTIVE_LAMBDA_MULTIPLIER = {
+  max_return: 0.6,
+  balanced: 1.0, // no-op
+  capital_preservation: 1.8,
+  high_liquidity: 1.3, // liquidity itself is handled by the floors below, not lambda
+};
+const LAMBDA_ABS_MIN = 0.3;
+const LAMBDA_ABS_MAX = 15; // wider than riskAversionFromTolerance's own 0.5-8 range, so the multiplier has headroom
+// at both ends of riskTolerance (e.g. riskTolerance=10 -> lambda=0.5; capital_preservation's 1.8x needs to reach
+// 0.9, past the un-multiplied ceiling)
+
+/** riskTolerance-derived lambda, adjusted by the coarse investmentObjective multiplier (see comment above). */
+function combinedLambda(riskTolerance, investmentObjective) {
+  const base = riskAversionFromTolerance(riskTolerance);
+  const mult = OBJECTIVE_LAMBDA_MULTIPLIER[investmentObjective] ?? OBJECTIVE_LAMBDA_MULTIPLIER.balanced;
+  return clamp(base * mult, LAMBDA_ABS_MIN, LAMBDA_ABS_MAX);
+}
+
+// Minimum cash-months this objective enforces; takes the MAX with the existing dependents/debt-derived floor already
+// in optimizePortfolio (3, or 6 with dependents/debt) — an objective can only raise the safety floor, never lower
+// one already justified by the user's own dependents/debt. 0 means "no override" (today's rule only).
+const OBJECTIVE_CASH_MONTHS_FLOOR = { max_return: 0, balanced: 0, capital_preservation: 6, high_liquidity: 9 };
+
+// Multiplies the liquidity-WEIGHTED QP constraint from requiredLiquidFraction() — independent of the cash-months
+// floor above, since that floor can be satisfied by e.g. a fund position instead of literal cash.
+const OBJECTIVE_LIQUID_FLOOR_MULTIPLIER = { max_return: 1.0, balanced: 1.0, capital_preservation: 1.5, high_liquidity: 2.0 };
+
+/**
  * Builds 1-indexed sparse structures the way the `quadprog` port expects
  * (it mirrors R's solve.QP, which is 1-indexed — index 0 of every array is
  * left empty on purpose to preserve that alignment).
@@ -236,8 +275,12 @@ function oneIndexedVector(len) {
 export function optimizePortfolio(profile) {
   const n = ASSET_ORDER.length;
   const { weights: curWeights, total } = currentWeights(profile.assets);
-  const lambda = riskAversionFromTolerance(profile.riskTolerance);
-  const reqLiquid = requiredLiquidFraction(profile, total);
+  const objective = profile.investmentObjective;
+  const lambda = combinedLambda(profile.riskTolerance, objective);
+  const liquidFloorMult = OBJECTIVE_LIQUID_FLOOR_MULTIPLIER[objective] ?? OBJECTIVE_LIQUID_FLOOR_MULTIPLIER.balanced;
+  // clamped at 0.9 (not 1.0): leaves room for the realestate/other/cash-floor constraints below to coexist without
+  // the QP becoming infeasible at the high_liquidity extreme (base is already clamped to <=0.5, so 2x could hit 1.0)
+  const reqLiquid = clamp(requiredLiquidFraction(profile, total) * liquidFloorMult, 0.05, 0.9);
 
   // Real estate is lumpy and illiquid: you cannot fractionally rebalance out
   // of "half an apartment" on a short horizon. Cap how far the optimizer is
@@ -266,7 +309,9 @@ export function optimizePortfolio(profile) {
   // lower bound on the cash weight. The old constraint only bounded the liquidity-WEIGHTED score, which gold/stock alone
   // satisfy, so a risk-tolerance-10 user was told to hold 0% cash.
   const nDependents = Number(profile.personal?.childrenCount) || 0;
-  const cashMonths = nDependents > 0 || (Number(profile.existingDebt) || 0) > 0 ? 6 : 3;
+  const dependentDebtCashMonths = nDependents > 0 || (Number(profile.existingDebt) || 0) > 0 ? 6 : 3;
+  const objectiveCashMonthsFloor = OBJECTIVE_CASH_MONTHS_FLOOR[objective] ?? OBJECTIVE_CASH_MONTHS_FLOOR.balanced;
+  const cashMonths = Math.max(dependentDebtCashMonths, objectiveCashMonthsFloor);
   let cashFloor = total > 0 ? clamp(((Number(profile.monthlyExpenses) || 0) * cashMonths) / total, 0.05, 0.5) : 0.05;
   const othersLower = ASSET_ORDER.filter((k) => k !== "cash").reduce((s, k) => s + lowerBound[k], 0);
   cashFloor = Math.max(0, Math.min(cashFloor, 1 - othersLower)); // never make the program infeasible

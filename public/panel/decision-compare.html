@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/png" href="/logo.png" />
+<title>مقایسه‌ی تصمیم‌ها | چقدر</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body data-page="decisionCompare">
+
+<div class="panel-shell">
+  <aside class="panel-sidebar" id="panelSidebar"></aside>
+  <div class="panel-main">
+    <header class="panel-topbar" id="panelTopbar"></header>
+    <main class="panel-content">
+
+      <section class="card span-12" id="decisionCompareCard">
+        <div class="card-head">
+          <h2><span class="ico icon-badge icon-tone-amber icon-badge-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="15.5" r="1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1" fill="currentColor" stroke="none"/></svg></span> مقایسه‌ی چند تصمیم</h2>
+        </div>
+        <div class="card-body">
+          <p class="profile-summary" style="margin-bottom:12px;display:block;">۲ تا ۵ تصمیم فرضی را وارد کن تا کنار هم، با همان موتورهای ریسک و نقدینگی صفحه‌ی «دستیار قبل از تصمیم»، مقایسه شوند.</p>
+          <div id="compareOptionRows" class="compare-option-rows"></div>
+          <div class="compare-option-actions">
+            <button class="btn btn-ghost btn-small" id="addCompareOptionBtn">+ افزودن گزینه</button>
+            <button class="btn btn-primary btn-small" id="runCompareBtn">مقایسه کن</button>
+          </div>
+          <div class="loading hidden" id="compareLoading">در حال مقایسه‌ی گزینه‌ها...</div>
+          <div id="compareContent" class="hidden">
+            <div class="compare-block" style="margin-bottom:14px;">
+              <h4>وضعیت فعلی (قبل از هر گزینه)</h4>
+              <div class="compare-row"><span>کل دارایی</span><b id="compareBeforeTotal">—</b></div>
+              <div class="compare-row"><span>ریسک <small style="font-weight:400;color:var(--text-faint);">(۰-۱۰۰، همان صفحه‌ی ریسک‌سنجی)</small></span><b id="compareBeforeRisk">—</b></div>
+              <div class="compare-row"><span>نقد سریع <small style="font-weight:400;color:var(--text-faint);">(٪، همان صفحه‌ی نقدینگی)</small></span><b id="compareBeforeLiquid">—</b></div>
+            </div>
+            <div id="compareGrid" class="compare-grid"></div>
+            <div id="compareRankingBox" class="summary-text" style="margin-top:14px;"></div>
+            <div id="compareRecommendation" class="recommendation-badge">—</div>
+            <p class="profile-summary" style="font-size:11px;margin-top:4px;">این برچسب مشاوره‌ی مالی نیست؛ فقط می‌گوید کدام گزینه با ریسک‌پذیری، نقدینگی، هدف سرمایه‌گذاری و اهداف مالی ثبت‌شده‌ی خودت سازگارتر است.</p>
+            <h4 class="tag-neu">دلایل</h4>
+            <ul id="compareReasoning"></ul>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script type="module" src="decision-compare-page.js"></script>
+</body>
+</html>

@@ -16,6 +16,7 @@ import {
   promptGoal,
   promptDecisionExtract,
   promptDecisionExplain,
+  promptDecisionCompare,
   promptChatReply,
   promptChatEmotionalCheck,
   promptVoiceExtract,
@@ -645,6 +646,113 @@ app.post(
       recommendation: explanation.recommendation,
       reasoning: explanation.reasoning,
       assetChanges,
+    });
+  })
+);
+
+// Per-option version of the extract+validate retry loop the single-decision route above already runs, so one
+// option's model hiccup (or an amount/asset it doesn't hold) doesn't sink the whole comparison — other options
+// still get computed; this one is just marked infeasible with the same message style already used above.
+async function extractOptionForCompare(userId, profile, option, compareIndex) {
+  let assetChanges = [];
+  let extractionProblems = [];
+  let feedback = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const extraction = await callLLMJSON(promptDecisionExtract(profile, option) + feedback, { effort: "medium" });
+    assetChanges = Array.isArray(extraction.assetChanges) ? extraction.assetChanges : [];
+    extractionProblems = validateExtraction(option.description, option.amount, assetChanges);
+    logDecisionExtraction(userId, { compareIndex, description: option.description, amount: option.amount || null, attempt: attempt + 1, assetChanges, problems: extractionProblems });
+    if (!extractionProblems.length) break;
+    feedback = "\n\n### اصلاح لازم\nاستخراج قبلی تو با متن کاربر نمی‌خواند:\n- " + extractionProblems.join("\n- ") + "\nدوباره استخراج کن؛ فقط دسته‌ها و مبلغ‌هایی که خود کاربر در متن گفته.";
+  }
+  return { assetChanges, extractionProblems };
+}
+
+function fallbackCompare(computedOptions) {
+  return {
+    options: computedOptions.map((c) => ({ label: c.label, feasible: c.feasible, infeasibleReason: c.infeasibleReason, riskScore: c.riskScore, liquidPercent: c.liquidPercent, pros: [], cons: [], fitWithObjective: NO_TEXT_NOTE })),
+    ranking: computedOptions.map((_, i) => i),
+    recommendation: NO_TEXT_NOTE,
+    reasoning: [],
+  };
+}
+
+app.post(
+  "/api/widgets/decision-compare",
+  requireAuth,
+  handleAsync(async (req, res) => {
+    const profile = await loadResolvedProfile(req.userId);
+    const rawOptions = Array.isArray(req.body.options) ? req.body.options : [];
+    if (rawOptions.length < 2 || rawOptions.length > 5) {
+      res.status(400).json({ error: "باید بین ۲ تا ۵ گزینه برای مقایسه وارد کنید." });
+      return;
+    }
+
+    const { profile: beforeForOpt } = profileWithEffectiveRisk(req.userId, profile);
+    const beforeOptimized = optimizePortfolio(beforeForOpt);
+    const beforeLiquidity = computeLiquidity(profile);
+    const before = { totalAssets: beforeOptimized.current.total, riskScore: beforeOptimized.current.riskScore, liquidPercent: beforeLiquidity.liquidPercent };
+
+    // Step 1: per-option extraction + overdrawn check, independent of one another (see extractOptionForCompare).
+    const computedOptions = [];
+    for (let idx = 0; idx < rawOptions.length; idx++) {
+      const option = rawOptions[idx];
+      const label = (option.description || `گزینه ${idx + 1}`).slice(0, 60);
+      const { assetChanges, extractionProblems } = await extractOptionForCompare(req.userId, profile, option, idx);
+      if (extractionProblems.length) {
+        computedOptions.push({ label, feasible: false, infeasibleReason: "متوجه نشدم دقیقاً چه تصمیمی مدنظر شماست. لطفاً با مبلغ و دارایی مشخص بنویسید.", riskScore: null, liquidPercent: null });
+        continue;
+      }
+      const over = overdrawn(profile, assetChanges);
+      if (over.length) {
+        computedOptions.push({ label, feasible: false, infeasibleReason: overdrawnMessage(over), riskScore: null, liquidPercent: null });
+        continue;
+      }
+      const afterAssets = await applyAssetChanges(profile, assetChanges, profile._liveRates || undefined);
+      const afterProfile = await resolveProfileAssets({ ...profile, assets: afterAssets }, profile._liveRates || undefined);
+      const { profile: afterForOpt } = profileWithEffectiveRisk(req.userId, afterProfile);
+      const afterOptimized = optimizePortfolio(afterForOpt);
+      const afterLiquidity = computeLiquidity(afterProfile);
+      computedOptions.push({
+        label,
+        feasible: true,
+        infeasibleReason: null,
+        riskScore: afterOptimized.current.riskScore,
+        liquidPercent: afterLiquidity.liquidPercent,
+        totalAssets: afterOptimized.current.total,
+      });
+    }
+
+    // Step 2: LLM only narrates/ranks/recommends based on the numbers computed above.
+    const rawExplanation = await groundedJSON(promptDecisionCompare(profile, before, computedOptions), profile, {
+      checkCategories: false,
+      fallback: () => fallbackCompare(computedOptions),
+    });
+    const explanation = enforceGoalMarginFraming(rawExplanation, profile);
+
+    // riskScore/liquidPercent/feasible/infeasibleReason are SERVER-AUTHORITATIVE: whatever the model returned for
+    // these fields is discarded here, closing the loop against any LLM-invented number reaching the user.
+    const llmOptions = Array.isArray(explanation.options) ? explanation.options : [];
+    const options = computedOptions.map((c, i) => {
+      const llm = llmOptions[i] || {};
+      return {
+        label: c.label,
+        feasible: c.feasible,
+        infeasibleReason: c.infeasibleReason,
+        riskScore: c.riskScore,
+        liquidPercent: c.liquidPercent,
+        pros: c.feasible && Array.isArray(llm.pros) ? llm.pros : [],
+        cons: c.feasible && Array.isArray(llm.cons) ? llm.cons : [],
+        fitWithObjective: c.feasible ? llm.fitWithObjective || "" : "",
+      };
+    });
+
+    res.json({
+      before,
+      options,
+      ranking: Array.isArray(explanation.ranking) ? explanation.ranking : options.map((_, i) => i),
+      recommendation: explanation.recommendation || "",
+      reasoning: Array.isArray(explanation.reasoning) ? explanation.reasoning : [],
     });
   })
 );

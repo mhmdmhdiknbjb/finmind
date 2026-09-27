@@ -17,6 +17,7 @@ const DEFAULT_PROFILE = {
     housingStatus: null,
   },
   riskTolerance: 5,
+  investmentObjective: "balanced", // enum: max_return | balanced | capital_preservation | high_liquidity — see optimizer.js
   investmentExperience: null,
   emotionalRiskReaction: null,
   horizonYears: null,

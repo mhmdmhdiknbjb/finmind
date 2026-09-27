@@ -129,6 +129,14 @@
                 <label>افق زمانی سرمایه‌گذاری (سال)
                   <input type="number" id="fHorizonYears" min="1" max="30" step="1" placeholder="مثلاً ۵" />
                 </label>
+                <label>هدف اصلی سرمایه‌گذاری
+                  <select id="fInvestmentObjective">
+                    <option value="max_return">حداکثر بازدهی (پذیرش ریسک بیشتر برای بازده بیشتر)</option>
+                    <option value="balanced">متعادل (تعادل بین ریسک و بازده)</option>
+                    <option value="capital_preservation">حفظ اصل سرمایه (اولویت با جلوگیری از افت ارزش)</option>
+                    <option value="high_liquidity">نقدشوندگی بالا (اولویت با در دسترس بودن سریع پول)</option>
+                  </select>
+                </label>
               </div>
               <div class="form-grid-2">
                 <label>یادداشت افق زمانی سرمایه‌گذاری<textarea id="fHorizon" rows="2" placeholder="مثلاً حدود ۲ سال دیگر قصد خرید خانه دارم"></textarea></label>
