@@ -43,6 +43,7 @@ import {
   setSessionCookie,
   clearSessionCookie,
   requireAuth,
+  UserError,
 } from "./auth.js";
 
 /**
@@ -230,13 +231,35 @@ const app = express();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
+const LLM_DOWN_MESSAGE = "سرویس تحلیل متنی الان در دسترس نیست؛ چند دقیقه‌ی دیگر دوباره تلاش کنید.";
+
+/** What the user is allowed to see for a thrown error: a UserError's own (Persian) message and 4xx status; anything else
+ * (an LLM API failure, a JSON parse error, a bug) is logged in full but shown as a generic Persian line — never the raw
+ * English/technical text. */
+function errorResponse(err) {
+  if (err instanceof UserError) return { status: err.status, error: err.message };
+  if (/^LLM |No output_text|Failed to parse JSON|JSON from LLM/.test(String(err?.message))) return { status: 503, error: LLM_DOWN_MESSAGE };
+  return { status: 500, error: "خطای داخلی سرور؛ لطفاً دوباره تلاش کنید." };
+}
+
 function handleAsync(fn) {
   return (req, res) => {
     fn(req, res).catch((err) => {
       console.error(err);
-      if (!res.headersSent) res.status(500).json({ error: err.message || "خطای داخلی سرور" });
+      const { status, error } = errorResponse(err);
+      if (!res.headersSent) res.status(status).json({ error });
     });
   };
+}
+
+/** callLLMJSON that returns null instead of throwing, for the extraction steps that can degrade gracefully. */
+async function tryCallLLMJSON(prompt, opts) {
+  try {
+    return await callLLMJSON(prompt, opts);
+  } catch (err) {
+    console.error("[llm] extraction failed:", err.message);
+    return null;
+  }
 }
 
 /* ---------------- Auth ---------------- */
@@ -525,10 +548,11 @@ app.post(
     let scenarioTitle = scenario.title;
 
     if (!shocks && !scenario.id) {
-      const extraction = await callLLMJSON(promptScenarioExtract(scenario.description || scenario.title || ""), {
+      // if extraction fails, shocks stays null and the qualitative branch below (which has its own fallback) answers
+      const extraction = await tryCallLLMJSON(promptScenarioExtract(scenario.description || scenario.title || ""), {
         effort: "low",
       });
-      if (extraction.shocks && Object.keys(extraction.shocks).length) {
+      if (extraction?.shocks && Object.keys(extraction.shocks).length) {
         shocks = extraction.shocks;
         scenarioTitle = extraction.scenarioTitle || scenarioTitle;
       }
@@ -592,7 +616,11 @@ app.post(
     let extractionProblems = [];
     let feedback = "";
     for (let i = 0; i < 3; i++) {
-      const extraction = await callLLMJSON(promptDecisionExtract(profile, decision) + feedback, { effort: "medium" });
+      const extraction = await tryCallLLMJSON(promptDecisionExtract(profile, decision) + feedback, { effort: "medium" });
+      if (!extraction) {
+        res.json({ infeasible: true, message: LLM_DOWN_MESSAGE });
+        return;
+      }
       assetChanges = Array.isArray(extraction.assetChanges) ? extraction.assetChanges : [];
       extractionProblems = validateExtraction(decision.description, decision.amount, assetChanges, profile);
       logDecisionExtraction(req.userId, { description: decision.description, amount: decision.amount || null, attempt: i + 1, assetChanges, problems: extractionProblems });
@@ -658,7 +686,8 @@ async function extractOptionForCompare(userId, profile, option, compareIndex) {
   let extractionProblems = [];
   let feedback = "";
   for (let attempt = 0; attempt < 3; attempt++) {
-    const extraction = await callLLMJSON(promptDecisionExtract(profile, option) + feedback, { effort: "medium" });
+    const extraction = await tryCallLLMJSON(promptDecisionExtract(profile, option) + feedback, { effort: "medium" });
+    if (!extraction) return { assetChanges: [], extractionProblems: [], llmDown: true };
     assetChanges = Array.isArray(extraction.assetChanges) ? extraction.assetChanges : [];
     extractionProblems = validateExtraction(option.description, option.amount, assetChanges, profile);
     logDecisionExtraction(userId, { compareIndex, description: option.description, amount: option.amount || null, attempt: attempt + 1, assetChanges, problems: extractionProblems });
@@ -698,7 +727,11 @@ app.post(
     for (let idx = 0; idx < rawOptions.length; idx++) {
       const option = rawOptions[idx];
       const label = (option.description || `گزینه ${idx + 1}`).slice(0, 60);
-      const { assetChanges, extractionProblems } = await extractOptionForCompare(req.userId, profile, option, idx);
+      const { assetChanges, extractionProblems, llmDown } = await extractOptionForCompare(req.userId, profile, option, idx);
+      if (llmDown) {
+        computedOptions.push({ label, feasible: false, infeasibleReason: LLM_DOWN_MESSAGE, riskScore: null, liquidPercent: null });
+        continue;
+      }
       if (extractionProblems.length) {
         computedOptions.push({ label, feasible: false, infeasibleReason: "متوجه نشدم دقیقاً چه تصمیمی مدنظر شماست. لطفاً با مبلغ و دارایی مشخص بنویسید.", riskScore: null, liquidPercent: null });
         continue;
@@ -952,11 +985,12 @@ app.post("/api/chat", requireAuth, (req, res) => {
     res.end();
   })().catch((err) => {
     console.error(err);
+    const { status, error } = errorResponse(err);
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message || "خطای داخلی سرور" });
+      res.status(status).json({ error });
     } else {
       try {
-        res.write(`data: ${JSON.stringify({ type: "error", message: err.message || "خطای داخلی سرور" })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "error", message: error })}\n\n`);
       } catch {
         /* ignore */
       }

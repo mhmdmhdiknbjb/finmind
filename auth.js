@@ -57,6 +57,16 @@ function verifyPassword(password, stored) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/** An error whose message is meant for the end user (already Persian) and whose HTTP status is a 4xx, not a crash.
+ * server.js's handleAsync sends these through as-is and hides the message of every other thrown error. */
+export class UserError extends Error {
+  constructor(message, status = 400) {
+    super(message);
+    this.name = "UserError";
+    this.status = status;
+  }
+}
+
 function publicUser(user) {
   return { id: user.id, name: user.name, email: user.email };
 }
@@ -64,14 +74,14 @@ function publicUser(user) {
 export function registerUser({ name, email, password }) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-    throw new Error("ایمیل معتبر وارد کنید.");
+    throw new UserError("ایمیل معتبر وارد کنید.", 400);
   }
   if (!password || password.length < 6) {
-    throw new Error("رمز عبور باید حداقل ۶ کاراکتر باشد.");
+    throw new UserError("رمز عبور باید حداقل ۶ کاراکتر باشد.", 400);
   }
   const users = loadUsers();
   if (users.some((u) => u.email === normalizedEmail)) {
-    throw new Error("این ایمیل قبلاً ثبت‌نام کرده است.");
+    throw new UserError("این ایمیل قبلاً ثبت‌نام کرده است.", 409);
   }
   const user = {
     id: crypto.randomBytes(9).toString("hex"),
@@ -90,7 +100,7 @@ export function verifyLogin(email, password) {
   const users = loadUsers();
   const user = users.find((u) => u.email === normalizedEmail);
   if (!user || !verifyPassword(password || "", user.passwordHash)) {
-    throw new Error("ایمیل یا رمز عبور اشتباه است.");
+    throw new UserError("ایمیل یا رمز عبور اشتباه است.", 401);
   }
   return publicUser(user);
 }
