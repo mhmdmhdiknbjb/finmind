@@ -3,6 +3,7 @@ import { categoryStats, getMarketPack } from "./marketData.js";
 import { analyzePortfolio, holdingsFromAssets, holdingsFromCategoryWeights } from "./portfolioRisk.js";
 import { stackForecasts } from "./stackForward.js";
 import { engineCategoryOf } from "./public/assetCatalog.js";
+import { MIN_HOME_PRICE } from "./purchaseFloors.js";
 
 /**
  * Phase 1 — Portfolio optimization engine (Markowitz mean-variance, localized for Iran).
@@ -40,7 +41,8 @@ export const ASSET_ORDER = ["cash", "gold", "currency", "stock", "fund", "reales
  * The optimizer uses it below to refuse to suggest a real-estate position
  * too small to correspond to an actual purchase.
  */
-export const MIN_PROPERTY_VALUE_TOMAN = 4_000_000_000;
+// one shared figure for "the cheapest realistic house" (also drives the purchase-affordability rule in grounding.js)
+export const MIN_PROPERTY_VALUE_TOMAN = MIN_HOME_PRICE;
 
 const BASE_ASSET_STATS = {
   cash: { expectedReturn: 0.23, volatility: 0.03, liquidity: 1.0, upperBound: 1.0 },

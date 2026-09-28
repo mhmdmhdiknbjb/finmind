@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { PORT } from "./config.js";
 import { loadProfile, saveProfile } from "./store.js";
 import { callLLM, callLLMJSON } from "./llm.js";
-import { validateExtraction, validateShockExtraction, overdrawn, overdrawnMessage, enforceGoalMarginFraming, answersQuestion, validateText, collectStrings, stripBadSentences, answerFactual, fallbackReply } from "./grounding.js";
+import { validateExtraction, validateShockExtraction, purchaseFloorProblem, overdrawn, overdrawnMessage, enforceGoalMarginFraming, answersQuestion, validateText, collectStrings, stripBadSentences, answerFactual, fallbackReply } from "./grounding.js";
 import {
   promptAssets,
   promptRisk,
@@ -647,6 +647,13 @@ app.post(
     // language understanding). Its answer is checked against the user's own text
     // (class named? amount stated?) and retried with the mismatch listed, because
     // it was seen turning «۳۰۰ میلیون از سپرده خرج کنم» into «۲۰۰ میلیون سهام».
+    // House/car purchases are checked against the minimum price BEFORE any model call (a car is not even an asset class
+    // the extraction knows, so there is nothing to extract for it).
+    const earlyFloor = purchaseFloorProblem(decision.description, decision.amount, [], profile);
+    if (earlyFloor) {
+      res.json({ infeasible: true, message: earlyFloor });
+      return;
+    }
     let assetChanges = [];
     let extractionProblems = [];
     let feedback = "";
@@ -664,6 +671,12 @@ app.post(
     }
     if (extractionProblems.length) {
       res.json({ infeasible: true, message: "متوجه نشدم دقیقاً چه تصمیمی مدنظر شماست. لطفاً با مبلغ و دارایی مشخص بنویسید، مثلاً «۳۰۰ میلیون از سپرده‌ام را خرج کنم»." });
+      return;
+    }
+    // A house / car costs at least a fixed minimum (purchaseFloors.js): below it the purchase cannot happen at all.
+    const floorProblem = purchaseFloorProblem(decision.description, decision.amount, assetChanges, profile);
+    if (floorProblem) {
+      res.json({ infeasible: true, message: floorProblem });
       return;
     }
     // A decrease larger than what is held is not executable: say so instead of silently clamping it to the balance.
@@ -793,6 +806,11 @@ app.post(
     for (let idx = 0; idx < rawOptions.length; idx++) {
       const option = rawOptions[idx];
       const label = (option.description || `گزینه ${idx + 1}`).slice(0, 60);
+      const earlyFloor = purchaseFloorProblem(option.description, option.amount, [], profile);
+      if (earlyFloor) {
+        computedOptions.push({ label, feasible: false, infeasibleReason: earlyFloor, riskScore: null, liquidPercent: null });
+        continue;
+      }
       const { assetChanges, extractionProblems, llmDown } = await extractOptionForCompare(req.userId, profile, option, idx);
       if (llmDown) {
         computedOptions.push({ label, feasible: false, infeasibleReason: LLM_DOWN_MESSAGE, riskScore: null, liquidPercent: null });
@@ -800,6 +818,11 @@ app.post(
       }
       if (extractionProblems.length) {
         computedOptions.push({ label, feasible: false, infeasibleReason: "متوجه نشدم دقیقاً چه تصمیمی مدنظر شماست. لطفاً با مبلغ و دارایی مشخص بنویسید.", riskScore: null, liquidPercent: null });
+        continue;
+      }
+      const floorProblem = purchaseFloorProblem(option.description, option.amount, assetChanges, profile);
+      if (floorProblem) {
+        computedOptions.push({ label, feasible: false, infeasibleReason: floorProblem, riskScore: null, liquidPercent: null });
         continue;
       }
       const over = overdrawn(profile, assetChanges);

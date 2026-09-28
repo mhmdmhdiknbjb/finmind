@@ -1,5 +1,6 @@
 import { CATEGORY_LABELS, engineCategoryOf } from "./public/assetCatalog.js";
 import { evaluateGoals } from "./goalEngine.js";
+import { MIN_HOME_PRICE, MIN_CAR_PRICE } from "./purchaseFloors.js";
 
 /**
  * Grounding layer: the LLM only explains numbers the engines / the user's profile already contain. This module
@@ -44,9 +45,59 @@ export function notHeld(profile) {
   return Object.keys(CAT_TERMS).filter((c) => !(byEngine[c] > 0));
 }
 
+/* --------------------------------------------- big-ticket purchase affordability */
+
+const BUY_RE = "(?:خرید|بخر|خریدن|خریداری|تهیه|تبدیل\\s*به|سرمایه‌?گذاری\\s*(?:در|روی))";
+const HOME_RE = "(?:خانه|خونه|منزل|مسکن|آپارتمان|ملک|املاک|ویلا)";
+const CAR_RE = "(?:ماشین|خودرو|اتومبیل)";
+const buyItemRe = (item) => new RegExp(`${BUY_RE}[^.؟!\\n]{0,30}${item}|${item}[^.؟!\\n]{0,30}${BUY_RE}`);
+const BUY_HOME = buyItemRe(HOME_RE);
+const BUY_CAR = buyItemRe(CAR_RE);
+
+/** Can this user's total assets pay the cheapest realistic house / car at all? (server constants, see purchaseFloors.js) */
+export function affordability(profile) {
+  const { total } = holdings(profile);
+  return { total, home: total >= MIN_HOME_PRICE, car: total >= MIN_CAR_PRICE, minHome: MIN_HOME_PRICE, minCar: MIN_CAR_PRICE };
+}
+
+// a sentence that says the purchase is NOT possible / describes the user's own stated goal is not a recommendation
+const PURCHASE_NOT_ADVICE = /(نمی[‌\s]?(?:توان|شود|تواند|توانید|رسد|سازد)|نمیتوان|نیست|ممکن نیست|کافی نیست|فراتر|ناکافی|کمتر از|حداقل|هدف|برنامه|قصد|می‌خواهید|می‌خواهی|مهلت|خواسته|قدرت خرید)/;
+
+/** A sentence that recommends buying a house/car this user's assets cannot afford (sentence-level, so it can be cut out). */
+export function badPurchaseSuggestion(sentence, profile) {
+  const s = String(sentence);
+  if (PURCHASE_NOT_ADVICE.test(s)) return null;
+  const a = affordability(profile);
+  if (!a.home && BUY_HOME.test(s)) return `پیشنهاد خرید خانه/ملک در حالی که مجموع دارایی کاربر (${fmt(a.total)} تومان) از حداقل قیمت خانه (${fmt(a.minHome)} تومان) کمتر است`;
+  if (!a.car && BUY_CAR.test(s)) return `پیشنهاد خرید ماشین در حالی که مجموع دارایی کاربر (${fmt(a.total)} تومان) از حداقل قیمت ماشین (${fmt(a.minCar)} تومان) کمتر است`;
+  return null;
+}
+
+/**
+ * Decision widgets: «کل پولم را خانه بخرم» with a few hundred million is not executable — not "a riskier option", a
+ * purchase that cannot happen. Returns the user-facing reason, or null when the text is not a house/car purchase or the
+ * money involved reaches the minimum price. The money involved = the largest amount the user wrote, else what the
+ * extraction moves into real estate, else (an "all of it" purchase with no figure) the user's whole asset base.
+ */
+export function purchaseFloorProblem(text, amount, changes, profile) {
+  const t = String(text || "");
+  const isHome = BUY_HOME.test(t);
+  const isCar = BUY_CAR.test(t);
+  if (!isHome && !isCar) return null;
+  const { total } = holdings(profile);
+  const intoRealestate = (changes || []).filter((c) => c.category === "realestate" && num(c.amountDelta) > 0).reduce((s, c) => s + num(c.amountDelta), 0);
+  const stated = Math.max(0, ...extractMoney(t), num(amount));
+  const spend = stated || intoRealestate || total;
+  const floor = isHome ? MIN_HOME_PRICE : MIN_CAR_PRICE;
+  if (spend >= floor) return null;
+  const what = isHome ? "خانه" : "ماشین";
+  return `با ${fmt(spend)} تومان نمی‌شود ${what} خرید؛ حداقل قیمت تقریبی ${what} حدود ${fmt(floor)} تومان است (رقم تقریبی و قابل تنظیم است). مبلغ را بیشتر کنید یا هدف دیگری را بررسی کنید.`;
+}
+
 /** The block injected into every prompt: everything the model may state as fact about this user. */
 export function factsBlock(profile) {
   const { byEngine, total } = holdings(profile);
+  const aff = affordability(profile);
   const lines = Object.entries(byEngine)
     .sort((a, b) => b[1] - a[1])
     .map(([c, v]) => `- ${CAT_NAME[c] || c}: ${fmt(v)} تومان (${total ? Math.round((v / total) * 1000) / 10 : 0}٪ از کل)`);
@@ -59,6 +110,7 @@ export function factsBlock(profile) {
 ${lines.join("\n") || "- هیچ دارایی‌ای ثبت نشده است"}
 دارایی‌هایی که کاربر «ندارد» (اصلاً به عنوان دارایی او از آن‌ها حرف نزن، تمرکز یا سهمی برایشان ادعا نکن): ${missing.length ? missing.join("، ") : "—"}
 اهداف ثبت‌شده: ${goals.length ? goals.join(" | ") : "هدفی ثبت نشده"}
+توان خرید اقلام بزرگ (محاسبه‌شده، قطعی): حداقل قیمت تقریبی خانه ${fmt(aff.minHome)} تومان و حداقل قیمت تقریبی ماشین ${fmt(aff.minCar)} تومان است؛ مجموع دارایی این کاربر ${fmt(total)} تومان است، پس ${aff.home ? "از نظر مبلغ به خرید خانه می‌رسد" : "با دارایی فعلی نمی‌تواند خانه بخرد"} و ${aff.car ? "از نظر مبلغ به خرید ماشین می‌رسد" : "با دارایی فعلی نمی‌تواند ماشین بخرد"}. هرگز خریدی را که این کاربر از نظر مبلغ نمی‌تواند انجام دهد پیشنهاد نده (نه به‌عنوان تنوع‌بخشی، نه برای پناه از تورم)؛ اگر لازم شد، به‌جایش بگو «با دارایی فعلی ممکن نیست».
 قواعد: هر مبلغ، مدت یا هدفی که در این بلاک و پروفایل نیست را نساز؛ اگر داده‌ای نداری بگو «این را در اطلاعات ثبت‌شده ندیدم». اگر تاریخچه‌ی گفتگو یا هر چیز دیگری با این بلاک تفاوت دارد، این بلاک درست است.`;
 }
 
@@ -226,6 +278,12 @@ export function validateText(text, { profile, groundText, userMessage = "", extr
     const words = badWordQuantities(s, groundText + "\n" + userMessage);
     if (words.length) {
       problems.push(`مقدار «${words.join("، ")}» در داده‌های کاربر نیست و نباید خودت مقدار بسازی: «${s.trim().slice(0, 100)}»`);
+      badSentences.push(s);
+      continue;
+    }
+    const purchase = badPurchaseSuggestion(s, profile);
+    if (purchase) {
+      problems.push(`${purchase}: «${s.trim().slice(0, 100)}»`);
       badSentences.push(s);
       continue;
     }
@@ -423,7 +481,7 @@ export function validateExtraction(text, amount, changes, profile) {
   // for those) — but if the text plainly names an asset class or a money amount, an empty result is far more likely
   // a failed/garbled extraction (seen during LLM provider outages) than a genuine "nothing to change" decision; force
   // a retry instead of silently showing an identical before/after as if nothing was wrong.
-  if (!changes?.length && t.trim().length > 5) {
+  if (!changes?.length && t.trim().length > 5 && !BUY_CAR.test(t)) { // a car is not an asset class: nothing to extract for it
     const mentionedCat = Object.keys(EXTRACT_TERMS).find((cat) => mentions(t, cat));
     if (mentionedCat || extractMoney(t).length) {
       problems.push(`متن ظاهراً یک تصمیم مالی واقعی است (اشاره به ${mentionedCat ? "«" + (CAT_NAME[mentionedCat] || mentionedCat) + "»" : "یک مبلغ"} دارد) ولی هیچ تغییری در دارایی‌ها استخراج نشد`);
