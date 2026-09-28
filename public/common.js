@@ -113,6 +113,12 @@ export async function typeWordsInto(el, text, delayMs = 28) {
 }
 
 /** Same as fillList, but reveals each list item live, word-by-word, one item after another. */
+// a list item should be a string; if a server ever lets an object through, show its text, never "[object Object]"
+function itemToText(it) {
+  if (it && typeof it === "object") return Object.values(it).filter((v) => typeof v === "string" || typeof v === "number").join(" — ");
+  return it;
+}
+
 export async function fillListLive(elId, items, delayMs = 28) {
   const el = $(elId);
   if (!el) return;
@@ -130,7 +136,7 @@ export async function fillListLive(elId, items, delayMs = 28) {
     if (liveRevealTokens.get(el) !== token) return;
     const li = document.createElement("li");
     el.appendChild(li);
-    await typeWordsInto(li, it, delayMs);
+    await typeWordsInto(li, itemToText(it), delayMs);
   }
 }
 

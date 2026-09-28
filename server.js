@@ -189,6 +189,29 @@ const GOOD_NEWS = /(کافی\s*است|کمبودی[^.]{0,20}(نمی|نیست)|م
 const NO_TEXT_NOTE = "توضیح متنی هوش مصنوعی الان در دسترس نیست؛ اعداد و نمودارها از موتورهای محاسباتی آمده‌اند و معتبرند. چند دقیقه بعد دوباره تحلیل را اجرا کنید.";
 const GROUNDING_ATTEMPTS = 3;
 const GROUNDING_DEADLINE_MS = 40000; // a page must never hang for minutes on retries
+// Keys whose schema is [string]. A model sometimes answers such a list with objects ({title, benefit, cost}), which the
+// page then rendered as "[object Object]"; flatten each object into one Persian sentence instead.
+const STRING_LIST_KEYS = new Set(["strengths", "weaknesses", "suggestions", "reasons", "behavioralFactors", "warnings", "suggestedPath", "risks", "reasoning", "pros", "cons"]);
+function objectToSentence(o) {
+  const parts = Object.values(o)
+    .flatMap((v) => (Array.isArray(v) ? v : [v]))
+    .map((v) => (v && typeof v === "object" ? objectToSentence(v) : v))
+    .filter((v) => (typeof v === "string" && v.trim()) || typeof v === "number")
+    .map((v) => String(v).trim());
+  return parts.join(" — ");
+}
+function normalizeStringLists(node) {
+  if (Array.isArray(node)) return node.map(normalizeStringLists);
+  if (!node || typeof node !== "object") return node;
+  const out = {};
+  for (const [k, v] of Object.entries(node)) {
+    out[k] = STRING_LIST_KEYS.has(k) && Array.isArray(v)
+      ? v.map((it) => (it && typeof it === "object" ? objectToSentence(it) : it)).filter((it) => typeof it !== "string" || it.trim())
+      : normalizeStringLists(v);
+  }
+  return out;
+}
+
 async function groundedJSON(prompt, profile, { effort = "medium", checkCategories = true, goalFeasible, fallback } = {}) {
   const started = Date.now();
   let feedback = "";
@@ -197,7 +220,7 @@ async function groundedJSON(prompt, profile, { effort = "medium", checkCategorie
   for (let i = 0; i < GROUNDING_ATTEMPTS; i++) {
     let result;
     try {
-      result = await callLLMJSON(prompt + feedback, { effort, deadlineMs: Math.max(15000, 55000 - (Date.now() - started)) });
+      result = normalizeStringLists(await callLLMJSON(prompt + feedback, { effort, deadlineMs: Math.max(15000, 55000 - (Date.now() - started)) }));
     } catch (err) {
       if (last) break; // an earlier answer exists: clean it up below instead of failing
       if (!fallback) throw err;
