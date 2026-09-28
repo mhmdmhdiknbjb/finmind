@@ -48,6 +48,7 @@ function renderCompareResult(data) {
   const b = data.before || {};
   $("compareBeforeTotal").textContent = formatToman(b.totalAssets);
   $("compareBeforeRisk").textContent = `${Math.round(b.riskScore ?? 0)} از ۱۰۰`;
+  $("compareBeforeReturn").textContent = formatPercent(b.expectedReturnPercent);
   $("compareBeforeLiquid").textContent = formatPercent(b.liquidPercent);
 
   const grid = $("compareGrid");
@@ -58,6 +59,7 @@ function renderCompareResult(data) {
     block.innerHTML = o.feasible
       ? `<h4>${o.label || `گزینه ${i + 1}`}</h4>
          <div class="compare-row"><span>ریسک</span><b>${Math.round(o.riskScore ?? 0)} از ۱۰۰</b></div>
+         <div class="compare-row"><span>بازده مورد انتظار</span><b>${formatPercent(o.expectedReturnPercent)}</b></div>
          <div class="compare-row"><span>نقد سریع</span><b>${formatPercent(o.liquidPercent)}</b></div>
          <p class="compare-fit"></p>
          <b class="tag-pos" style="font-size:12px;">مزایا</b><ul class="pros-list"></ul>

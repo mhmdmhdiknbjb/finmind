@@ -701,6 +701,27 @@ app.post(
   })
 );
 
+const pct1 = (x) => Math.round(x * 1000) / 10; // 0.2834 -> 28.3
+
+/** Pros/cons for one option, written by the server from the engine deltas (before -> after), so a risk increase can
+ * never be listed as an advantage or a liquidity drop as a benefit — the model used to get that backwards. */
+function compareFacts(before, after, topWeight) {
+  const pros = [];
+  const cons = [];
+  const dRisk = after.riskScore - before.riskScore;
+  const dLiq = after.liquidPercent - before.liquidPercent;
+  const dRet = after.expectedReturnPercent - before.expectedReturnPercent;
+  if (dRisk <= -2) pros.push(`ریسک سبد از ${before.riskScore} به ${after.riskScore} (از ۱۰۰) کم می‌شود.`);
+  else if (dRisk >= 2) cons.push(`ریسک سبد از ${before.riskScore} به ${after.riskScore} (از ۱۰۰) بیشتر می‌شود.`);
+  if (dRet >= 0.5) pros.push(`بازده مورد انتظار سالانه (برآورد مدل) از ${before.expectedReturnPercent}٪ به ${after.expectedReturnPercent}٪ می‌رسد.`);
+  else if (dRet <= -0.5) cons.push(`بازده مورد انتظار سالانه (برآورد مدل) از ${before.expectedReturnPercent}٪ به ${after.expectedReturnPercent}٪ کم می‌شود.`);
+  if (dLiq >= 3) pros.push(`نقدینگی سریع از ${before.liquidPercent}٪ به ${after.liquidPercent}٪ بیشتر می‌شود.`);
+  else if (dLiq <= -3) cons.push(`نقدینگی سریع از ${before.liquidPercent}٪ به ${after.liquidPercent}٪ کم می‌شود.`);
+  if (topWeight >= 0.6) cons.push(`حدود ${Math.round(topWeight * 100)}٪ سبد در یک دسته‌ی دارایی متمرکز می‌شود.`);
+  if (!pros.length && !cons.length) pros.push("تغییر محسوسی در ریسک، بازده و نقدینگی سبد ایجاد نمی‌کند.");
+  return { pros, cons };
+}
+
 // Per-option version of the extract+validate retry loop the single-decision route above already runs, so one
 // option's model hiccup (or an amount/asset it doesn't hold) doesn't sink the whole comparison — other options
 // still get computed; this one is just marked infeasible with the same message style already used above.
@@ -743,7 +764,17 @@ app.post(
     const { profile: beforeForOpt } = profileWithEffectiveRisk(req.userId, profile);
     const beforeOptimized = optimizePortfolio(beforeForOpt);
     const beforeLiquidity = computeLiquidity(profile);
-    const before = { totalAssets: beforeOptimized.current.total, riskScore: beforeOptimized.current.riskScore, liquidPercent: beforeLiquidity.liquidPercent };
+    const before = {
+      totalAssets: beforeOptimized.current.total,
+      riskScore: beforeOptimized.current.riskScore,
+      liquidPercent: beforeLiquidity.liquidPercent,
+      expectedReturnPercent: pct1(beforeOptimized.current.expectedReturn),
+    };
+    // Ranking uses the optimizer's OWN objective (mean-variance utility with the same objective-adjusted lambda and
+    // liquidity floor it uses for the suggested portfolio), so "best for this user" means exactly what the rest of the
+    // app already means by it — max_return weighs return more, capital_preservation weighs risk more, etc.
+    const { riskAversion: lambda, requiredLiquidFraction: reqLiq } = beforeOptimized.params;
+    const utilityOf = (stats) => stats.expectedReturn - 0.5 * lambda * stats.volatility ** 2 - 3 * Math.max(0, reqLiq - stats.liquidityPercent / 100);
 
     // Step 1: per-option extraction + overdrawn check, independent of one another (see extractOptionForCompare).
     const computedOptions = [];
@@ -769,25 +800,42 @@ app.post(
       const { profile: afterForOpt } = profileWithEffectiveRisk(req.userId, afterProfile);
       const afterOptimized = optimizePortfolio(afterForOpt);
       const afterLiquidity = computeLiquidity(afterProfile);
+      const after = {
+        totalAssets: afterOptimized.current.total,
+        riskScore: afterOptimized.current.riskScore,
+        liquidPercent: afterLiquidity.liquidPercent,
+        expectedReturnPercent: pct1(afterOptimized.current.expectedReturn),
+      };
+      const topWeight = Math.max(...Object.values(afterOptimized.current.weights || {}).map(Number).filter(Number.isFinite), 0);
       computedOptions.push({
         label,
         feasible: true,
         infeasibleReason: null,
-        riskScore: afterOptimized.current.riskScore,
-        liquidPercent: afterLiquidity.liquidPercent,
-        totalAssets: afterOptimized.current.total,
+        ...after,
+        utility: utilityOf(afterOptimized.current),
+        ...compareFacts(before, after, topWeight),
       });
     }
 
+    // Deterministic order: feasible options by descending utility, infeasible ones last.
+    const ranking = computedOptions
+      .map((_, i) => i)
+      .sort((a, b) => {
+        const oa = computedOptions[a];
+        const ob = computedOptions[b];
+        if (oa.feasible !== ob.feasible) return oa.feasible ? -1 : 1;
+        return (ob.utility ?? 0) - (oa.utility ?? 0);
+      });
+
     // Step 2: LLM only narrates/ranks/recommends based on the numbers computed above.
-    const rawExplanation = await groundedJSON(promptDecisionCompare(profile, before, computedOptions), profile, {
+    const rawExplanation = await groundedJSON(promptDecisionCompare(profile, before, computedOptions, ranking), profile, {
       checkCategories: false,
       fallback: () => fallbackCompare(computedOptions),
     });
     const explanation = enforceGoalMarginFraming(rawExplanation, profile);
 
-    // riskScore/liquidPercent/feasible/infeasibleReason are SERVER-AUTHORITATIVE: whatever the model returned for
-    // these fields is discarded here, closing the loop against any LLM-invented number reaching the user.
+    // Everything numeric AND the pros/cons/ranking are server-computed; the model only contributes the per-option
+    // objective-fit sentence, the recommendation and the reasoning (all grounded above).
     const llmOptions = Array.isArray(explanation.options) ? explanation.options : [];
     const options = computedOptions.map((c, i) => {
       const llm = llmOptions[i] || {};
@@ -797,39 +845,26 @@ app.post(
         infeasibleReason: c.infeasibleReason,
         riskScore: c.riskScore,
         liquidPercent: c.liquidPercent,
-        pros: c.feasible && Array.isArray(llm.pros) ? llm.pros : [],
-        cons: c.feasible && Array.isArray(llm.cons) ? llm.cons : [],
-        fitWithObjective: c.feasible ? llm.fitWithObjective || "" : "",
+        expectedReturnPercent: c.expectedReturnPercent ?? null,
+        pros: c.feasible ? c.pros : [],
+        cons: c.feasible ? c.cons : [],
+        fitWithObjective: c.feasible ? (typeof llm.fitWithObjective === "string" ? llm.fitWithObjective : "") : "",
       };
     });
-
-    // A valid ranking must be a permutation covering every option exactly once — anything else (empty, short,
-    // duplicate indices) was seen from a confused model even when every option itself was correctly computed, and
-    // rendered as a blank line instead of a defensible order. Fall back to a fixed rule: feasible options first
-    // (lower risk first), infeasible ones last — never leave the user with no order at all.
-    const isValidRanking = Array.isArray(explanation.ranking) && new Set(explanation.ranking).size === options.length && options.every((_, i) => explanation.ranking.includes(i));
-    const defaultRanking = options
-      .map((o, i) => i)
-      .sort((a, b) => {
-        const oa = options[a];
-        const ob = options[b];
-        if (oa.feasible !== ob.feasible) return oa.feasible ? -1 : 1;
-        return (oa.riskScore ?? 999) - (ob.riskScore ?? 999);
-      });
 
     // seen once: the model claimed "no actionable option" in `recommendation` while every option was actually
     // feasible:true with real numbers — a narrative contradiction of the server's own computed facts, not a made-up
     // number, so validateText's grounding check doesn't catch it. Override only that specific contradiction.
     const anyFeasible = options.some((o) => o.feasible);
-    const claimsNoneFeasible = /(قابل[‌\s]اجرا\s*(نیستند|نیست)|هیچ[‌\s]?(گزینه|کدام)[^.]{0,30}(عملیاتی|قابل|وجود\s*ندارد)|امکان[^.]{0,20}توصیه[^.]{0,15}وجود\s*ندارد)/.test(explanation.recommendation || "");
+    const claimsNoneFeasible = /(\u0642\u0627\u0628\u0644[\u200C\s]\u0627\u062C\u0631\u0627\s*(\u0646\u06CC\u0633\u062A\u0646\u062F|\u0646\u06CC\u0633\u062A)|\u0647\u06CC\u0686[\u200C\s]?(\u06AF\u0632\u06CC\u0646\u0647|\u06A9\u062F\u0627\u0645)[^.]{0,30}(\u0639\u0645\u0644\u06CC\u0627\u062A\u06CC|\u0642\u0627\u0628\u0644|\u0648\u062C\u0648\u062F\s*\u0646\u062F\u0627\u0631\u062F)|\u0627\u0645\u06A9\u0627\u0646[^.]{0,20}\u062A\u0648\u0635\u06CC\u0647[^.]{0,15}\u0648\u062C\u0648\u062F\s*\u0646\u062F\u0627\u0631\u062F)/.test(explanation.recommendation || "");
     const recommendation = anyFeasible && claimsNoneFeasible
-      ? `گزینه‌ی «${options[defaultRanking[0]].label}» بر اساس ریسک و نقدینگی محاسبه‌شده، در حال حاضر با وضعیت شما سازگارتر به نظر می‌رسد؛ برای جزئیات به دلایل زیر نگاه کن.`
+      ? `گزینه‌ی «${options[ranking[0]].label}» بر اساس بازده، ریسک و نقدینگی محاسبه‌شده، با هدف و ریسک‌پذیری شما سازگارتر است.`
       : explanation.recommendation || "";
 
     res.json({
       before,
       options,
-      ranking: isValidRanking ? explanation.ranking : defaultRanking,
+      ranking,
       recommendation,
       reasoning: Array.isArray(explanation.reasoning) ? explanation.reasoning : [],
     });

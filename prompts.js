@@ -443,39 +443,39 @@ ${decision.amount ? `مبلغ مرتبط: ${fmtNum(decision.amount)} تومان`
 }
 
 /**
- * Multi-option decision comparison (2-5 hypothetical decisions at once). `before` and each feasible
- * option's `riskScore`/`liquidPercent` are computed by the SAME optimizer.js/liquidityEngine.js pipeline
- * as the single-decision widget (server.js's /api/widgets/decision-compare) — the model is only asked for
- * pros/cons/fitWithObjective/ranking/recommendation/reasoning; it must NOT restate or recompute riskScore/
- * liquidPercent. The server overwrites those two fields on the final response regardless of what JSON the
- * model returns (see server.js), so this is a hard guarantee against an LLM-invented number, not just an
- * instruction the model could ignore.
+ * Multi-option decision comparison (2-5 hypothetical decisions at once). Every number (risk, liquidity, expected
+ * return), the pros/cons lists AND the ranking are computed by server.js from the same optimizer.js /
+ * liquidityEngine.js pipeline as the single-decision widget; the model only writes one objective-fit sentence per
+ * option, a one-sentence recommendation that must agree with the computed ranking, and short reasoning. The server
+ * ignores any number or order the model returns.
  */
-export function promptDecisionCompare(profile, before, options) {
+export function promptDecisionCompare(profile, before, options, ranking = []) {
   const optionLines = options
     .map((o, i) =>
       o.feasible
-        ? `${i + 1}. «${o.label}» — بعد از این تصمیم: کل دارایی ${fmtNum(o.totalAssets)} تومان | ریسک ${o.riskScore} از ۱۰۰ | نقدینگی سریع ${o.liquidPercent}٪`
+        ? `${i + 1}. «${o.label}» — بعد از این تصمیم: ریسک ${o.riskScore} از ۱۰۰ | بازده مورد انتظار سالانه (برآورد مدل) ${o.expectedReturnPercent}٪ | نقدینگی سریع ${o.liquidPercent}٪ | مزایا: ${o.pros.join(" ") || "—"} | معایب: ${o.cons.join(" ") || "—"}`
         : `${i + 1}. «${o.label}» — غیرقابل‌اجرا: ${o.infeasibleReason}`
     )
     .join("\n");
+  const rankText = ranking.length ? ranking.map((i) => `${i + 1}`).join(" ← ") : "—";
 
   return `${SYSTEM_PREAMBLE}
 
 ${buildProfileContext(profile)}
 
-### وضعیت فعلی قبل از هر ${options.length} گزینه (محاسبه‌شده با همان موتور بهینه‌سازی پرتفوی و موتور نقدشوندگی که در صفحات ریسک‌سنجی و نقدینگی استفاده می‌شوند — عیناً همین اعداد را در پاسخت به‌کار ببر)
-کل دارایی ${fmtNum(before.totalAssets)} تومان | ریسک ${before.riskScore} از ۱۰۰ | نقدینگی سریع ${before.liquidPercent}٪
+### وضعیت فعلی قبل از هر گزینه (محاسبه‌شده با همان موتورهای صفحات ریسک‌سنجی و نقدینگی — عیناً همین اعداد را به‌کار ببر)
+ریسک ${before.riskScore} از ۱۰۰ | بازده مورد انتظار سالانه (برآورد مدل) ${before.expectedReturnPercent}٪ | نقدینگی سریع ${before.liquidPercent}٪
 
-### گزینه‌های فرضی مورد مقایسه (بعد از هر گزینه، محاسبه‌شده با همان موتورها — عدد جدیدی برایشان نساز، فقط توضیح بده)
+### گزینه‌های مورد مقایسه (اعداد، مزایا و معایب را موتور محاسبه کرده؛ هیچ عدد یا مزیت/عیب جدیدی نساز)
 ${optionLines}
 
+### ترتیب تناسب محاسبه‌شده (بهترین تا بدترین، بر پایه‌ی تابع مطلوبیت میانگین-واریانس با ریسک‌گریزی و هدف این کاربر): ${rankText}
+
 ### وظیفه
-برای هر گزینه (چه قابل‌اجرا چه نه) دقیقاً یک آیتم در آرایه‌ی options بگذار، به همان ترتیب شماره‌گذاری بالا. برای گزینه‌های غیرقابل‌اجرا فقط feasible=false و infeasibleReason (بازنویسی‌شده از متن بالا) را بگذار؛ riskScore و liquidPercent را null بگذار و pros/cons را آرایه‌ی خالی و fitWithObjective را رشته‌ی خالی بگذار — چیزی درباره‌ی عددی که برایش محاسبه نشده نساز.
-برای گزینه‌های قابل‌اجرا: pros و cons را فقط بر اساس تغییر ریسک/نقدینگی/کل دارایی نسبت به «وضعیت فعلی» بالا بنویس (نه حدس)، و fitWithObjective را با ارجاع مستقیم به «هدف اصلی سرمایه‌گذاری اعلامی کاربر» در پروفایل بالا بنویس — اگر گزینه‌ای آشکارا با آن هدف در تضاد است (مثلاً هدف «حفظ اصل سرمایه» ولی این گزینه ریسک را به‌وضوح بالا می‌برد)، این تضاد را صریح بنویس، پنهانش نکن.
-فیلد ranking آرایه‌ای از ایندکس‌های گزینه‌ها (شروع از ۰) است، از بهترین به بدترین تناسب با ریسک/نقدینگی/اهداف/هدف سرمایه‌گذاری کاربر؛ گزینه‌های غیرقابل‌اجرا همیشه بعد از همه‌ی گزینه‌های قابل‌اجرا بیایند. recommendation یک جمله‌ی کوتاه فارسی است که می‌گوید کدام گزینه با وضعیت این کاربر سازگارتر است و چرا — این توصیه‌ی معامله نیست، فقط ارزیابی تناسب است. در reasoning فقط دلیل‌های تحلیلی بنویس، نه دستور معامله یا مقدار جایگزین.${jsonInstruction(`{
-  "options": [{ "label": string, "feasible": boolean, "infeasibleReason": string or null, "riskScore": number or null, "liquidPercent": number or null, "pros": [string], "cons": [string], "fitWithObjective": string }],
-  "ranking": [number],
+1. برای هر گزینه دقیقاً یک آیتم در options و به همان ترتیب شماره‌گذاری بالا بگذار. fitWithObjective یک یا دو جمله است که می‌گوید این گزینه چطور با «هدف اصلی سرمایه‌گذاری اعلامی کاربر» و «میزان ریسک‌پذیری اعلامی» او جور است. اگر آن دو با هم تفاوت دارند (مثلاً هدف حداکثر بازدهی ولی ریسک‌پذیری پایین) همین را یک‌بار صریح بگو. فقط به اعداد و مزایا/معایب بالا تکیه کن؛ کاهش ریسک را «کاهش بازدهی» و افزایش ریسک را «مزیت» جلوه نده. برای گزینه‌ی غیرقابل‌اجرا fitWithObjective را رشته‌ی خالی بگذار.
+2. recommendation یک جمله‌ی کوتاه است که گزینه‌ی اول «ترتیب تناسب محاسبه‌شده» را به‌عنوان سازگارترین معرفی می‌کند و دلیلش را با همان اعداد می‌گوید؛ نباید با آن ترتیب مخالف باشد و نباید بگوید گزینه‌ی قابل‌اجرایی نیست وقتی هست. این توصیه‌ی معامله نیست.
+3. reasoning دلیل‌های تحلیلی کوتاه است (بدون دستور معامله).${jsonInstruction(`{
+  "options": [{ "fitWithObjective": string }],
   "recommendation": string,
   "reasoning": [string]
 }`)}`;
