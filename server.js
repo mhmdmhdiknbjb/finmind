@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { PORT } from "./config.js";
 import { loadProfile, saveProfile } from "./store.js";
 import { callLLM, callLLMJSON } from "./llm.js";
-import { validateExtraction, overdrawn, overdrawnMessage, enforceGoalMarginFraming, answersQuestion, validateText, collectStrings, stripBadSentences, answerFactual, fallbackReply } from "./grounding.js";
+import { validateExtraction, validateShockExtraction, overdrawn, overdrawnMessage, enforceGoalMarginFraming, answersQuestion, validateText, collectStrings, stripBadSentences, answerFactual, fallbackReply } from "./grounding.js";
 import {
   promptAssets,
   promptRisk,
@@ -575,7 +575,11 @@ app.post(
       const extraction = await tryCallLLMJSON(promptScenarioExtract(scenario.description || scenario.title || ""), {
         effort: "low",
       });
-      if (extraction?.shocks && Object.keys(extraction.shocks).length) {
+      // the SIZE of a shock is a number the engine simulates with, so it may not be the model's: it must be a percentage the
+      // user wrote for an asset class the user named, otherwise no engine run (qualitative, number-free answer below)
+      const shockProblems = extraction?.shocks ? validateShockExtraction(scenario.description || scenario.title || "", extraction.shocks) : [];
+      if (shockProblems.length) console.warn("[scenario] shock extraction rejected:", shockProblems.join(" | "));
+      if (extraction?.shocks && Object.keys(extraction.shocks).length && !shockProblems.length) {
         shocks = extraction.shocks;
         scenarioTitle = extraction.scenarioTitle || scenarioTitle;
       }
@@ -618,7 +622,15 @@ app.post(
         fallback: () => ({ scenarioTitle: scenario.title || "", impactByAsset: [], totalPortfolioChangePercent: null, totalPortfolioChangeAmount: null, explanation: NO_TEXT_NOTE, recommendation: "" }),
       });
       logInteraction(req.userId, "scenario_run", { scenarioTitle, engine: "qualitative_llm" });
-      res.json(result);
+      // no engine ran for this scenario, so no number is shown for it — whatever the model put in the numeric fields is discarded
+      res.json({
+        scenarioTitle: result.scenarioTitle || scenario.title || "",
+        impactByAsset: [],
+        totalPortfolioChangePercent: null,
+        totalPortfolioChangeAmount: null,
+        explanation: result.explanation || "",
+        recommendation: result.recommendation || "",
+      });
     }
   })
 );

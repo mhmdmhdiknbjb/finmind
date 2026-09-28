@@ -114,13 +114,27 @@ export function badNumbers(text, allowed) {
   return extractMoney(text).filter((v) => !near(v, allowed));
 }
 
-/** Percentages above 100 that are not in the grounded data (a corrupted "94.5٪" arrives as "945٪"). */
+// Quantities said in WORDS are numbers too («به نصف می‌رسد», «دو برابر»): the model may only use one if the same
+// phrase already appears in the grounded data (e.g. the user's own text).
+const WORD_QUANTITY = /(نصف|نیمی\s+از|(?:دو|سه|چهار|پنج|چند|ده)\s*برابر|یک[‌\s]?(?:سوم|چهارم|پنجم)|دو[‌\s]?سوم|\d+\s*برابر)/g;
+function badWordQuantities(text, groundText) {
+  const ground = normDigits(groundText);
+  return [...normDigits(text).matchAll(WORD_QUANTITY)].map((m) => m[1]).filter((q) => !ground.includes(q));
+}
+
+/**
+ * Percentages that are not in the grounded data — ANY percentage, not just ones above 100 (the model may not produce
+ * a number of its own: no "at least 20% cash", no invented shares). A value may differ from a grounded one only by
+ * rounding (30.1 -> 30). NOTE: this regex used to read `d+(?:.d+)?` (the backslashes were lost when the file was
+ * first written), so it matched the letter "d" and never checked anything.
+ */
 function badPercents(text, groundText) {
-  const ground = new Set((normDigits(groundText).match(/d+(?:.d+)?/g) || []).map(Number));
+  const numRe = /\d+(?:\.\d+)?/g;
+  const ground = (normDigits(groundText).match(numRe) || []).map(Number);
   const out = [];
-  for (const m of normDigits(text).matchAll(/(d+(?:.d+)?)s*(?:٪|%|درصد)/g)) {
+  for (const m of normDigits(text).matchAll(/(\d+(?:\.\d+)?)\s*(?:٪|%|درصد)/g)) {
     const v = parseFloat(m[1]);
-    if (v > 100 && ![...ground].some((g) => Math.abs(g - v) < 0.6)) out.push(v);
+    if (!ground.some((g) => Math.abs(g - v) < 0.6)) out.push(v);
   }
   return out;
 }
@@ -203,9 +217,15 @@ export function validateText(text, { profile, groundText, userMessage = "", extr
       badSentences.push(s);
       continue;
     }
-    const pcts = badPercents(s, groundText);
+    const pcts = badPercents(s, groundText + "\n" + userMessage);
     if (pcts.length) {
       problems.push(`درصد نامعتبر ${pcts.join("، ")}٪: «${s.trim().slice(0, 100)}»`);
+      badSentences.push(s);
+      continue;
+    }
+    const words = badWordQuantities(s, groundText + "\n" + userMessage);
+    if (words.length) {
+      problems.push(`مقدار «${words.join("، ")}» در داده‌های کاربر نیست و نباید خودت مقدار بسازی: «${s.trim().slice(0, 100)}»`);
       badSentences.push(s);
       continue;
     }
@@ -360,6 +380,26 @@ function mentions(text, cat) {
     const suffixes = endsInVowel ? VOWEL_SUFFIXES : CONSONANT_SUFFIXES;
     return new RegExp(`(?<![\u0600-\u06FF])${t}(?:(?![\u0600-\u06FF])|${suffixes})`).test(text);
   });
+}
+
+/**
+ * The scenario widget's free-text -> price-shock step is a model call too, and the size of a shock is a number the
+ * engine then simulates with — so it may not be the model's own. A shock is accepted only when its asset class is named
+ * in the user's text AND its size equals a percentage the user actually wrote ("دلار ۳۰٪ رشد کند" -> currency 0.3).
+ * "Inflation 100%" / "rates up" name no class and no price move, so they yield problems (=> no engine run with an
+ * invented magnitude; the caller falls back to the qualitative, number-free explanation).
+ */
+export function validateShockExtraction(text, shocks) {
+  const t = String(text || "");
+  const problems = [];
+  const stated = [...normDigits(t).matchAll(/(\d+(?:\.\d+)?)\s*(?:٪|%|درصد)/g)].map((m) => parseFloat(m[1]) / 100);
+  for (const [cat, raw] of Object.entries(shocks || {})) {
+    const v = Math.abs(num(raw));
+    if (!v) continue;
+    if (!mentions(t, cat)) problems.push(`دسته‌ی «${CAT_NAME[cat] || cat}» در متن کاربر نیامده است`);
+    else if (!stated.some((s) => Math.abs(s - v) <= 0.006)) problems.push(`اندازه‌ی شوک ${Math.round(v * 1000) / 10}٪ در متن کاربر نیامده است`);
+  }
+  return problems;
 }
 
 // "کل"/"همه"/"تمام" (ALL of a holding) is the one relative wording whose intended amount IS verifiable — it must be
