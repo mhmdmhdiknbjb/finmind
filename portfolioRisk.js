@@ -1,5 +1,6 @@
 import { getMarketPack, seriesArrays, PPY } from "./marketData.js";
 import { kindOf } from "./public/assetCatalog.js";
+import { erosionRates } from "./cashErosion.js";
 
 /**
  * Dispersion (diversification) + risk engine.
@@ -438,7 +439,10 @@ export function analyzePortfolio(holdings, profile = {}) {
     },
     liquidity: { liquidityScore, emergencyMonths },
     risk: { sleeve: past, wealthVol1y: wealthVol, riskScore, riskLevel: riskLevelFromScore(riskScore), composite },
-    cashErosion: { cashShareXUsd1y: (w.cash_deposit || 0) * reg.usd_ret_52w, cashShareXGold1y: (w.cash_deposit || 0) * reg.gold_ret_52w },
+    cashErosion: (() => {
+      const er = erosionRates(reg) || { usd: NaN, gold: NaN }; // shared with liquidityEngine.js's excess-cash opportunity cost
+      return { cashShareXUsd1y: (w.cash_deposit || 0) * er.usd, cashShareXGold1y: (w.cash_deposit || 0) * er.gold };
+    })(),
     forward,
     marketContext: {
       usdRet13w: reg.usd_ret_13w, usdRet52w: reg.usd_ret_52w, goldRet52w: reg.gold_ret_52w, tedpixRet52w: reg.tedpix_ret_52w,

@@ -1,5 +1,6 @@
 import { ASSET_ORDER, ASSET_STATS, currentWeights } from "./optimizer.js";
 import { ASSET_KINDS } from "./public/assetCatalog.js";
+import { cashOpportunityCost } from "./cashErosion.js";
 
 /**
  * Deterministic liquidity classification.
@@ -31,6 +32,36 @@ const TIER_BY_CATEGORY = {
   collectibles: { tier: "illiquid", monthsToLiquidate: 6, note: "کالاهای کلکسیونی و تجهیزات باید خریدار پیدا کنند؛ قیمت فروش نامطمئن است" },
   receivable: { tier: "illiquid", monthsToLiquidate: 6, note: "زمان وصول طلب، چک یا ودیعه به طرف مقابل بستگی دارد" },
 };
+
+/**
+ * Personalised emergency-buffer length, in months of expenses. It used to be a flat 3 for everyone; it now reflects how
+ * unstable this household's income and how heavy its obligations are (same "transparent, additive, clamped" pattern as
+ * optimizer.js's riskAversionFromTolerance):
+ *   base                                            3 months
+ *   irregular income (freelance / self-employed /
+ *     business owner)                               +2
+ *   retired or unemployed                           +1
+ *   each child                                      +0.5 (children add at most +1.5 in total)
+ *   any current debt / instalment                   +1
+ *   final value clamped to [3, 9] months
+ * Returns the months AND the factors that were active, so the page and the LLM can say WHY this user's number differs
+ * from someone else's — the model only narrates this, it never derives it.
+ */
+export const BUFFER_BASE_MONTHS = 3;
+export const BUFFER_MIN_MONTHS = 3;
+export const BUFFER_MAX_MONTHS = 9;
+
+export function recommendedBufferMonths(profile) {
+  const factors = [];
+  const job = String(profile?.personal?.employmentType || "");
+  if (/آزاد|فریلنسر|کارفرما/.test(job)) factors.push({ key: "irregular_income", label: `درآمد نامنظم (${job})`, addMonths: 2 });
+  else if (/بازنشسته|بیکار/.test(job)) factors.push({ key: "no_salary", label: `بدون حقوق ثابت (${job})`, addMonths: 1 });
+  const children = Math.max(0, Math.floor(Number(profile?.personal?.childrenCount) || 0));
+  if (children > 0) factors.push({ key: "children", label: `${children} فرزند`, addMonths: Math.min(1.5, children * 0.5) });
+  if ((Number(profile?.existingDebt) || 0) > 0) factors.push({ key: "debt", label: "بدهی یا قسط فعلی", addMonths: 1 });
+  const raw = BUFFER_BASE_MONTHS + factors.reduce((sum, f) => sum + f.addMonths, 0);
+  return { months: clamp(raw, BUFFER_MIN_MONTHS, BUFFER_MAX_MONTHS), baseMonths: BUFFER_BASE_MONTHS, factors, cappedAtMax: raw > BUFFER_MAX_MONTHS };
+}
 
 function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
@@ -70,8 +101,15 @@ export function computeLiquidity(profile) {
   }
 
   const monthlyExpenses = Number(profile.monthlyExpenses) || 0;
-  const recommendedBuffer = monthlyExpenses * 3;
+  const buffer = recommendedBufferMonths(profile);
+  const recommendedBuffer = Math.round(monthlyExpenses * buffer.months);
   const shortfall = recommendedBuffer > 0 ? Math.max(0, recommendedBuffer - byPeriod.immediate) : 0;
+  // how many months of expenses the immediately available money covers (null when expenses are unknown: no division by 0)
+  const runwayMonths = monthlyExpenses > 0 ? Math.round((byPeriod.immediate / monthlyExpenses) * 10) / 10 : null;
+  // Money above the buffer that is plain rial cash keeps losing purchasing power (see cashErosion.js). Only rial cash
+  // erodes — dollars/funds inside the immediate bucket are not idle in that sense — so the excess is capped by the cash
+  // held: min(cash, immediate - buffer).
+  const excessCash = recommendedBuffer > 0 ? Math.max(0, Math.min(amounts.cash || 0, byPeriod.immediate - recommendedBuffer)) : 0;
 
   return {
     total,
@@ -86,6 +124,14 @@ export function computeLiquidity(profile) {
       oneYear: Math.round(byPeriod.oneYear),
     },
     recommendedBuffer,
+    recommendedBufferMonths: buffer.months,
+    bufferBaseMonths: buffer.baseMonths,
+    bufferFactors: buffer.factors,
+    bufferCappedAtMax: buffer.cappedAtMax,
+    runwayMonths,
     shortfall: Math.round(shortfall),
+    cashAmount: Math.round(amounts.cash || 0),
+    excessCash: Math.round(excessCash),
+    excessCashOpportunityCost: cashOpportunityCost(excessCash),
   };
 }

@@ -26,6 +26,7 @@ import {
 import { optimizePortfolio, ASSET_ORDER } from "./optimizer.js";
 import { evaluateGoal } from "./goalEngine.js";
 import { computeLiquidity } from "./liquidityEngine.js";
+import { computeLiquidityAnalysis } from "./liquidityGoalOverlap.js";
 import { simulateShock } from "./monteCarlo.js";
 import { resolveProfileAssets, getLiveRates, applyAssetChanges, normalizeExtractedAssets } from "./assetPricing.js";
 import { logEvent, effectiveRiskTolerance, getBehaviorState, getEmotionalEvents, acknowledgeEvent } from "./behaviorStore.js";
@@ -187,6 +188,9 @@ function logDecisionExtraction(userId, entry) {
 
 const GOOD_NEWS = /(کافی\s*است|کمبودی[^.]{0,20}(نمی|نیست)|مشکلی[^.]{0,15}(ندارد|نیست)|مناسب\s*است|کفایت\s*دارد)/;
 const NO_TEXT_NOTE = "توضیح متنی هوش مصنوعی الان در دسترس نیست؛ اعداد و نمودارها از موتورهای محاسباتی آمده‌اند و معتبرند. چند دقیقه بعد دوباره تحلیل را اجرا کنید.";
+// the engine says the emergency buffer is covered (no shortfall, near goals leave it intact): a warning claiming the
+// opposite is a narrative contradiction of the computed facts, so it is not shown
+const contradictsCoveredBuffer = (w, c) => c.shortfall === 0 && c.goalOverlap?.bufferStillCovered !== false && /(کمتر از[^.]{0,40}(ذخیره|نیاز)|کمبود|کافی\s*نیست|ناکافی)/.test(w);
 const GROUNDING_ATTEMPTS = 3;
 const GROUNDING_DEADLINE_MS = 40000; // a page must never hang for minutes on retries
 // Keys whose schema is [string]. A model sometimes answers such a list with objects ({title, benefit, cost}), which the
@@ -523,7 +527,7 @@ app.post(
   handleAsync(async (req, res) => {
     const result = await withSnapshot(req.userId, "liquidity", !!req.body?.force, async () => {
       const profile = await loadResolvedProfile(req.userId, { refresh: !!req.body?.force });
-      const computed = computeLiquidity(profile);
+      const computed = computeLiquidityAnalysis(profile);
       const explanation = await groundedJSON(promptLiquidity(profile, computed), profile, { fallback: () => ({ warnings: [], summary: NO_TEXT_NOTE }) });
       return {
         liquidPercent: computed.liquidPercent,
@@ -531,8 +535,19 @@ app.post(
         illiquidPercent: computed.illiquidPercent,
         availableByPeriod: computed.availableByPeriod,
         breakdown: computed.breakdown,
+        // personalised buffer, runway, near-goal overlap and idle-cash opportunity cost: all engine-computed, none from the model
+        recommendedBuffer: computed.recommendedBuffer,
+        recommendedBufferMonths: computed.recommendedBufferMonths,
+        bufferBaseMonths: computed.bufferBaseMonths,
+        bufferFactors: computed.bufferFactors,
+        bufferCappedAtMax: computed.bufferCappedAtMax,
+        runwayMonths: computed.runwayMonths,
+        shortfall: computed.shortfall,
+        excessCash: computed.excessCash,
+        excessCashOpportunityCost: computed.excessCashOpportunityCost,
+        goalOverlap: computed.goalOverlap,
         // good news the model put among the warnings (e.g. "the cash buffer is enough") is shown as a note, not as a warning
-        warnings: (explanation.warnings || []).filter((w) => !GOOD_NEWS.test(w)),
+        warnings: (explanation.warnings || []).filter((w) => !GOOD_NEWS.test(w) && !contradictsCoveredBuffer(w, computed)),
         notes: (explanation.warnings || []).filter((w) => GOOD_NEWS.test(w)),
         summary: explanation.summary,
         _degraded: explanation._degraded,

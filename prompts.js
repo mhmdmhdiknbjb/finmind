@@ -248,6 +248,25 @@ ${SELF_CHECK_INSTRUCTION}${jsonInstruction(`{
  * to "is gold liquid?" from changing between calls. The LLM only explains
  * these numbers.
  */
+/** The personalised-buffer / runway / goal-overlap / idle-cash numbers, all engine-computed (liquidityEngine.js, liquidityGoalOverlap.js, cashErosion.js). */
+function liquidityPersonalBlock(c) {
+  const factors = (c.bufferFactors || []).map((f) => `${f.label}: +${f.addMonths} ماه`).join("، ");
+  const lines = [
+    `ذخیره‌ی اضطراری توصیه‌شده‌ی شخصی این کاربر: ${c.recommendedBufferMonths} ماه هزینه = ${fmtNum(c.recommendedBuffer)} تومان (پایه ${c.bufferBaseMonths} ماه${factors ? "؛ عامل‌های فعال: " + factors : "؛ هیچ عامل افزاینده‌ای فعال نیست"}${c.bufferCappedAtMax ? "؛ به سقف مجاز رسیده" : ""})`,
+    `کمبود نسبت به وجه نقد فوری: ${fmtNum(c.shortfall)} تومان`,
+    c.runwayMonths === null ? "پوشش هزینه (runway): هزینه‌ی ماهانه نامشخص است، محاسبه نشد" : `پوشش هزینه (runway): پول فوری کاربر ${c.runwayMonths} ماه از هزینه‌هایش را پوشش می‌دهد`,
+  ];
+  const go = c.goalOverlap;
+  if (go && go.nearGoalCount > 0) {
+    if (go.conflictsWithGoals.length) {
+      lines.push(`تداخل با اهداف نزدیک (تا ۱۲ ماه): ${go.conflictsWithGoals.map((g) => `«${g.goalTitle}» (مهلت ${g.goalTargetMonths} ماه) حدود ${fmtNum(g.overlapAmount)} تومان از پول فوری را نیاز دارد`).join(" | ")} — ${go.bufferStillCovered ? "با این حال ذخیره‌ی اضطراری هنوز پوشش داده می‌شود" : "در نتیجه ذخیره‌ی اضطراری دیگر پوشش داده نمی‌شود"} (پول فوری باقی‌مانده پس از اهداف: ${fmtNum(go.immediateAfterGoals)} تومان)`);
+    } else lines.push("اهداف نزدیک (تا ۱۲ ماه) از دارایی نیمه‌نقد تأمین می‌شوند و به ذخیره‌ی اضطراری دست نمی‌زنند");
+  }
+  const oc = c.excessCashOpportunityCost;
+  if (c.excessCash > 0 && oc) lines.push(`نقد مازاد بی‌استفاده (بالاتر از ذخیره‌ی اضطراری و نیاز اهداف): ${fmtNum(c.excessCash)} تومان؛ اگر در ۵۲ هفته‌ی گذشته به‌جای نقد در دلار بود ${fmtNum(oc.vsUsd)} تومان (رشد ${oc.usdRatePercent}٪) و در طلا ${fmtNum(oc.vsGold)} تومان (رشد ${oc.goldRatePercent}٪) بیشتر می‌شد — هزینه‌ی فرصت گذشته‌نگر، نه پیش‌بینی و نه توصیه‌ی خرید`);
+  return lines.join("\n");
+}
+
 export function promptLiquidity(profile, computed) {
   const breakdownText = computed.breakdown
     .map((b) => `${categoryLabel(b.category)}: ${fmtNum(Math.round(b.amount))} تومان — دسته: ${b.tier === "liquid" ? "نقد سریع" : b.tier === "semiLiquid" ? "نیمه‌نقد" : "غیرنقد"} (${b.note})`)
@@ -262,10 +281,10 @@ ${breakdownText}
 
 نقد سریع: ${computed.liquidPercent}٪ | نیمه‌نقد: ${computed.semiLiquidPercent}٪ | غیرنقد: ${computed.illiquidPercent}٪
 پول در دسترس: فوری ${fmtNum(computed.availableByPeriod.immediate)} تومان | تا ۱ ماه ${fmtNum(computed.availableByPeriod.oneMonth)} | تا ۳ ماه ${fmtNum(computed.availableByPeriod.threeMonths)} | تا ۱ سال ${fmtNum(computed.availableByPeriod.oneYear)}
-ذخیره‌ی نقدی توصیه‌شده (۳ ماه هزینه): ${fmtNum(computed.recommendedBuffer)} تومان | کمبود نسبت به وجه نقد فوری: ${fmtNum(computed.shortfall)} تومان
+${liquidityPersonalBlock(computed)}
 
 ### وظیفه
-فقط بر اساس همین اعداد و دسته‌بندی‌های محاسبه‌شده (آن‌ها را تغییر نده)، به کاربر توضیح بده وضعیت نقدینگی‌اش چطور است. فیلد warnings فقط برای «مشکل یا خطر واقعی» است؛ اگر کمبود نقدینگی نیست (کمبود نسبت به وجه نقد فوری صفر است)، خبر خوب مثل «ذخیره‌ی نقدی کافی است» را در warnings نگذار (آن را در summary بنویس) و اگر خطر مشخصی نیست warnings را آرایه‌ی خالی بگذار. اگر «کمبود نسبت به وجه نقد فوری» بزرگ‌تر از صفر است، حتماً هشدار واضح بده و راهکارهای کلی را به‌صورت کیفی توضیح بده (مثلاً اهمیت داشتن ذخیره‌ی نقدشونده، مزیت/هزینه‌ی نگه‌داری آن) — بدون اینکه بگویی کدام دارایی را چقدر بفروشی یا بخری.${jsonInstruction(`{
+فقط بر اساس همین اعداد و دسته‌بندی‌های محاسبه‌شده (آن‌ها را تغییر نده)، به کاربر توضیح بده وضعیت نقدینگی‌اش چطور است. «ذخیره‌ی اضطراری توصیه‌شده‌ی شخصی» را با دلیلش (عامل‌های فعال) برای کاربر توضیح بده و بگو چرا با فرد دیگری فرق دارد؛ عددِ «پوشش هزینه» را برجسته بگو؛ اگر تداخل با اهداف نزدیک یا نقد مازاد بی‌استفاده در داده‌ها آمده، آن‌ها را با همان اعداد و نام هدف به زبان ساده بگو. هیچ عددی بیرون از این داده‌ها نساز. فیلد warnings فقط برای «مشکل یا خطر واقعی» است؛ اگر کمبود نقدینگی نیست (کمبود نسبت به وجه نقد فوری صفر است)، خبر خوب مثل «ذخیره‌ی نقدی کافی است» را در warnings نگذار (آن را در summary بنویس) و اگر خطر مشخصی نیست warnings را آرایه‌ی خالی بگذار. اگر «کمبود نسبت به وجه نقد فوری» بزرگ‌تر از صفر است، حتماً هشدار واضح بده و راهکارهای کلی را به‌صورت کیفی توضیح بده (مثلاً اهمیت داشتن ذخیره‌ی نقدشونده، مزیت/هزینه‌ی نگه‌داری آن) — بدون اینکه بگویی کدام دارایی را چقدر بفروشی یا بخری.${jsonInstruction(`{
   "warnings": [string],
   "summary": string
 }`)}`;

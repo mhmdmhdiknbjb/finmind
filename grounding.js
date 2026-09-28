@@ -145,18 +145,14 @@ export function extractMoney(text) {
   return out;
 }
 
-/** Money values found in the grounded text (facts, profile, engine blocks, the user's own message) + their pairwise sums/differences. */
+/**
+ * Money values found in the grounded text (facts, profile, engine blocks, the user's own message) — and NOTHING derived
+ * from them. It used to also allow every pairwise sum/difference and every ×3/×6/×12, which let the model do its own
+ * arithmetic (a liquidity answer invented "300,000,000 تومان" = 3 × a real figure and passed). Any figure a page needs
+ * (a buffer in toman, a runway, a gap) is now computed by an engine and put in the prompt as data.
+ */
 export function allowedMoney(groundText, extra = []) {
-  const base = [...new Set([...extractMoney(groundText), ...extra.map(num).filter((v) => v > 0)])].slice(0, 80);
-  const all = new Set(base);
-  for (let i = 0; i < base.length; i++)
-    for (let j = i + 1; j < base.length; j++) {
-      all.add(base[i] + base[j]);
-      all.add(Math.abs(base[i] - base[j]));
-    }
-  // one month / three months / a year of the monthly figures the user gave
-  for (const b of base) for (const k of [3, 6, 12]) all.add(b * k);
-  return [...all];
+  return [...new Set([...extractMoney(groundText), ...extra.map(num).filter((v) => v > 0)])].slice(0, 400);
 }
 
 const near = (v, allowed) => allowed.some((a) => Math.abs(v - a) <= Math.max(a * 0.015, 1000));

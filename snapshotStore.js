@@ -61,6 +61,10 @@ export function computeFingerprint(rawProfile, behaviorState) {
     monthlyExpenses: rawProfile.monthlyExpenses ?? null,
     existingDebt: rawProfile.existingDebt ?? null,
     liquidityNeedNote: rawProfile.liquidityNeedNote || "",
+    // the personalised emergency buffer (job type, children) and the near-goal overlap (goals) feed the liquidity page
+    employmentType: rawProfile.personal?.employmentType || "",
+    childrenCount: rawProfile.personal?.childrenCount ?? 0,
+    goals: (rawProfile.goals || []).map((g) => [g.title, g.targetAmount, g.targetMonths]),
     behaviorDelta: behaviorState?.delta ?? 0,
     // the risk/dispersion maths and the market data behind them: a new engine version or a refreshed
     // market pack must recompute stored results instead of serving numbers from the old method
